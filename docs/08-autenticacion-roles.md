@@ -2,7 +2,35 @@
 
 ## Descripción
 
-Integración con el SSO de la universidad para autenticación y sistema de autorización basado en roles para controlar el acceso a funcionalidades.
+Integración con el SSO de la universidad para autenticación y sistema de autorización basado en roles para controlar el acceso a funcionalidades. No se usa ASP.NET Identity; los usuarios se provisionan automáticamente a partir de los claims del JWT.
+
+## Flujo de autenticación
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario (Angular)
+    participant SSO as SSO (Keycloak/Universidad)
+    participant API as .NET API
+
+    U->>SSO: Redirect login (OAuth 2.0 PKCE)
+    SSO-->>U: Authorization code
+    U->>SSO: Exchange code por tokens
+    SSO-->>U: Access token JWT + Refresh token
+    U->>API: GET /api/... (Bearer token)
+    API->>API: Validar JWT (JWKS del SSO)
+    API->>API: Buscar Person por claim "sub"
+    alt Usuario no existe
+        API->>API: Crear Person (nombre, email, rol=Desarrollador)
+    end
+    API-->>U: Respuesta con datos
+```
+
+## Provisión automática de usuarios
+
+- Al recibir un JWT válido, el middleware busca al usuario en la tabla `Person` por el claim `sub`
+- Si no existe, se crea con: nombre (claim `name`), email (claim `email`), rol Desarrollador
+- El gestor de cartera puede después cambiar el rol y asignar a equipos
+- No hay formulario de registro ni gestión de contraseñas en la aplicación
 
 ## Roles del sistema
 

@@ -31,6 +31,36 @@ graph LR
 - LiteLLM actúa como proxy a AWS Bedrock con function calling habilitado
 - La autenticación del Tool Server se realiza con API Key
 - Las descripciones de los endpoints están optimizadas para que el LLM las entienda
+- Open WebUI se conecta al mismo SSO (Keycloak/Universidad) que la aplicación web
+
+## Identificación del usuario en las llamadas del agente
+
+Open WebUI autentica a los usuarios contra el mismo SSO que la aplicación web. Al invocar un Tool Server, Open WebUI envía automáticamente el header `X-Open-WebUI-User-Email` con el email del usuario que está chateando.
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario (Open WebUI)
+    participant OW as Open WebUI
+    participant LLM as LLM (Bedrock via LiteLLM)
+    participant API as .NET API (Tool Server)
+
+    U->>OW: "He terminado la tarea de LDAP"
+    OW->>LLM: Mensaje + tools disponibles
+    LLM->>OW: Function call: update_task_status(...)
+    OW->>API: POST /api/agent/update-task-status<br/>Header: X-Open-WebUI-User-Email: usuario@uni.es<br/>Header: Authorization: Bearer <api-key>
+    API->>API: Buscar Person por email "usuario@uni.es"
+    API->>API: Ejecutar acción como ese usuario
+    API-->>OW: Resultado
+    OW-->>LLM: Resultado de la tool
+    LLM-->>OW: Respuesta natural
+    OW-->>U: "He marcado la tarea como completada"
+```
+
+### Reglas de seguridad:
+- La API valida que el email del header corresponde a una `Person` existente
+- Las acciones respetan los permisos del rol de esa persona (un desarrollador no puede asignar proyectos)
+- Todas las acciones vía agente se registran en auditoría con origen "agent" y usuario identificado
+- El header `X-Open-WebUI-User-Email` solo se acepta desde la red interna (Docker network) con API Key válida
 
 ## Historias de Usuario
 
