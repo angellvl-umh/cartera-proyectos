@@ -52,6 +52,7 @@ graph TB
 | Backend | .NET | 10 LTS |
 | API Framework | ASP.NET Core Web API | 10 |
 | ORM | Entity Framework Core | 10 |
+| Documentación API | Microsoft.AspNetCore.OpenApi + Scalar | built-in / latest |
 | CQRS | MediatR | 14+ |
 | Validaciones | FluentValidation | 12+ |
 | Base de datos | PostgreSQL | 18 |
@@ -64,15 +65,29 @@ graph TB
 | SSO (desarrollo local) | Keycloak | 26+ |
 | Excel export | ClosedXML | 0.102+ |
 | PDF export | QuestPDF | 2026+ |
+| Testing backend | xUnit + NSubstitute + Shouldly | latest |
+| Testing integración | Testcontainers | latest |
+| Testing arquitectura | NetArchTest | latest |
+| Testing E2E | Playwright | latest |
 
-## 4. Arquitectura del Backend (Clean Architecture)
+## 4. Arquitectura del Backend (Clean Architecture simplificada)
 
 ```
 src/
-├── CarteraProyectos.Api/            # Controllers, Middleware, OpenAPI config
-├── CarteraProyectos.Application/    # Servicios, CQRS (MediatR), DTOs, Validaciones
-├── CarteraProyectos.Domain/         # Entidades, Value Objects, Interfaces
+├── CarteraProyectos.Api/            # Controllers, Middleware, OpenAPI/Scalar config
+├── CarteraProyectos.Core/           # Entidades, Value Objects, Servicios, DTOs, Validaciones, Interfaces
 └── CarteraProyectos.Infrastructure/ # EF Core, Repositorios, pgvector, Auth
+```
+
+> Se unifican Domain y Application en un único proyecto `Core` por pragmatismo. La separación lógica se mantiene con carpetas internas:
+
+```
+CarteraProyectos.Core/
+├── Domain/          # Entidades, Value Objects, Enums
+├── Services/        # Lógica de aplicación, handlers MediatR
+├── DTOs/            # Objetos de transferencia
+├── Interfaces/      # Contratos de repositorios e infraestructura
+└── Validators/      # FluentValidation
 ```
 
 ## 5. Arquitectura del Frontend
@@ -130,7 +145,41 @@ Se incluyen archivos de skills para que los agentes IA de desarrollo (Copilot, C
 - Angular 21 skill: basado en [hereandnowai/agent-skills](https://github.com/hereandnowai/agent-skills)
 - NG-ZORRO docs para LLMs: [ng.ant.design/llms-full.txt](https://ng.ant.design/llms-full.txt)
 
-## 7. Infraestructura de Despliegue
+## 7. Estrategia de Testing
+
+Pirámide de tests clásica: alto volumen de tests unitarios rápidos, menor número de tests de integración bien planteados, y tests E2E mínimos para flujos críticos.
+
+### Backend (.NET 10)
+
+| Nivel | Herramientas | Qué se prueba | Volumen |
+|-------|-------------|---------------|---------|
+| **Unit tests** | xUnit + NSubstitute + Shouldly | Handlers, validaciones, lógica de dominio, DTOs | Alto |
+| **Integration tests** | xUnit + WebApplicationFactory + Testcontainers | Endpoints completos contra PostgreSQL real | Medio (flujos clave) |
+| **Architecture tests** | NetArchTest | Core no depende de Infrastructure, convenciones de naming | Bajo |
+
+### Frontend (Angular 21)
+
+| Nivel | Herramientas | Qué se prueba | Volumen |
+|-------|-------------|---------------|---------|
+| **Unit tests** | Vitest + Angular Testing Library | Componentes, servicios, pipes, guards | Alto |
+| **E2E** | Playwright | Flujos críticos (login, CRUD proyecto, Kanban drag&drop) | Bajo |
+
+### Estructura de proyectos de tests
+
+```
+tests/
+├── CarteraProyectos.UnitTests/          # Tests unitarios del Core (handlers, validaciones, dominio)
+├── CarteraProyectos.IntegrationTests/   # Tests de API con WebApplicationFactory + Testcontainers
+└── CarteraProyectos.ArchTests/          # Tests de arquitectura (dependencias entre capas)
+```
+
+### Principios de testing
+
+- **Unit tests**: sin I/O, sin BD, mocking de dependencias externas. Deben ejecutarse en milisegundos.
+- **Integration tests**: arrancan la API en memoria con una BD PostgreSQL real (Testcontainers). Prueban el flujo completo request → response incluyendo autenticación, validaciones y persistencia.
+- **Cobertura objetivo**: alta en Core (dominio + servicios), media en API (endpoints), baja en Infrastructure (solo lo no trivial).
+
+## 8. Infraestructura de Despliegue
 
 ```mermaid
 graph LR
@@ -163,7 +212,7 @@ graph LR
 
 > **Nota**: Los tres servicios (Backend, Open WebUI, LiteLLM) comparten la misma instancia de PostgreSQL 18, cada uno en su propia base de datos separada (`cartera_app`, `openwebui`, `litellm`).
 
-## 8. Comunicación entre Componentes
+## 9. Comunicación entre Componentes
 
 | Origen | Destino | Protocolo | Autenticación |
 |--------|---------|-----------|---------------|
@@ -175,7 +224,7 @@ graph LR
 | LiteLLM | AWS Bedrock | HTTPS/boto3 | AWS credentials |
 | Angular/API | SSO | SAML2/OAuth | Redirect flow |
 
-## 9. Decisiones Técnicas (ADR)
+## 10. Decisiones Técnicas (ADR)
 
 ### ADR-001: PostgreSQL en lugar de Oracle
 
@@ -312,3 +361,18 @@ graph LR
 - Comunicación interna (Docker network) + API Key asegura que el header no se puede falsificar desde fuera
 
 **Consecuencias**: Open WebUI debe configurarse con el mismo SSO. Los permisos del usuario se respetan también en el chat (un desarrollador no puede hacer acciones de gestor vía agente).
+
+### ADR-009: OpenAPI nativo de .NET 10 + Scalar (sin Swashbuckle)
+
+**Contexto**: .NET 10 incluye generación nativa de documentos OpenAPI. Swashbuckle ha sido eliminado de las plantillas oficiales y su mantenimiento es incierto.
+
+**Decisión**: Usar `Microsoft.AspNetCore.OpenApi` para generar la spec OpenAPI 3.1 y `Scalar.AspNetCore` como UI interactiva de documentación.
+
+**Justificación**:
+- `Microsoft.AspNetCore.OpenApi` es built-in en .NET 10, sin dependencias externas
+- Genera OpenAPI 3.1 (última versión del estándar)
+- Scalar ofrece UI moderna, interactiva y mejor experiencia que Swagger UI
+- La spec OpenAPI generada es la misma que consume Open WebUI como Tool Server
+- Swashbuckle está deprecated y sin mantenimiento activo
+
+**Consecuencias**: No se usa Swashbuckle ni Swagger UI. La documentación interactiva se accede vía Scalar en `/scalar`. La spec JSON se sirve en `/openapi/v1.json`.
