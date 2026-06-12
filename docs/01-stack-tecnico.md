@@ -74,20 +74,26 @@ graph TB
 
 ```
 src/
-├── CarteraProyectos.Api/            # Controllers, Middleware, OpenAPI/Scalar config
+├── CarteraProyectos.Api/            # Minimal APIs (endpoint groups), Middleware, OpenAPI/Scalar config
 ├── CarteraProyectos.Core/           # Entidades, Value Objects, Servicios, DTOs, Validaciones, Interfaces
 └── CarteraProyectos.Infrastructure/ # EF Core, Repositorios, pgvector, Auth
 ```
 
-> Se unifican Domain y Application en un único proyecto `Core` por pragmatismo. La separación lógica se mantiene con carpetas internas:
+> Se unifican Domain y Application en un único proyecto `Core` por pragmatismo. La separación lógica se mantiene con carpetas internas (Vertical Slices por feature):
 
 ```
 CarteraProyectos.Core/
-├── Domain/          # Entidades, Value Objects, Enums
-├── Services/        # Lógica de aplicación, handlers MediatR
-├── DTOs/            # Objetos de transferencia
-├── Interfaces/      # Contratos de repositorios e infraestructura
-└── Validators/      # FluentValidation
+├── Domain/              # Entidades, Value Objects, Enums
+├── Interfaces/          # Contratos de repositorios e infraestructura
+├── Features/
+│   ├── Projects/        # Un archivo por caso de uso (Command/Query + Handler + Validator + DTO)
+│   ├── Teams/
+│   ├── Persons/
+│   ├── WorkItems/
+│   ├── Epics/
+│   ├── Capacity/
+│   └── Reports/
+└── Common/              # Behaviours MediatR (validation, logging), excepciones base
 ```
 
 ## 5. Arquitectura del Frontend
@@ -376,3 +382,36 @@ graph LR
 - Swashbuckle está deprecated y sin mantenimiento activo
 
 **Consecuencias**: No se usa Swashbuckle ni Swagger UI. La documentación interactiva se accede vía Scalar en `/scalar`. La spec JSON se sirve en `/openapi/v1.json`.
+
+### ADR-010: Minimal APIs con endpoint groups (sin Controllers)
+
+**Contexto**: .NET 10 ofrece dos modelos para definir endpoints: Controllers (MVC) y Minimal APIs.
+
+**Decisión**: Usar Minimal APIs agrupadas por `RouteGroupBuilder` (endpoint groups).
+
+**Justificación**:
+- Minimal APIs son el enfoque recomendado en .NET 10 para APIs REST
+- Menor boilerplate que Controllers (sin herencia, sin atributos pesados)
+- Los endpoint groups (`MapGroup`) permiten organizar endpoints por recurso con prefijo y filtros compartidos
+- Más alineado con la arquitectura de vertical slices: cada grupo delega en MediatR
+- Mejor rendimiento (menor overhead de pipeline MVC)
+
+**Estructura**:
+```
+CarteraProyectos.Api/
+├── Endpoints/
+│   ├── ProjectEndpoints.cs      # MapGroup("/api/projects")
+│   ├── TeamEndpoints.cs         # MapGroup("/api/teams")
+│   ├── PersonEndpoints.cs       # MapGroup("/api/persons")
+│   ├── WorkItemEndpoints.cs     # MapGroup("/api/workitems")
+│   ├── EpicEndpoints.cs         # MapGroup("/api/epics")
+│   ├── CapacityEndpoints.cs     # MapGroup("/api/capacity")
+│   ├── ReportEndpoints.cs       # MapGroup("/api/reports")
+│   ├── AgentEndpoints.cs        # MapGroup("/api/agent") - Tool Server
+│   └── BacklogEndpoints.cs      # MapGroup("/api/backlog")
+├── Middleware/
+├── Extensions/                  # Service registration, OpenAPI config
+└── Program.cs
+```
+
+**Consecuencias**: No se usan Controllers. Cada endpoint group es una clase estática con un método de extensión `MapXxxEndpoints(this IEndpointRouteBuilder)` que registra sus rutas.
