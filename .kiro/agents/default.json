@@ -1,0 +1,10 @@
+{
+  "name": "default",
+  "description": "Agente por defecto con Playwright para pruebas E2E",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}

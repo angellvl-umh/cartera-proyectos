@@ -6,6 +6,8 @@ Gestión de los equipos de desarrollo y las personas que los componen. Una perso
 
 ## Modelo de datos
 
+> **Nota sobre roles**: El campo `Role` en `Person` define los permisos globales en la plataforma. El campo `LeadPersonId` en `Team` indica quién lidera ese equipo concreto. Una persona con rol "Jefe de equipo" tiene permisos de gestión **solo sobre los equipos donde es `LeadPersonId`**. Un "Desarrollador" no puede ser `LeadPersonId`. Si se asigna a alguien como líder de equipo, su rol debe ser al menos "Jefe de equipo".
+
 ```mermaid
 erDiagram
     Team ||--o{ PersonTeamMembership : tiene
@@ -18,6 +20,7 @@ erDiagram
     }
     Person {
         int Id
+        string SubjectId
         string Name
         string Email
         string Role
@@ -28,6 +31,8 @@ erDiagram
         date JoinedAt
     }
 ```
+
+- **SubjectId**: Claim `sub` del JWT del SSO. Identificador único externo usado para la provisión automática de usuarios (ver `08-autenticacion-roles.md`). Único y obligatorio tras el primer login.
 
 ## Historias de Usuario
 

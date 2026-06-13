@@ -83,6 +83,36 @@ erDiagram
 - Se registra la fecha de cada cambio de estado
 - Solo ciertos roles pueden cambiar a ciertos estados (ej: solo Gestor puede Aprobar)
 
+**Máquina de estados:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Propuesto
+    Propuesto --> Aprobado : Gestor aprueba
+    Propuesto --> Cancelado : Gestor cancela
+    Aprobado --> EnEjecucion : Gestor/Jefe inicia
+    Aprobado --> Cancelado : Gestor cancela
+    EnEjecucion --> Pausado : Gestor/Jefe pausa
+    EnEjecucion --> Completado : Gestor/Jefe completa
+    EnEjecucion --> Cancelado : Gestor cancela
+    Pausado --> EnEjecucion : Gestor/Jefe reanuda
+    Pausado --> Cancelado : Gestor cancela
+```
+
+**Permisos por transición:**
+
+| Transición | Roles permitidos |
+|-----------|-----------------|
+| Propuesto → Aprobado | Gestor de cartera |
+| Propuesto → Cancelado | Gestor de cartera |
+| Aprobado → En ejecución | Gestor de cartera, Jefe de equipo (del proyecto) |
+| Aprobado → Cancelado | Gestor de cartera |
+| En ejecución → Pausado | Gestor de cartera, Jefe de equipo (del proyecto) |
+| En ejecución → Completado | Gestor de cartera, Jefe de equipo (del proyecto) |
+| En ejecución → Cancelado | Gestor de cartera |
+| Pausado → En ejecución | Gestor de cartera, Jefe de equipo (del proyecto) |
+| Pausado → Cancelado | Gestor de cartera |
+
 ---
 
 ### HU-PR-05: Filtrar y buscar proyectos

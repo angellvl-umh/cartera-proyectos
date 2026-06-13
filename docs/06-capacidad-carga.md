@@ -15,7 +15,7 @@ Visualización de la carga de trabajo de personas y equipos para facilitar la to
 **Criterios de aceptación:**
 - Se muestra por equipo: número de proyectos activos, tareas en curso, tareas pendientes
 - Se muestra la carga por persona dentro del equipo
-- Indicador visual (verde/amarillo/rojo) según nivel de carga
+- Indicador visual según nivel de carga de tareas activas por persona: verde (≤3), amarillo (4–6), rojo (≥7)
 - Se puede comparar equipos lado a lado
 
 ---

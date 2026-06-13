@@ -6,11 +6,14 @@ Gestión del trabajo a nivel granular. Los proyectos se descomponen en épicas y
 
 ## Modelo de datos
 
+> **Nota**: `EpicId` y `ProjectId` en `WorkItem` son nullable para soportar tareas del backlog general (HU-TB-03) que no pertenecen a ningún proyecto ni épica.
+
 ```mermaid
 erDiagram
     Project ||--o{ Epic : contiene
-    Epic ||--o{ WorkItem : contiene
-    Person ||--o{ WorkItem : asignado
+    Epic |o--o{ WorkItem : contiene
+    Project |o--o{ WorkItem : pertenece
+    Person |o--o{ WorkItem : asignado
     WorkItem ||--o{ Comment : tiene
     Project {
         int Id
@@ -26,15 +29,17 @@ erDiagram
     }
     WorkItem {
         int Id
-        int EpicId
-        int ProjectId
+        int-null EpicId
+        int-null ProjectId
         string Title
         string Description
         enum Status
         int Priority
-        int AssignedToId
+        int-null AssignedToId
         int SortOrder
         string Estimation
+        bool IsHito
+        date-null HitoDate
     }
     Comment {
         int Id
@@ -49,7 +54,7 @@ erDiagram
 
 ### HU-TB-01: Crear épica dentro de un proyecto
 
-**Como** jefe de equipo,
+**Como** jefe de equipo o gestor de cartera,
 **quiero** crear épicas dentro de un proyecto,
 **para** organizar el trabajo en bloques funcionales grandes.
 
@@ -63,7 +68,7 @@ erDiagram
 
 ### HU-TB-02: Crear tarea dentro de una épica
 
-**Como** desarrollador,
+**Como** desarrollador, jefe de equipo o gestor de cartera,
 **quiero** crear tareas dentro de una épica,
 **para** desglosar el trabajo en unidades ejecutables.
 
@@ -77,7 +82,7 @@ erDiagram
 
 ### HU-TB-03: Crear tarea sin proyecto (backlog general)
 
-**Como** desarrollador,
+**Como** desarrollador, jefe de equipo o gestor de cartera,
 **quiero** crear tareas que no pertenecen a ningún proyecto específico,
 **para** registrar trabajo de mantenimiento, soporte u otras actividades que no se olviden.
 
@@ -98,8 +103,10 @@ erDiagram
 **Criterios de aceptación:**
 - Estados: Backlog → To Do → In Progress → In Review → Done
 - El cambio de estado se registra con fecha y usuario
+- Cualquier estado (excepto Done) puede retroceder a cualquier estado anterior
+- Una tarea en Done **no puede retroceder** de estado; si es necesario reabrir el trabajo, se crea una nueva tarea
 - Un desarrollador puede cambiar el estado de sus tareas asignadas
-- Un jefe de equipo puede cambiar el estado de cualquier tarea de su equipo
+- Un jefe de equipo puede cambiar el estado de cualquier tarea de los equipos asignados al proyecto (no solo su equipo primario)
 
 ---
 

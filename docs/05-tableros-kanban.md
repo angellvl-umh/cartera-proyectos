@@ -30,7 +30,11 @@ Visualización del trabajo en curso mediante tableros Kanban interactivos. Se of
 - Drag & drop entre columnas actualiza el estado de la tarea
 - El cambio se persiste inmediatamente en el backend
 - Se muestra feedback visual durante el arrastre
-- Solo se permite mover si el usuario tiene permisos sobre esa tarea
+- Solo se permite arrastrar si el usuario tiene permisos sobre esa tarea:
+  - Desarrollador: puede arrastrar solo sus propias tareas asignadas
+  - Jefe de equipo: puede arrastrar cualquier tarea de los equipos de su proyecto
+  - Gestor de cartera: puede arrastrar cualquier tarea
+- Todos los usuarios pueden **ver** el tablero completo del proyecto (incluidas tarjetas de otros)
 
 ---
 

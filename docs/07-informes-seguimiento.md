@@ -14,7 +14,7 @@ Generación de informes exportables sobre el estado de la cartera, avance de pro
 
 **Criterios de aceptación:**
 - Se selecciona el año de cartera
-- El informe incluye: lista de proyectos con estado, % avance, equipo asignado
+- El informe incluye: lista de proyectos con estado, % avance (tareas Done / total tareas × 100), equipo asignado
 - Resumen: proyectos por estado (gráfico), proyectos en riesgo
 - Exportable a PDF y Excel
 
@@ -27,9 +27,9 @@ Generación de informes exportables sobre el estado de la cartera, avance de pro
 **para** documentar el progreso y compartirlo con la unidad solicitante.
 
 **Criterios de aceptación:**
-- Incluye: épicas con % completado, tareas completadas vs pendientes
+- Incluye: épicas con % completado (tareas Done / total tareas de la épica × 100), tareas completadas vs pendientes
 - Historial de actividad reciente (últimos cambios de estado, comentarios)
-- Hitos alcanzados y próximos
+- Hitos: tareas marcadas con `IsHito = true`. Se muestran agrupadas en "alcanzados" (Done) y "próximos" (no Done), ordenados por `HitoDate`
 - Exportable a PDF
 
 ---
@@ -44,7 +44,7 @@ Generación de informes exportables sobre el estado de la cartera, avance de pro
 - Se muestra: cambios de estado, nuevas tareas, tareas completadas, comentarios
 - Filtrable por proyecto, equipo o persona
 - Orden cronológico inverso (más reciente primero)
-- Paginado
+- Paginado (20 ítems por página)
 
 ---
 

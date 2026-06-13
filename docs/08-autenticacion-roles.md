@@ -36,9 +36,9 @@ sequenceDiagram
 
 | Rol | Permisos principales |
 |-----|---------------------|
-| Gestor de cartera | Acceso total: CRUD proyectos, equipos, personas, informes, asignar roles |
-| Jefe de equipo | Gestionar tareas de su equipo, ver carga, generar informes de sus proyectos |
-| Desarrollador | Ver sus tareas, actualizar estado, crear tareas, autoasignarse |
+| Gestor de cartera | Acceso total: CRUD proyectos, equipos, personas, épicas, tareas, informes, asignar roles |
+| Jefe de equipo | Crear épicas y tareas; gestionar tareas de **cualquier equipo asignado al proyecto**; ver carga; generar informes de sus proyectos |
+| Desarrollador | Crear tareas, autoasignarse, actualizar estado de sus propias tareas |
 
 ## Historias de Usuario
 
@@ -77,9 +77,9 @@ sequenceDiagram
 **para** mantener la integridad de los datos y la gobernanza.
 
 **Criterios de aceptación:**
-- **Gestor de cartera**: acceso total
-- **Jefe de equipo**: gestionar tareas de su equipo, ver carga de su equipo, generar informes de sus proyectos
-- **Desarrollador**: ver sus tareas, actualizar estado de sus tareas, crear tareas, autoasignarse
+- **Gestor de cartera**: acceso total (CRUD proyectos, equipos, personas, épicas, tareas, informes, asignar roles)
+- **Jefe de equipo**: crear épicas y tareas; gestionar tareas de cualquier equipo asignado al proyecto; ver carga de su equipo; generar informes de sus proyectos
+- **Desarrollador**: crear tareas, autoasignarse tareas no asignadas, actualizar estado de sus propias tareas
 - Los endpoints de la API devuelven 403 si el usuario no tiene permisos
 - El frontend oculta opciones no disponibles para el rol
 
@@ -87,12 +87,9 @@ sequenceDiagram
 
 ### HU-AU-04: API Key para agentes IA
 
-**Como** administrador,
-**quiero** generar API Keys para que los agentes IA accedan a la plataforma,
-**para** permitir la integración con Open WebUI de forma segura.
+> **⏳ Pospuesta a v2.** En v1, la API Key del Tool Server es una clave estática configurada en variables de entorno (no gestionable desde la UI). La gestión de múltiples API Keys con revocación y auditoría se implementará en una versión posterior.
 
-**Criterios de aceptación:**
-- Se pueden generar API Keys asociadas a un usuario (y sus permisos)
-- Las API Keys tienen un nombre descriptivo y fecha de expiración opcional
-- Se pueden revocar en cualquier momento
-- Las peticiones con API Key se registran en el log de auditoría
+**Comportamiento en v1:**
+- Una única API Key estática configurada vía variable de entorno `Agent__ApiKey`
+- El Tool Server de Open WebUI la presenta en el header `Authorization: Bearer <api-key>`
+- No hay UI para gestionar la clave; se rota actualizando la variable de entorno y reiniciando el servicio

@@ -1,0 +1,61 @@
+{
+  "realm": "cartera",
+  "enabled": true,
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "cartera-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost/*", "http://localhost:4200/*"],
+      "webOrigins": ["http://localhost", "http://localhost:4200"],
+      "protocol": "openid-connect",
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
+      }
+    },
+    {
+      "clientId": "cartera-backend",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "gestor",
+      "email": "gestor@universidad.es",
+      "firstName": "Ana",
+      "lastName": "García",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "gestor123", "temporary": false }
+      ]
+    },
+    {
+      "username": "jefe",
+      "email": "jefe@universidad.es",
+      "firstName": "Carlos",
+      "lastName": "López",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "jefe123", "temporary": false }
+      ]
+    },
+    {
+      "username": "dev",
+      "email": "dev@universidad.es",
+      "firstName": "María",
+      "lastName": "Martínez",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "dev123", "temporary": false }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+@import "ng-zorro-antd/ng-zorro-antd.min.css";
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+nz-header {
+  background: #001529;
+}

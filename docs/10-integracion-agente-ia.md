@@ -33,6 +33,20 @@ graph LR
 - Las descripciones de los endpoints están optimizadas para que el LLM las entienda
 - Open WebUI se conecta al mismo SSO (Keycloak/Universidad) que la aplicación web
 
+## Estrategia de endpoints
+
+Los endpoints del agente (`/api/agent/*`) **no duplican** la lógica de los endpoints del frontend. Se aplican dos estrategias:
+
+1. **Endpoints de consulta específicos para el agente** (`/api/agent/...`): endpoints con formato de respuesta simplificado y descripciones OpenAPI optimizadas para el LLM. Internamente reutilizan los mismos handlers de MediatR que los endpoints del frontend.
+
+2. **Endpoints de acción compartidos**: las acciones de escritura (crear tarea, cambiar estado, asignar proyecto) son los **mismos endpoints** que usa el frontend (`/api/workitems`, `/api/projects`, etc.), expuestos también como tools en la spec OpenAPI. La diferencia es solo la autenticación (API Key + header `X-Open-WebUI-User-Email` en lugar de JWT directo).
+
+**Razón**: evitar duplicar lógica y validaciones. Los handlers MediatR garantizan que las reglas de negocio se aplican igual independientemente del origen (frontend o agente).
+
+**El grupo `AgentEndpoints.cs`** se limita a:
+- Endpoints de consulta agregada adaptados al LLM (resumen de proyecto, carga de equipo, mis tareas)
+- Endpoint de búsqueda semántica de tareas (para que el agente identifique tareas por descripción natural)
+
 ## Identificación del usuario en las llamadas del agente
 
 Open WebUI autentica a los usuarios contra el mismo SSO que la aplicación web. Al invocar un Tool Server, Open WebUI envía automáticamente el header `X-Open-WebUI-User-Email` con el email del usuario que está chateando.
@@ -59,7 +73,6 @@ sequenceDiagram
 ### Reglas de seguridad:
 - La API valida que el email del header corresponde a una `Person` existente
 - Las acciones respetan los permisos del rol de esa persona (un desarrollador no puede asignar proyectos)
-- Todas las acciones vía agente se registran en auditoría con origen "agent" y usuario identificado
 - El header `X-Open-WebUI-User-Email` solo se acepta desde la red interna (Docker network) con API Key válida
 
 ## Historias de Usuario

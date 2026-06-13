@@ -9,10 +9,11 @@ Configuración del despliegue on-premise con Docker Compose incluyendo todos los
 | Servicio | Imagen | Puerto |
 |----------|--------|--------|
 | frontend | nginx + Angular build | 80 |
-| backend | .NET 8 API | 5000 |
-| db | postgres:16 + pgvector | 5432 |
+| backend | .NET 10 API | 5000 |
+| db | postgres:18 + pgvector | 5432 |
 | openwebui | Open WebUI | 3000 |
 | litellm | LiteLLM Proxy | 4000 |
+| keycloak | Keycloak 26+ (solo dev local) | 8080 |
 
 ## Historias de Usuario
 
