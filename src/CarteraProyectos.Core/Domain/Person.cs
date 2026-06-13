@@ -15,6 +15,8 @@ public class Person
     public string Email { get; private set; } = string.Empty;
     public PersonRole Role { get; private set; } = PersonRole.Desarrollador;
 
-    public static Person CreateFromClaims(string subjectId, string name, string email)
-        => new() { SubjectId = subjectId, Name = name, Email = email };
+    public static Person CreateFromClaims(string subjectId, string name, string email, PersonRole role = PersonRole.Desarrollador)
+        => new() { SubjectId = subjectId, Name = name, Email = email, Role = role };
+
+    public void UpdateRole(PersonRole role) => Role = role;
 }

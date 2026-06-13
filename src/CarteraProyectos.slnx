@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="../tests/CarteraProyectos.UnitTests/CarteraProyectos.UnitTests.csproj" />
   <Project Path="CarteraProyectos.Api/CarteraProyectos.Api.csproj" />
   <Project Path="CarteraProyectos.Core/CarteraProyectos.Core.csproj" />
   <Project Path="CarteraProyectos.Infrastructure/CarteraProyectos.Infrastructure.csproj" />

@@ -34,9 +34,9 @@ docs/                                # Specs funcionales por módulo
 
 ## Estado actual (2026-06-13)
 
-**Implementado:** Docker Compose completo (db, keycloak, backend, frontend), entidad `Person`, `AppDbContext`, migración `InitialCreate`, endpoint `GET /api/me` con provisión automática de usuario, frontend Angular 21 con OIDC y dashboard básico.
+**Implementado:** Docker Compose, Person + bootstrap Gestor, MediatR + FluentValidation, Teams CRUD (paginado), Projects CRUD + máquina de estados (paginado), Persons list + role update (paginado), frontend Angular 21 con OIDC + dashboard + Teams + Projects, 18 tests unitarios.
 
-**Pendiente:** todo el dominio restante (Team, Project, Epic, WorkItem, Comment), MediatR, FluentValidation, pgvector, todos los endpoints CRUD, todos los features de frontend, tests.
+**Pendiente:** Epic CRUD, WorkItem CRUD + estado, Kanban board, Comments, layout/navegación app, tests E2E Playwright.
 
 ---
 
@@ -126,6 +126,8 @@ Done es terminal — no puede retroceder. Para reabrir, crear una nueva tarea.
 - `CancellationToken` propagado en todos los métodos async
 - Enums almacenados como strings en BD
 - Descripciones OpenAPI en español (la spec es el Tool Server del agente IA)
+- **TODOS los endpoints GET de listado deben ser paginados**: `page` (default 1) y `pageSize` (default 20, máx 100), respuesta `PagedResult<T> { Items, Total, Page, PageSize }`
+- **Cada feature debe incluir tests unitarios** en `tests/CarteraProyectos.UnitTests/` usando xUnit + EF InMemory + Shouldly. Mínimo: happy path, not found, reglas de negocio violadas
 
 Skill detallado: `.kiro/skills/dotnet10/SKILL.md`
 
@@ -141,6 +143,8 @@ Skill detallado: `.kiro/skills/dotnet10/SKILL.md`
 - NG-ZORRO para todos los componentes UI
 - Angular CDK DragDropModule para Kanban
 - `toSignal()` para convertir observables de HttpClient a signals
+
+- **Tests E2E con Playwright** para los flujos principales de cada módulo (login, CRUD básico, transición de estado)
 
 Skill detallado: `.kiro/skills/angular21/SKILL.md`
 
