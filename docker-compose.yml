@@ -44,7 +44,14 @@ services:
       Auth__Audience: "account"
       Cors__Origins__0: "http://localhost"
       Cors__Origins__1: "http://localhost:4200"
+      Cors__Origins__2: "http://localhost:3000"
       Admin__InitialGestorEmails__0: "gestor@universidad.es"
+      Agent__ApiKey: ${AGENT_API_KEY:-cartera-agent-key}
+      Aws__BearerToken: ${AWS_BEARER_TOKEN_BEDROCK:-}
+      Aws__AccessKeyId: ${AWS_ACCESS_KEY_ID:-}
+      Aws__SecretAccessKey: ${AWS_SECRET_ACCESS_KEY:-}
+      Aws__SessionToken: ${AWS_SESSION_TOKEN:-}
+      Aws__Region: ${AWS_REGION:-us-east-1}
     ports:
       - "5000:8080"
     depends_on:
@@ -68,5 +75,49 @@ services:
       backend:
         condition: service_healthy
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
+    volumes:
+      - ./infra/litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      AWS_BEARER_TOKEN_BEDROCK: ${AWS_BEARER_TOKEN_BEDROCK:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      # LLM backend via LiteLLM
+      OPENAI_API_BASE_URL: "http://litellm:4000"
+      OPENAI_API_KEY: "sk-cartera-litellm-key"
+      # Disable Ollama (not used)
+      ENABLE_OLLAMA_API: "false"
+      # Security
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-cartera-webui-secret-change-in-prod}
+      # Tool Server: backend agent endpoints
+      TOOLS_SERVER_URL: "http://backend:8080/api/agent"
+      TOOLS_SERVER_AUTH: "Bearer ${AGENT_API_KEY:-cartera-agent-key}"
+    ports:
+      - "3000:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    depends_on:
+      litellm:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  openwebui_data:

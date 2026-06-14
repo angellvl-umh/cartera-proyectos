@@ -32,11 +32,27 @@ tests/
 docs/                                # Specs funcionales por módulo
 ```
 
-## Estado actual (2026-06-13)
+## Estado actual (2026-06-14)
 
-**Implementado:** Docker Compose, Person + bootstrap Gestor, MediatR + FluentValidation, Teams CRUD (paginado), Projects CRUD + máquina de estados (paginado), Persons list + role update (paginado), frontend Angular 21 con OIDC + dashboard + Teams + Projects, 18 tests unitarios.
+**Implementado:**
+- Infraestructura: Docker Compose (db + keycloak + backend + frontend + litellm + open-webui)
+- Backend CRUD completo: Teams, Projects (+ máquina de estados), Persons, Epics, WorkItems, Sprints (+ máquina de estados), Comments
+- WorkItems: múltiples asignados, estimación horas + story points, IsHito, DueDate, SprintId
+- Frontend Angular 21 con OIDC: Teams, Projects, Kanban por sprint, Kanban global por proyecto, Epics, WorkItems
+- Dashboard: panel de control con info usuario, stat cards, gráficos nz-progress, proyectos y sprints activos del usuario
+- Informe de proyecto (`/projects/:id/report`): stats, épicas, hitos (timeline), sprints
+- Mis tareas (`/my-tasks`): listado cross-proyecto con filtros por estado y contador
+- Capacidad (`/capacity`): grid de equipos con carga por persona (Green/Yellow/Red)
+- Cartera (`/portfolio`): vista global filtrable por año y estado con stats clickables
+- Perfil de persona (`/persons/:id`): datos, equipos, carga de trabajo y tareas activas
+- Endpoints API: `/api/dashboard`, `/api/projects/{id}/report`, `/api/me/workitems`, `/api/capacity`, `/api/portfolio`, `/api/persons/{id}/profile`
+- **Agente IA (Open WebUI Tool Server):** `GET|POST /api/agent/*` — mis tareas, proyectos, detalle proyecto, capacidad, búsqueda semántica, cambiar estado, crear tarea, añadir comentario, reindexar embeddings
+- **Embeddings semánticos:** `IEmbeddingService` → `BedrockEmbeddingService` (amazon.titan-embed-text-v2:0), `WorkItemEmbedding` entity + migración `AddWorkItemEmbeddings`
+- **LiteLLM:** proxy OpenAI-compatible → AWS Bedrock; config en `infra/litellm/config.yaml`
+- **Open WebUI:** conectado a LiteLLM; Tool Server apunta a `http://backend:8080/api/agent` con API key
+- 69 tests unitarios
 
-**Pendiente:** Epic CRUD, WorkItem CRUD + estado, Kanban board, Comments, layout/navegación app, tests E2E Playwright.
+**Pendiente:** tests E2E Playwright.
 
 ---
 
@@ -150,14 +166,72 @@ Skill detallado: `.kiro/skills/angular21/SKILL.md`
 
 ---
 
-## Agentes (slash commands)
+## Modelo de orquestación agéntica
 
-| Comando | Rol | Modifica código |
-|---------|-----|-----------------|
-| `/specifier` | Convierte ideas en specs técnicas con criterios de aceptación | ❌ |
-| `/backend-dev` | Implementa features .NET 10 (Clean Arch, MediatR, Minimal APIs, tests) | ✅ |
-| `/frontend-dev` | Implementa features Angular 21 (signals, zoneless, NG-ZORRO, tests) | ✅ |
-| `/architect` | Revisa código y valida arquitectura, emite reporte | ❌ |
-| `/tester` | Escribe tests unitarios, integración y E2E | ✅ |
+**Claude Code = cerebro** (planifica, genera specs, revisa output, toma decisiones de arquitectura)
+**kiro-cli = manos** (implementa código, ejecuta builds y tests)
 
-Equivalente al sistema de agentes Kiro en `.kiro/agents/` pero invocados como slash commands de Claude Code.
+### Uso de herramientas — regla de oro
+
+Preferir siempre la herramienta más barata que resuelva el problema:
+
+| Tarea | Herramienta correcta | ❌ No usar |
+|-------|---------------------|-----------|
+| Buscar símbolo o archivo | `Grep` / `Glob` directamente | Agent:Explore |
+| Leer archivo concreto | `Read` directamente | Agent |
+| Implementar código | `kiro-cli` via Bash | Agent con Edit/Write |
+| Exploración open-ended (>5 ficheros desconocidos) | `Agent:Explore` — solo si proteger contexto es crítico | — |
+| Revisión independiente de código | `Agent:code-reviewer` — solo si se necesita perspectiva externa | — |
+
+**El `Agent` tool crea una instancia Sonnet completa que arranca en frío y re-deriva contexto ya conocido — es la ruta cara. Usarlo solo cuando sea imprescindible.**
+
+### Patrón de invocación
+
+```bash
+# Desde el directorio del proyecto (para que kiro detecte los agentes locales)
+kiro-cli chat "<spec técnica detallada>" \
+  --agent <agent-name> \
+  --no-interactive \
+  --trust-all-tools \
+  --model <modelo-elegido>
+```
+
+### Selección de modelo para kiro-cli
+
+Claude Code elige el modelo en función de la complejidad de la tarea. Al final de cada spec generada se incluye la línea:
+> **Modelo recomendado:** `<modelo>` — `<razón en una frase>`
+
+| Señal de complejidad | Modelo |
+|----------------------|--------|
+| Backend CQRS puro (handler + endpoint siguiendo patrón existente) | `claude-haiku-4.5` |
+| Tests unitarios sobre código existente | `claude-haiku-4.5` |
+| Frontend con un único componente aislado | `claude-haiku-4.5` |
+| Frontend con múltiples archivos y contratos TypeScript entre ellos | `claude-sonnet-4.6` |
+| Refactor transversal (cambia interfaces que impactan varios archivos) | `claude-sonnet-4.6` |
+| Lógica de negocio compleja o máquina de estados nueva | `claude-sonnet-4.6` |
+
+Referencia de coste relativo: Haiku ≈ 0.4×, Sonnet ≈ 1.3× (escala sobre base 1.0).
+
+IDs de modelo exactos para kiro-cli: `claude-haiku-4.5`, `claude-sonnet-4.6`, `claude-opus-4.6` (punto separador, no guión).
+
+### Slash commands y asignación de roles
+
+| Comando | Claude Code hace | kiro-cli hace | Modelo por defecto |
+|---------|-----------------|---------------|-------------------|
+| `/specifier` | Genera spec directamente | — | Sonnet (cerebro) |
+| `/backend-dev` | Lee contexto, genera spec .NET detallada, elige modelo, llama a kiro, revisa output | Implementa handlers, endpoints, tests, migración | Haiku (ajustable) |
+| `/frontend-dev` | Lee API y contexto, genera spec Angular detallada, elige modelo, llama a kiro, revisa output | Implementa componentes, servicios, rutas | Sonnet (ajustable) |
+| `/architect` | Revisa código directamente | — | Sonnet (cerebro) |
+| `/tester` | Define casos de prueba, elige modelo, llama a kiro, revisa cobertura | Escribe tests unitarios, integración y E2E | Haiku (ajustable) |
+
+### Flujo típico por feature
+
+```
+1. /specifier  → Claude Code genera spec técnica (criterios de aceptación, endpoints, DTOs)
+2. /backend-dev → Claude Code lee dominio → genera spec detallada → elige modelo → kiro implementa
+3. /frontend-dev → Claude Code lee spec API → genera spec Angular → elige modelo → kiro implementa
+4. /tester (opcional) → kiro amplía cobertura de tests
+5. /architect (opcional) → Claude Code revisa coherencia de lo implementado
+```
+
+Los agentes kiro están definidos en `.kiro/agents/`. Claude Code los invoca desde el directorio raíz del proyecto para que kiro detecte los agentes del workspace.

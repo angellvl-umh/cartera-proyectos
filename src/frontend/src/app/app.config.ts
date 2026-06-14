@@ -3,8 +3,33 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideAuth, authInterceptor } from 'angular-auth-oidc-client';
+import { es_ES, provideNzI18n } from 'ng-zorro-antd/i18n';
+import { provideNzIcons } from 'ng-zorro-antd/icon';
+import {
+  DashboardOutline, ProjectOutline, TeamOutline, UserOutline,
+  LogoutOutline, PlusOutline, EditOutline, DeleteOutline,
+  ArrowLeftOutline, EyeOutline, CheckOutline, CloseOutline,
+  ExclamationCircleOutline, MenuFoldOutline, MenuUnfoldOutline,
+  SearchOutline, FlagOutline,
+  FundOutline, CheckSquareOutline, BarChartOutline,
+  PieChartOutline, ThunderboltOutline, LayoutOutline,
+  AppstoreOutline, WarningOutline, CheckCircleOutline,
+  ClockCircleOutline, UserAddOutline, LinkOutline, CommentOutline,
+} from '@ant-design/icons-angular/icons';
 import { routes } from './app.routes';
 import { authConfig } from './core/auth.config';
+
+const icons = [
+  DashboardOutline, ProjectOutline, TeamOutline, UserOutline,
+  LogoutOutline, PlusOutline, EditOutline, DeleteOutline,
+  ArrowLeftOutline, EyeOutline, CheckOutline, CloseOutline,
+  ExclamationCircleOutline, MenuFoldOutline, MenuUnfoldOutline,
+  SearchOutline, FlagOutline,
+  FundOutline, CheckSquareOutline, BarChartOutline,
+  PieChartOutline, ThunderboltOutline, LayoutOutline,
+  AppstoreOutline, WarningOutline, CheckCircleOutline,
+  ClockCircleOutline, UserAddOutline, LinkOutline, CommentOutline,
+];
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -13,5 +38,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor()])),
     provideAnimations(),
     provideAuth(authConfig),
+    provideNzI18n(es_ES),
+    provideNzIcons(icons),
   ],
 };

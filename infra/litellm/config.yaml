@@ -1,0 +1,25 @@
+model_list:
+  - model_name: claude-haiku
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+      api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
+      aws_region_name: os.environ/AWS_REGION
+
+  - model_name: claude-sonnet
+    litellm_params:
+      model: bedrock/eu.anthropic.claude-sonnet-4-6
+      api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
+      aws_region_name: os.environ/AWS_REGION
+
+  - model_name: nova-lite
+    litellm_params:
+      model: bedrock/eu.amazon.nova-2-lite-v1:0
+      api_key: os.environ/AWS_BEARER_TOKEN_BEDROCK
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  drop_params: true
+
+general_settings:
+  master_key: sk-cartera-litellm-key
+  store_model_in_db: false

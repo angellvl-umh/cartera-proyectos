@@ -19,4 +19,5 @@ public class Person
         => new() { SubjectId = subjectId, Name = name, Email = email, Role = role };
 
     public void UpdateRole(PersonRole role) => Role = role;
+    public void UpdateSubjectId(string subjectId) => SubjectId = subjectId;
 }
