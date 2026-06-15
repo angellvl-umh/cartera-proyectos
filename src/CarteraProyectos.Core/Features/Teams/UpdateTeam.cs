@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Teams;
 
-public record UpdateTeamCommand(int Id, string Name, string? Description, int? LeadPersonId) : IRequest;
+public record UpdateTeamCommand(int Id, string Name, string? Description, int? LeadPersonId, int RequestingPersonId = 0) : IRequest;
 
 public sealed class UpdateTeamValidator : AbstractValidator<UpdateTeamCommand>
 {
@@ -21,6 +21,11 @@ public sealed class UpdateTeamHandler(IAppDbContext db) : IRequestHandler<Update
 {
     public async Task Handle(UpdateTeamCommand request, CancellationToken cancellationToken)
     {
+        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+        if (requester.Role != PersonRole.Gestor)
+            throw new UnauthorizedAccessException("Solo el Gestor puede actualizar equipos.");
+
         var team = await db.Teams.FindAsync([request.Id], cancellationToken)
             ?? throw new KeyNotFoundException($"Equipo con Id {request.Id} no encontrado.");
 

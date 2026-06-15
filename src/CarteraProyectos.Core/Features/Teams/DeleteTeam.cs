@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Teams;
 
-public record DeleteTeamCommand(int Id) : IRequest;
+public record DeleteTeamCommand(int Id, int RequestingPersonId = 0) : IRequest;
 
 public sealed class DeleteTeamHandler(IAppDbContext db) : IRequestHandler<DeleteTeamCommand>
 {
@@ -14,6 +14,11 @@ public sealed class DeleteTeamHandler(IAppDbContext db) : IRequestHandler<Delete
 
     public async Task Handle(DeleteTeamCommand request, CancellationToken cancellationToken)
     {
+        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+        if (requester.Role != PersonRole.Gestor)
+            throw new UnauthorizedAccessException("Solo el Gestor puede eliminar equipos.");
+
         var team = await db.Teams.FindAsync([request.Id], cancellationToken)
             ?? throw new KeyNotFoundException($"Equipo con Id {request.Id} no encontrado.");
 

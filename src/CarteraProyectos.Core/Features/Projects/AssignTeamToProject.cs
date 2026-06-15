@@ -5,12 +5,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Projects;
 
-public record AssignTeamToProjectCommand(int ProjectId, int TeamId, bool IsPrimary) : IRequest;
+public record AssignTeamToProjectCommand(int ProjectId, int TeamId, bool IsPrimary, int RequestingPersonId = 0) : IRequest;
 
 public sealed class AssignTeamToProjectHandler(IAppDbContext db) : IRequestHandler<AssignTeamToProjectCommand>
 {
     public async Task Handle(AssignTeamToProjectCommand request, CancellationToken cancellationToken)
     {
+        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+        if (requester.Role != PersonRole.Gestor)
+            throw new UnauthorizedAccessException("Solo el Gestor puede asignar equipos a proyectos.");
+
         if (!await db.Projects.AnyAsync(p => p.Id == request.ProjectId, cancellationToken))
             throw new KeyNotFoundException($"Proyecto con Id {request.ProjectId} no encontrado.");
 

@@ -1,5 +1,6 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.WorkItems;
+using CarteraProyectos.Core.Interfaces;
 using MediatR;
 
 namespace CarteraProyectos.Api.Endpoints;
@@ -61,12 +62,15 @@ public static class WorkItemEndpoints
         .WithName("DeleteWorkItem")
         .WithDescription("Elimina una tarea.");
 
-        group.MapPost("/{id:int}/status", async (int projectId, int id, TransitionWorkItemStatusRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/{id:int}/status", async (int projectId, int id, TransitionWorkItemStatusRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
             if (!Enum.TryParse<WorkItemStatus>(req.Status, out var newStatus))
                 return Results.BadRequest("Estado no válido. Valores: Backlog, ToDo, InProgress, Blocked, Done.");
 
-            await mediator.Send(new TransitionWorkItemStatusCommand(id, newStatus), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+
+            await mediator.Send(new TransitionWorkItemStatusCommand(id, newStatus, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("TransitionWorkItemStatus")

@@ -1,5 +1,5 @@
 using CarteraProyectos.Core.Domain;
-using CarteraProyectos.Infrastructure.Persistence;
+using CarteraProyectos.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Api.Endpoints;
@@ -8,7 +8,7 @@ public static class UserEndpoints
 {
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/me", async (HttpContext ctx, AppDbContext db, IConfiguration configuration) =>
+        app.MapGet("/api/me", async (HttpContext ctx, IAppDbContext db, IConfiguration configuration) =>
         {
             var sub = ctx.User.FindFirst("sub")?.Value;
             if (sub is null) return Results.Unauthorized();

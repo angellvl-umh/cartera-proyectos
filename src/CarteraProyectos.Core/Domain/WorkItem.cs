@@ -69,6 +69,8 @@ public class WorkItem
         SprintId = sprintId;
     }
 
+    public void AddAssignee(Person person) => ((List<Person>)Assignees).Add(person);
+
     public void AssignToSprint(int? sprintId) => SprintId = sprintId;
 
     public void TransitionStatus(WorkItemStatus newStatus)

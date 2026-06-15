@@ -105,9 +105,8 @@ services:
       ENABLE_OLLAMA_API: "false"
       # Security
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-cartera-webui-secret-change-in-prod}
-      # Tool Server: backend agent endpoints
-      TOOLS_SERVER_URL: "http://backend:8080/api/agent"
-      TOOLS_SERVER_AUTH: "Bearer ${AGENT_API_KEY:-cartera-agent-key}"
+      # Tool Server: registrar manualmente en Admin → Settings → Tools → Add Tool Server
+      # URL: http://backend:8080/openapi/agent.json  |  Auth: Bearer cartera-agent-key
     ports:
       - "3000:8080"
     volumes:

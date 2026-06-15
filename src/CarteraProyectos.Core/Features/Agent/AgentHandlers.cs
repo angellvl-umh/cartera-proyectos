@@ -348,7 +348,7 @@ public sealed class AgentCreateTaskHandler(IAppDbContext db)
         {
             var person = await db.Persons.FindAsync([request.PersonId], ct);
             if (person is not null)
-                ((List<Person>)wi.Assignees).Add(person);
+                wi.AddAssignee(person);
         }
 
         db.WorkItems.Add(wi);

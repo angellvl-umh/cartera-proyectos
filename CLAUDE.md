@@ -66,7 +66,7 @@ docs/                                # Specs funcionales por módulo
 | **Team** | Id, Name, Description?, LeadPersonId? (FK→Person) |
 | **Project** | Id, Title, RequestingUnit, Complexity (Low/Medium/High/VeryHigh), Status, PortfolioYear?, StartDate?, EndDate? |
 | **Epic** | Id, ProjectId, Title, Priority, SortOrder |
-| **WorkItem** | Id, EpicId?, ProjectId?, Title, Status (Backlog/ToDo/InProgress/InReview/Done), Priority, AssignedToId?, SortOrder, Estimation?, IsHito (bool, default false), HitoDate (DateOnly?) |
+| **WorkItem** | Id, EpicId?, ProjectId?, Title, Status (Backlog/ToDo/InProgress/Blocked/Done), Priority, AssignedToId?, SortOrder, Estimation?, IsHito (bool, default false), HitoDate (DateOnly?) |
 | **Comment** | Id, WorkItemId, AuthorId, Text, CreatedAt |
 
 Join tables: `PersonTeamMembership` (PersonId, TeamId, JoinedAt), `ProjectTeamAssignment` (ProjectId, TeamId, IsPrimary).
@@ -84,9 +84,10 @@ Paused → InProgress | Cancelled
 
 **WorkItem:**
 ```
-Backlog → ToDo → InProgress → InReview → Done
+Backlog → ToDo → InProgress → Blocked | Done
 (cualquier estado no-Done puede retroceder a cualquier estado anterior)
 Done es terminal — no puede retroceder. Para reabrir, crear una nueva tarea.
+Blocked indica bloqueo temporal; puede avanzar a InProgress o Done.
 ```
 
 ### Permisos por rol

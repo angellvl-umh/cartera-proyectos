@@ -5,12 +5,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Teams;
 
-public record AssignPersonToTeamCommand(int TeamId, int PersonId) : IRequest;
+public record AssignPersonToTeamCommand(int TeamId, int PersonId, int RequestingPersonId = 0) : IRequest;
 
 public sealed class AssignPersonToTeamHandler(IAppDbContext db) : IRequestHandler<AssignPersonToTeamCommand>
 {
     public async Task Handle(AssignPersonToTeamCommand request, CancellationToken cancellationToken)
     {
+        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+        if (requester.Role != PersonRole.Gestor)
+            throw new UnauthorizedAccessException("Solo el Gestor puede asignar personas a equipos.");
+
         if (!await db.Teams.AnyAsync(t => t.Id == request.TeamId, cancellationToken))
             throw new KeyNotFoundException($"Equipo con Id {request.TeamId} no encontrado.");
 

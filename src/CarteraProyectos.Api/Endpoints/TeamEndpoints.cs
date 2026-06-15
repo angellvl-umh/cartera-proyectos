@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Features.Teams;
+using CarteraProyectos.Core.Interfaces;
 using MediatR;
 
 namespace CarteraProyectos.Api.Endpoints;
@@ -22,41 +23,51 @@ public static class TeamEndpoints
         .WithName("GetTeam")
         .WithDescription("Devuelve el detalle de un equipo con sus miembros.");
 
-        group.MapPost("/", async (CreateTeamCommand cmd, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/", async (CreateTeamCommand cmd, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            var id = await mediator.Send(cmd, ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            var id = await mediator.Send(cmd with { RequestingPersonId = requester.Id }, ct);
             return Results.Created($"/api/teams/{id}", new { id });
         })
         .WithName("CreateTeam")
         .WithDescription("Crea un nuevo equipo. Solo Gestor.");
 
-        group.MapPut("/{id:int}", async (int id, CreateTeamCommand body, IMediator mediator, CancellationToken ct) =>
+        group.MapPut("/{id:int}", async (int id, CreateTeamCommand body, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            await mediator.Send(new UpdateTeamCommand(id, body.Name, body.Description, body.LeadPersonId), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            await mediator.Send(new UpdateTeamCommand(id, body.Name, body.Description, body.LeadPersonId, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("UpdateTeam")
         .WithDescription("Actualiza un equipo existente. Solo Gestor.");
 
-        group.MapDelete("/{id:int}", async (int id, IMediator mediator, CancellationToken ct) =>
+        group.MapDelete("/{id:int}", async (int id, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            await mediator.Send(new DeleteTeamCommand(id), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            await mediator.Send(new DeleteTeamCommand(id, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("DeleteTeam")
         .WithDescription("Elimina un equipo. Falla si tiene proyectos activos. Solo Gestor.");
 
-        group.MapPost("/{id:int}/members", async (int id, AssignMemberRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/{id:int}/members", async (int id, AssignMemberRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            await mediator.Send(new AssignPersonToTeamCommand(id, req.PersonId), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            await mediator.Send(new AssignPersonToTeamCommand(id, req.PersonId, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("AssignPersonToTeam")
         .WithDescription("Asigna una persona a un equipo. Solo Gestor.");
 
-        group.MapDelete("/{id:int}/members/{personId:int}", async (int id, int personId, IMediator mediator, CancellationToken ct) =>
+        group.MapDelete("/{id:int}/members/{personId:int}", async (int id, int personId, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            await mediator.Send(new RemovePersonFromTeamCommand(id, personId), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            await mediator.Send(new RemovePersonFromTeamCommand(id, personId, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("RemovePersonFromTeam")

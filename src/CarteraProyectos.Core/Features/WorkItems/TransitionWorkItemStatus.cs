@@ -5,14 +5,40 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.WorkItems;
 
-public record TransitionWorkItemStatusCommand(int Id, WorkItemStatus NewStatus) : IRequest;
+public record TransitionWorkItemStatusCommand(int Id, WorkItemStatus NewStatus, int RequestingPersonId = 0) : IRequest;
 
 public sealed class TransitionWorkItemStatusHandler(IAppDbContext db) : IRequestHandler<TransitionWorkItemStatusCommand>
 {
     public async Task Handle(TransitionWorkItemStatusCommand request, CancellationToken cancellationToken)
     {
-        var workItem = await db.WorkItems.FirstOrDefaultAsync(w => w.Id == request.Id, cancellationToken)
+        var workItem = await db.WorkItems
+            .Include(w => w.Assignees)
+            .FirstOrDefaultAsync(w => w.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException($"Tarea {request.Id} no encontrada.");
+
+        if (request.RequestingPersonId > 0)
+        {
+            var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+                ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+
+            if (requester.Role == PersonRole.JefeEquipo)
+            {
+                var teamIds = await db.ProjectTeamAssignments
+                    .Where(a => a.ProjectId == workItem.ProjectId)
+                    .Select(a => a.TeamId)
+                    .ToListAsync(cancellationToken);
+                var isInProjectTeam = await db.PersonTeamMemberships
+                    .AnyAsync(m => teamIds.Contains(m.TeamId) && m.PersonId == request.RequestingPersonId, cancellationToken);
+                if (!isInProjectTeam)
+                    throw new UnauthorizedAccessException("El JefeEquipo debe pertenecer a un equipo asignado al proyecto.");
+            }
+            else if (requester.Role == PersonRole.Desarrollador)
+            {
+                var isAssignee = workItem.Assignees.Any(a => a.Id == request.RequestingPersonId);
+                if (!isAssignee)
+                    throw new UnauthorizedAccessException("Los Desarrolladores solo pueden cambiar el estado de sus propias tareas.");
+            }
+        }
 
         workItem.TransitionStatus(request.NewStatus);
         await db.SaveChangesAsync(cancellationToken);

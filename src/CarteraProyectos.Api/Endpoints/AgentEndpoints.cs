@@ -1,5 +1,5 @@
 using CarteraProyectos.Core.Features.Agent;
-using CarteraProyectos.Infrastructure.Persistence;
+using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +15,7 @@ public static class AgentEndpoints
             .AddEndpointFilter(AgentApiKeyFilter);
 
         // ── HU-IA-07: Mis tareas ──────────────────────────────────────────────
-        group.MapGet("/me", async (HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapGet("/me", async (HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado. Regístrate en la plataforma primero.", statusCode: 404);
@@ -26,7 +26,7 @@ public static class AgentEndpoints
         .WithDescription("Devuelve las tareas activas, backlog y completadas del usuario que realiza la consulta. Usa este endpoint cuando el usuario pregunte '¿qué tengo pendiente?', '¿en qué estoy trabajando?', '¿cuáles son mis tareas?'.");
 
         // ── HU-IA-01: Lista de proyectos ──────────────────────────────────────
-        group.MapGet("/projects", async (HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapGet("/projects", async (HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
@@ -55,7 +55,7 @@ public static class AgentEndpoints
         .WithDescription("Devuelve la carga de trabajo de todos los equipos y sus miembros (Green=disponible ≤3 tareas activas, Yellow=cargado 4-6, Red=saturado ≥7). Usa este endpoint cuando el usuario pregunte qué equipo tiene más disponibilidad o capacidad para un nuevo proyecto.");
 
         // ── HU-IA-03: Buscar tarea semántica ─────────────────────────────────
-        group.MapGet("/tasks/search", async (string q, HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapGet("/tasks/search", async (string q, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             if (string.IsNullOrWhiteSpace(q))
                 return Results.BadRequest("El parámetro 'q' es obligatorio.");
@@ -67,7 +67,7 @@ public static class AgentEndpoints
         .WithDescription("Busca tareas cuya descripción coincida con el texto proporcionado usando similitud semántica. Usa este endpoint para identificar una tarea concreta cuando el usuario la mencione de forma natural, por ejemplo 'la tarea del proxy' o 'lo del certificado SSL'. Devuelve las 5 tareas más similares con su puntuación.");
 
         // ── HU-IA-03: Cambiar estado de tarea ────────────────────────────────
-        group.MapPost("/tasks/{id:int}/status", async (int id, AgentStatusRequest req, HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapPost("/tasks/{id:int}/status", async (int id, AgentStatusRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
@@ -78,7 +78,7 @@ public static class AgentEndpoints
         .WithDescription("Actualiza el estado de una tarea. Estados válidos: Backlog, ToDo, InProgress, Blocked, Done. Una tarea Done es terminal y no puede cambiar. Úsalo cuando el usuario diga que ha terminado una tarea, que está bloqueado, o que empieza a trabajar en algo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
         // ── HU-IA-04: Crear tarea ─────────────────────────────────────────────
-        group.MapPost("/tasks", async (AgentCreateTaskRequest req, HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapPost("/tasks", async (AgentCreateTaskRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
@@ -91,7 +91,7 @@ public static class AgentEndpoints
         .WithDescription("Crea una nueva tarea en un proyecto. Requiere el ID del proyecto. La prioridad puede ser: Low, Medium, High, Critical. Si assignToSelf es true, la tarea se asigna automáticamente al usuario. Úsalo cuando el usuario quiera registrar trabajo pendiente.");
 
         // ── HU-IA-06: Añadir comentario ───────────────────────────────────────
-        group.MapPost("/tasks/{id:int}/comment", async (int id, AgentCommentRequest req, HttpContext http, AppDbContext db, ISender sender) =>
+        group.MapPost("/tasks/{id:int}/comment", async (int id, AgentCommentRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
@@ -129,7 +129,7 @@ public static class AgentEndpoints
         return await next(ctx);
     }
 
-    private static async Task<CarteraProyectos.Core.Domain.Person?> ResolvePersonAsync(HttpContext http, AppDbContext db)
+    private static async Task<CarteraProyectos.Core.Domain.Person?> ResolvePersonAsync(HttpContext http, IAppDbContext db)
     {
         var email = http.Request.Headers["X-Open-WebUI-User-Email"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(email)) return null;

@@ -13,7 +13,8 @@ public record UpdateProjectCommand(
     ProjectComplexity Complexity,
     int? PortfolioYear,
     DateOnly? StartDate,
-    DateOnly? EndDate) : IRequest;
+    DateOnly? EndDate,
+    int RequestingPersonId = 0) : IRequest;
 
 public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectCommand>
 {
@@ -30,6 +31,11 @@ public sealed class UpdateProjectHandler(IAppDbContext db) : IRequestHandler<Upd
 {
     public async Task Handle(UpdateProjectCommand request, CancellationToken cancellationToken)
     {
+        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+        if (requester.Role != PersonRole.Gestor)
+            throw new UnauthorizedAccessException("Solo el Gestor puede actualizar proyectos.");
+
         var project = await db.Projects.FindAsync([request.Id], cancellationToken)
             ?? throw new KeyNotFoundException($"Proyecto con Id {request.Id} no encontrado.");
 
