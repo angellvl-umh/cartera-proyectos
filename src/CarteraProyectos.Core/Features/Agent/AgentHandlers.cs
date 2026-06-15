@@ -116,24 +116,39 @@ public sealed class AgentGetProjectsHandler(IAppDbContext db)
 {
     public async Task<IReadOnlyList<AgentProjectSummaryDto>> Handle(AgentGetProjectsQuery request, CancellationToken ct)
     {
-        var myTeamIds = await db.PersonTeamMemberships
-            .Where(m => m.PersonId == request.PersonId)
-            .Select(m => m.TeamId)
-            .ToListAsync(ct);
+        var person = await db.Persons.FindAsync([request.PersonId], ct)
+            ?? throw new KeyNotFoundException("Persona no encontrada.");
 
-        var myProjectIds = await db.ProjectTeamAssignments
-            .Where(a => myTeamIds.Contains(a.TeamId))
-            .Select(a => a.ProjectId)
-            .Distinct()
-            .ToListAsync(ct);
+        IQueryable<Project> baseQuery;
 
-        var projects = await db.Projects
-            .Where(p => myProjectIds.Contains(p.Id))
+        if (person.Role == PersonRole.Gestor)
+        {
+            // Gestor ve toda la cartera
+            baseQuery = db.Projects;
+        }
+        else
+        {
+            // Resto de roles: solo proyectos de sus equipos
+            var myTeamIds = await db.PersonTeamMemberships
+                .Where(m => m.PersonId == request.PersonId)
+                .Select(m => m.TeamId)
+                .ToListAsync(ct);
+
+            var myProjectIds = await db.ProjectTeamAssignments
+                .Where(a => myTeamIds.Contains(a.TeamId))
+                .Select(a => a.ProjectId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            baseQuery = db.Projects.Where(p => myProjectIds.Contains(p.Id));
+        }
+
+        var projects = await baseQuery
             .Select(p => new
             {
                 p.Id, p.Title, p.Status, p.RequestingUnit,
-                TotalTasks = db.WorkItems.Count(w => w.ProjectId == p.Id),
-                DoneTasks  = db.WorkItems.Count(w => w.ProjectId == p.Id && w.Status == WorkItemStatus.Done),
+                TotalTasks    = db.WorkItems.Count(w => w.ProjectId == p.Id),
+                DoneTasks     = db.WorkItems.Count(w => w.ProjectId == p.Id && w.Status == WorkItemStatus.Done),
                 ActiveSprints = db.Sprints.Count(s => s.ProjectId == p.Id && s.Status == SprintStatus.Active),
             })
             .OrderByDescending(p => p.Id)

@@ -19,6 +19,9 @@ model_list:
 
 litellm_settings:
   drop_params: true
+  context_window_fallbacks:
+    - claude-haiku: [claude-sonnet]
+    - nova-lite: [claude-sonnet]
 
 general_settings:
   master_key: sk-cartera-litellm-key

@@ -22,6 +22,7 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentGetMyTasksQuery(person.Id));
             return Results.Ok(result);
         })
+        .WithName("get_my_tasks")
         .WithSummary("Obtener mis tareas pendientes")
         .WithDescription("Devuelve las tareas activas, backlog y completadas del usuario que realiza la consulta. Usa este endpoint cuando el usuario pregunte '¿qué tengo pendiente?', '¿en qué estoy trabajando?', '¿cuáles son mis tareas?'.");
 
@@ -33,6 +34,7 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentGetProjectsQuery(person.Id));
             return Results.Ok(result);
         })
+        .WithName("get_projects")
         .WithSummary("Listar proyectos del usuario")
         .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado y progreso de tareas. Usa este endpoint cuando el usuario pregunte por sus proyectos o por el estado general de la cartera.");
 
@@ -42,6 +44,7 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentGetProjectDetailQuery(id));
             return Results.Ok(result);
         })
+        .WithName("get_project_detail")
         .WithSummary("Obtener detalle de un proyecto")
         .WithDescription("Devuelve información detallada de un proyecto específico: estado, sprints activos, tareas pendientes y progreso. Usa este endpoint cuando el usuario pregunte '¿cómo va el proyecto X?' o pida información sobre un proyecto concreto.");
 
@@ -51,6 +54,7 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentGetCapacityQuery());
             return Results.Ok(result);
         })
+        .WithName("get_capacity")
         .WithSummary("Consultar carga y disponibilidad de equipos")
         .WithDescription("Devuelve la carga de trabajo de todos los equipos y sus miembros (Green=disponible ≤3 tareas activas, Yellow=cargado 4-6, Red=saturado ≥7). Usa este endpoint cuando el usuario pregunte qué equipo tiene más disponibilidad o capacidad para un nuevo proyecto.");
 
@@ -63,6 +67,7 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentSearchTasksQuery(q, person?.Id ?? 0));
             return Results.Ok(result);
         })
+        .WithName("search_tasks")
         .WithSummary("Buscar tarea por descripción (búsqueda semántica)")
         .WithDescription("Busca tareas cuya descripción coincida con el texto proporcionado usando similitud semántica. Usa este endpoint para identificar una tarea concreta cuando el usuario la mencione de forma natural, por ejemplo 'la tarea del proxy' o 'lo del certificado SSL'. Devuelve las 5 tareas más similares con su puntuación.");
 
@@ -74,6 +79,7 @@ public static class AgentEndpoints
             await sender.Send(new AgentUpdateTaskStatusCommand(person.Id, id, req.Status));
             return Results.Ok(new { message = $"Estado de la tarea {id} actualizado a '{req.Status}'." });
         })
+        .WithName("update_task_status")
         .WithSummary("Cambiar el estado de una tarea")
         .WithDescription("Actualiza el estado de una tarea. Estados válidos: Backlog, ToDo, InProgress, Blocked, Done. Una tarea Done es terminal y no puede cambiar. Úsalo cuando el usuario diga que ha terminado una tarea, que está bloqueado, o que empieza a trabajar en algo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
@@ -87,6 +93,7 @@ public static class AgentEndpoints
                 req.Priority ?? "Medium", req.EpicId, req.SprintId, req.AssignToSelf ?? true));
             return Results.Created($"/api/projects/{req.ProjectId}/workitems/{id}", new { id, message = $"Tarea '{req.Title}' creada con ID {id}." });
         })
+        .WithName("create_task")
         .WithSummary("Crear una nueva tarea")
         .WithDescription("Crea una nueva tarea en un proyecto. Requiere el ID del proyecto. La prioridad puede ser: Low, Medium, High, Critical. Si assignToSelf es true, la tarea se asigna automáticamente al usuario. Úsalo cuando el usuario quiera registrar trabajo pendiente.");
 
@@ -98,6 +105,7 @@ public static class AgentEndpoints
             await sender.Send(new AgentAddCommentCommand(person.Id, id, req.Text));
             return Results.Ok(new { message = $"Comentario añadido a la tarea {id}." });
         })
+        .WithName("add_task_comment")
         .WithSummary("Añadir un comentario o nota de seguimiento a una tarea")
         .WithDescription("Añade un comentario de seguimiento a una tarea existente. El comentario queda registrado con el autor y la fecha. Úsalo cuando el usuario quiera documentar avances, bloqueos o novedades sobre una tarea.");
 
@@ -107,8 +115,34 @@ public static class AgentEndpoints
             var result = await sender.Send(new AgentReindexCommand());
             return Results.Ok(result);
         })
+        .WithName("reindex_embeddings")
         .WithSummary("Regenerar índice de embeddings para búsqueda semántica")
         .WithDescription("Genera o actualiza los embeddings vectoriales de todas las tareas para permitir búsqueda semántica. Ejecutar después de crear o modificar tareas masivamente. Puede tardar varios segundos según el número de tareas.");
+
+        // ── Charts: almacenamiento temporal de imágenes ───────────────────────
+        group.MapPost("/charts", async (HttpRequest request, IConfiguration config, CancellationToken ct) =>
+        {
+            using var ms = new System.IO.MemoryStream();
+            await request.Body.CopyToAsync(ms, ct);
+            var id = ChartStore.Store(ms.ToArray());
+            var externalUrl = config["Agent:ExternalUrl"] ?? "http://localhost:5000";
+            return Results.Ok(new { id, url = $"{externalUrl}/api/agent/charts/{id}" });
+        })
+        .WithName("store_chart")
+        .ExcludeFromDescription();  // no exponer en el spec del agente
+    }
+
+    // Endpoint público (sin API key) para servir las imágenes al navegador
+    public static void MapAgentChartEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/api/agent/charts/{id}", (string id) =>
+        {
+            var data = ChartStore.Get(id);
+            return data is null
+                ? Results.NotFound()
+                : Results.File(data, "image/png");
+        })
+        .ExcludeFromDescription();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -135,6 +169,22 @@ public static class AgentEndpoints
         if (string.IsNullOrWhiteSpace(email)) return null;
         return await db.Persons.FirstOrDefaultAsync(p => p.Email == email);
     }
+}
+
+// ── Chart store (in-memory, TTL no necesario — los charts son efímeros) ─────────
+
+internal static class ChartStore
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> _store = new();
+
+    public static string Store(byte[] data)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        _store[id] = data;
+        return id;
+    }
+
+    public static byte[]? Get(string id) => _store.TryGetValue(id, out var data) ? data : null;
 }
 
 // ── Request bodies ────────────────────────────────────────────────────────────

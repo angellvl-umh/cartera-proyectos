@@ -90,10 +90,19 @@ builder.Services.AddOpenApi(options =>
 // OpenAPI (agent — Tool Server para Open WebUI)
 builder.Services.AddOpenApi("agent", options =>
 {
+    options.ShouldInclude = (desc) => desc.GroupName == "agent";
+
     options.AddDocumentTransformer((document, context, ct) =>
     {
         document.Info.Title       = "Cartera de Proyectos TIC — Agent Tool Server";
         document.Info.Description = "Endpoints que el agente IA puede invocar para consultar y actualizar la plataforma de gestión de proyectos TIC universitaria.";
+
+        // Forzar la URL del servidor a la dirección interna de Docker para que
+        // Open WebUI pueda alcanzar el backend desde dentro de la red de contenedores.
+        var agentServerUrl = context.ApplicationServices
+            .GetRequiredService<IConfiguration>()["Agent:ServerUrl"] ?? "http://backend:8080";
+        document.Servers = [new OpenApiServer { Url = agentServerUrl }];
+
         document.Components ??= new OpenApiComponents();
         document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
         document.Components.SecuritySchemes["ApiKey"] = new OpenApiSecurityScheme
@@ -168,5 +177,6 @@ app.MapCommentEndpoints();
 app.MapDashboardEndpoints();
 app.MapReportEndpoints();
 app.MapAgentEndpoints();
+app.MapAgentChartEndpoints();
 
 app.Run();
