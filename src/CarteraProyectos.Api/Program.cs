@@ -128,11 +128,13 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Migrate DB on startup
+// Migrate DB on startup + seed demo data if empty
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    if (app.Environment.IsDevelopment())
+        await CarteraProyectos.Infrastructure.Persistence.DataSeeder.SeedAsync(db);
 }
 
 app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
@@ -177,6 +179,9 @@ app.MapCommentEndpoints();
 app.MapDashboardEndpoints();
 app.MapReportEndpoints();
 app.MapAgentEndpoints();
+app.MapPromoterEndpoints();
+app.MapOrganicUnitEndpoints();
+app.MapTagEndpoints();
 app.MapAgentChartEndpoints();
 
 app.Run();

@@ -19,7 +19,7 @@ public class CommentHandlerTests
     private static async Task<(AppDbContext db, Project project, WorkItem workItem)> DbWithWorkItem()
     {
         var db = CreateDb();
-        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
@@ -67,7 +67,7 @@ public class CommentHandlerTests
     public async Task GetComments_WorkItemFromOtherProject_ThrowsKeyNotFoundException()
     {
         var (db, project, workItem, _) = await DbWithWorkItemAndPerson();
-        var otherProject = Project.Create("Otro", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var otherProject = Project.Create("Otro", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(otherProject);
         await db.SaveChangesAsync();
 

@@ -1,4 +1,4 @@
-﻿using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 
@@ -10,16 +10,19 @@ public sealed class DeleteProjectHandler(IAppDbContext db) : IRequestHandler<Del
 {
     public async Task Handle(DeleteProjectCommand request, CancellationToken cancellationToken)
     {
-        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
-            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
-        if (requester.Role != PersonRole.Gestor)
-            throw new UnauthorizedAccessException("Solo el Gestor puede eliminar proyectos.");
+        if (request.RequestingPersonId > 0)
+        {
+            var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
+                ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
+            if (requester.Role != PersonRole.Gestor)
+                throw new UnauthorizedAccessException("Solo el Gestor puede eliminar proyectos.");
+        }
 
         var project = await db.Projects.FindAsync([request.Id], cancellationToken)
             ?? throw new KeyNotFoundException($"Proyecto con Id {request.Id} no encontrado.");
 
-        if (project.Status != ProjectStatus.Proposed && project.Status != ProjectStatus.Cancelled)
-            throw new InvalidOperationException("Solo se pueden eliminar proyectos en estado Propuesto o Cancelado.");
+        if (project.Status != ProjectStatus.Stopped && project.Status != ProjectStatus.PostponedByClient)
+            throw new InvalidOperationException("Solo se pueden eliminar proyectos en estado Parado o Pospuesto por Cliente.");
 
         db.Projects.Remove(project);
         await db.SaveChangesAsync(cancellationToken);

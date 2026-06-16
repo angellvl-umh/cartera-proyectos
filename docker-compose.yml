@@ -38,6 +38,7 @@ services:
       context: ./src
       dockerfile: Dockerfile
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=db;Database=cartera_app;Username=postgres;Password=postgres"
       Auth__Authority: "http://keycloak:8080/realms/cartera"
       Auth__ValidIssuer: "http://localhost:8080/realms/cartera"

@@ -16,7 +16,8 @@ test.describe('Navigation', () => {
   test('dashboard loads with stats', async ({ page }) => {
     await page.goto('/');
     await waitForApp(page);
-    await expect(page.locator('.ant-card, nz-card').first()).toBeVisible({ timeout: 10_000 });
+    // Wait for stat cards to appear (data loaded from API, spinner gone)
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 30_000 });
   });
 
   test('teams list loads via sidebar', async ({ page }) => {

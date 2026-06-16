@@ -34,9 +34,9 @@ public class DeleteTeamHandlerTests
         var team = Team.Create("Equipo Activo", null, null);
         db.Teams.Add(team);
 
-        var project = Project.Create("Proyecto Activo", null, "Unidad TIC", ProjectComplexity.Medium, null, null, null);
+        var project = Project.Create("Proyecto Activo", null, "Unidad TIC", ProjectComplexity.Small, null, null, null);
         // Project starts as Proposed; transition to Approved (active)
-        project.TransitionTo(ProjectStatus.Approved);
+        project.TransitionTo(ProjectStatus.InSprint);
         db.Projects.Add(project);
 
         await db.SaveChangesAsync();
@@ -67,8 +67,8 @@ public class DeleteTeamHandlerTests
             var team = Team.Create("Equipo Sin Activos", null, null);
             seedDb.Teams.Add(team);
 
-            var project = Project.Create("Proyecto Cancelado", null, "Unidad TIC", ProjectComplexity.Low, null, null, null);
-            project.TransitionTo(ProjectStatus.Cancelled);
+            var project = Project.Create("Proyecto Cancelado", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
+            project.TransitionTo(ProjectStatus.Stopped);
             seedDb.Projects.Add(project);
 
             await seedDb.SaveChangesAsync();

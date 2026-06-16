@@ -16,6 +16,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<WorkItemEmbedding> WorkItemEmbeddings => Set<WorkItemEmbedding>();
+    public DbSet<Promoter> Promoters => Set<Promoter>();
+    public DbSet<OrganicUnit> OrganicUnits => Set<OrganicUnit>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<ProjectNote> ProjectNotes => Set<ProjectNote>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,11 +53,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Project>(e =>
         {
             e.HasKey(p => p.Id);
-            e.Property(p => p.Title).IsRequired().HasMaxLength(300);
+            e.Property(p => p.Title).IsRequired().HasMaxLength(150);
             e.Property(p => p.Description).HasMaxLength(2000);
-            e.Property(p => p.RequestingUnit).IsRequired().HasMaxLength(200);
+            e.Property(p => p.RequestingUnit).HasMaxLength(200);
             e.Property(p => p.Status).HasConversion<string>();
             e.Property(p => p.Complexity).HasConversion<string>();
+            e.Property(p => p.SiptGroup).HasConversion<string>();
+            e.Property(p => p.SpecificationsUrl).HasMaxLength(500);
+            e.Property(p => p.EpicUrl).HasMaxLength(500);
+            e.HasOne(p => p.Promoter).WithMany()
+                .HasForeignKey(p => p.PromoterId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(p => p.OrganicUnit).WithMany()
+                .HasForeignKey(p => p.OrganicUnitId).OnDelete(DeleteBehavior.SetNull);
+            e.HasMany(p => p.Tags).WithMany()
+                .UsingEntity(j => j.ToTable("ProjectTags"));
+            e.HasMany(p => p.Notes).WithOne(n => n.Project)
+                .HasForeignKey(n => n.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProjectTeamAssignment>(e =>
@@ -106,6 +121,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.HasKey(w => w.WorkItemId);
             e.Property(w => w.TextSnapshot).HasMaxLength(8200);
+        });
+
+        modelBuilder.Entity<Promoter>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).IsRequired().HasMaxLength(200);
+            e.HasIndex(p => p.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<OrganicUnit>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.Property(o => o.Name).IsRequired().HasMaxLength(200);
+            e.Property(o => o.Code).HasMaxLength(50);
+            e.HasIndex(o => o.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Tag>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Name).IsRequired().HasMaxLength(100);
+            e.Property(t => t.Color).HasMaxLength(20);
+            e.HasIndex(t => t.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<ProjectNote>(e =>
+        {
+            e.HasKey(n => n.Id);
+            e.Property(n => n.Text).IsRequired();
+            e.HasOne(n => n.Author).WithMany()
+                .HasForeignKey(n => n.AuthorId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

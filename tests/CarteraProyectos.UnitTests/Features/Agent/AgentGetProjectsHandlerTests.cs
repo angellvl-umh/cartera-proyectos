@@ -28,7 +28,7 @@ public class AgentGetProjectsHandlerTests
 
     private static async Task<Project> AddProjectAsync(AppDbContext db, string title)
     {
-        var project = Project.Create(title, null, "TIC", ProjectComplexity.Medium, null, null, null);
+        var project = Project.Create(title, null, "TIC", ProjectComplexity.Small, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
         return project;

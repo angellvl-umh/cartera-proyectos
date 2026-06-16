@@ -1,4 +1,5 @@
-﻿using CarteraProyectos.Core.Interfaces;
+using CarteraProyectos.Core.Features.Tags;
+using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,13 +13,27 @@ public record ProjectDetailDto(
     int Id,
     string Title,
     string? Description,
-    string RequestingUnit,
+    string? RequestingUnit,
     string Complexity,
     string Status,
     int? PortfolioYear,
     DateOnly? StartDate,
     DateOnly? EndDate,
-    List<ProjectTeamDto> Teams);
+    List<ProjectTeamDto> Teams,
+    // Extended fields
+    int? PreviousReferenceId,
+    int? BeneficiaryCount,
+    int? PromoterId,
+    string? PromoterName,
+    int? OrganicUnitId,
+    string? OrganicUnitName,
+    int? UorOrder,
+    int? GroupPriority,
+    string? SiptGroup,
+    DateOnly? DesiredDeploymentDate,
+    string? SpecificationsUrl,
+    string? EpicUrl,
+    List<TagDto> Tags);
 
 public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetProjectQuery, ProjectDetailDto?>
 {
@@ -26,6 +41,9 @@ public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetPro
     {
         var project = await db.Projects
             .Include(p => p.Teams).ThenInclude(a => a.Team)
+            .Include(p => p.Promoter)
+            .Include(p => p.OrganicUnit)
+            .Include(p => p.Tags)
             .FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
 
         if (project is null) return null;
@@ -40,6 +58,19 @@ public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetPro
             project.PortfolioYear,
             project.StartDate,
             project.EndDate,
-            project.Teams.Select(a => new ProjectTeamDto(a.TeamId, a.Team!.Name, a.IsPrimary)).ToList());
+            project.Teams.Select(a => new ProjectTeamDto(a.TeamId, a.Team!.Name, a.IsPrimary)).ToList(),
+            project.PreviousReferenceId,
+            project.BeneficiaryCount,
+            project.PromoterId,
+            project.Promoter?.Name,
+            project.OrganicUnitId,
+            project.OrganicUnit?.Name,
+            project.UorOrder,
+            project.GroupPriority,
+            project.SiptGroup?.ToString(),
+            project.DesiredDeploymentDate,
+            project.SpecificationsUrl,
+            project.EpicUrl,
+            project.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList());
     }
 }

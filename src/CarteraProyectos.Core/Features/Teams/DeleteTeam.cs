@@ -10,7 +10,13 @@ public record DeleteTeamCommand(int Id, int RequestingPersonId = 0) : IRequest;
 public sealed class DeleteTeamHandler(IAppDbContext db) : IRequestHandler<DeleteTeamCommand>
 {
     private static readonly ProjectStatus[] ActiveStatuses =
-        [ProjectStatus.Approved, ProjectStatus.InProgress, ProjectStatus.Paused];
+    [
+        ProjectStatus.PlanningWithClient,
+        ProjectStatus.PlanningSprint,
+        ProjectStatus.InSprint,
+        ProjectStatus.DevelopmentOutsideSprint,
+        ProjectStatus.InTesting,
+    ];
 
     public async Task Handle(DeleteTeamCommand request, CancellationToken cancellationToken)
     {

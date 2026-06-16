@@ -13,7 +13,7 @@ public record PortfolioDto(
     IReadOnlyList<int> AvailableYears);
 
 public record PortfolioProjectDto(
-    int Id, string Title, string Status, string RequestingUnit, string Complexity,
+    int Id, string Title, string Status, string? RequestingUnit, string Complexity,
     int? PortfolioYear, string? StartDate, string? EndDate,
     string? PrimaryTeamName,
     int TotalWorkItems, int DoneWorkItems,
@@ -21,8 +21,15 @@ public record PortfolioProjectDto(
     int ActiveSprintCount);
 
 public record PortfolioStatsDto(
-    int Total, int Proposed, int Approved, int InProgress,
-    int Paused, int Completed, int Cancelled);
+    int Total,
+    int Stopped,
+    int PlanningWithClient,
+    int PlanningSprint,
+    int InSprint,
+    int DevelopmentOutsideSprint,
+    int InTesting,
+    int Completed,
+    int PostponedByClient);
 
 public sealed class GetPortfolioHandler(IAppDbContext db)
     : IRequestHandler<GetPortfolioQuery, PortfolioDto>
@@ -90,13 +97,15 @@ public sealed class GetPortfolioHandler(IAppDbContext db)
         }).ToList();
 
         var stats = new PortfolioStatsDto(
-            Total:     allProjects.Count,
-            Proposed:  allProjects.Count(p => p.Status == ProjectStatus.Proposed),
-            Approved:  allProjects.Count(p => p.Status == ProjectStatus.Approved),
-            InProgress: allProjects.Count(p => p.Status == ProjectStatus.InProgress),
-            Paused:    allProjects.Count(p => p.Status == ProjectStatus.Paused),
-            Completed: allProjects.Count(p => p.Status == ProjectStatus.Completed),
-            Cancelled: allProjects.Count(p => p.Status == ProjectStatus.Cancelled));
+            Total:                  allProjects.Count,
+            Stopped:                allProjects.Count(p => p.Status == ProjectStatus.Stopped),
+            PlanningWithClient:     allProjects.Count(p => p.Status == ProjectStatus.PlanningWithClient),
+            PlanningSprint:         allProjects.Count(p => p.Status == ProjectStatus.PlanningSprint),
+            InSprint:               allProjects.Count(p => p.Status == ProjectStatus.InSprint),
+            DevelopmentOutsideSprint: allProjects.Count(p => p.Status == ProjectStatus.DevelopmentOutsideSprint),
+            InTesting:              allProjects.Count(p => p.Status == ProjectStatus.InTesting),
+            Completed:              allProjects.Count(p => p.Status == ProjectStatus.Completed),
+            PostponedByClient:      allProjects.Count(p => p.Status == ProjectStatus.PostponedByClient));
 
         return new PortfolioDto(projects, stats, availableYears);
     }

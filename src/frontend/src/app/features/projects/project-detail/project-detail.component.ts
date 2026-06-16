@@ -34,37 +34,16 @@ import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
 import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority } from '../workitems.service';
 import { SprintService, Sprint, CreateSprintDto } from '../sprint.service';
 import { CommentsService, CommentDto } from '../comments.service';
-import { ProjectDetail, ProjectStatus, ProjectTeam } from '../project.model';
+import {
+  PROJECT_COMPLEXITY_LABELS,
+  PROJECT_STATUS_LABELS,
+  ProjectDetail,
+  ProjectNoteDto,
+  ProjectStatus,
+  ProjectTeam,
+} from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
-
-interface StatusTransition {
-  label: string;
-  status: ProjectStatus;
-  danger?: boolean;
-}
-
-const TRANSITIONS: Record<ProjectStatus, StatusTransition[]> = {
-  Proposed: [
-    { label: 'Aprobar', status: 'Approved' },
-    { label: 'Cancelar', status: 'Cancelled', danger: true },
-  ],
-  Approved: [
-    { label: 'Iniciar ejecución', status: 'InProgress' },
-    { label: 'Cancelar', status: 'Cancelled', danger: true },
-  ],
-  InProgress: [
-    { label: 'Pausar', status: 'Paused' },
-    { label: 'Completar', status: 'Completed' },
-    { label: 'Cancelar', status: 'Cancelled', danger: true },
-  ],
-  Paused: [
-    { label: 'Reanudar', status: 'InProgress' },
-    { label: 'Cancelar', status: 'Cancelled', danger: true },
-  ],
-  Completed: [],
-  Cancelled: [],
-};
 
 const STATUS_COLORS: Record<WorkItemStatus, string> = {
   Backlog: 'default',
@@ -129,27 +108,27 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </button>
             <h2 style="margin:8px 0 4px">{{ project()!.title }}</h2>
             <app-project-status-badge [status]="project()!.status" />
+            @for (t of project()!.tags; track t.id) {
+              <nz-tag [nzColor]="t.color ?? 'default'" style="margin-left:4px">{{ t.name }}</nz-tag>
+            }
           </div>
           <nz-space>
-            @for (t of transitions(); track t.status) {
-              <button *nzSpaceItem nz-button [nzDanger]="t.danger === true"
-                [nzType]="t.danger ? 'default' : 'primary'"
-                nz-popconfirm [nzPopconfirmTitle]="'¿Confirmar: ' + t.label + '?'"
-                (nzOnConfirm)="transition(t.status)">
-                {{ t.label }}
-              </button>
-            }
+            <nz-select *nzSpaceItem [ngModel]="project()!.status"
+              (ngModelChange)="transition($event)"
+              style="width:220px" nzPlaceHolder="Cambiar estado">
+              @for (opt of statusOptions; track opt.value) {
+                <nz-option [nzValue]="opt.value" [nzLabel]="opt.label" />
+              }
+            </nz-select>
             <a *nzSpaceItem nz-button [routerLink]="['/projects', projectId, 'kanban']">
               <span nz-icon nzType="project"></span> Kanban
             </a>
             <a *nzSpaceItem nz-button [routerLink]="['/projects', projectId, 'report']">
               <span nz-icon nzType="bar-chart"></span> Informe
             </a>
-            @if (canEdit()) {
-              <button *nzSpaceItem nz-button (click)="openEdit()">
-                <span nz-icon nzType="edit"></span> Editar
-              </button>
-            }
+            <button *nzSpaceItem nz-button (click)="openEdit()">
+              <span nz-icon nzType="edit"></span> Editar
+            </button>
           </nz-space>
         </div>
 
@@ -160,14 +139,38 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           <nz-tab nzTitle="Información">
             <nz-card nzTitle="Datos del proyecto" style="margin-bottom:16px">
               <nz-descriptions nzBordered [nzColumn]="2">
-                <nz-descriptions-item nzTitle="Unidad solicitante">{{ project()!.requestingUnit }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Complejidad">{{ complexityLabel(project()!.complexity) }}</nz-descriptions-item>
-                <nz-descriptions-item nzTitle="Año de cartera">{{ project()!.portfolioYear ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Estado"><app-project-status-badge [status]="project()!.status" /></nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Año de cartera">{{ project()!.portfolioYear ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Ref. anterior">{{ project()!.previousReferenceId ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Fecha de inicio">{{ project()!.startDate ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Fecha de fin">{{ project()!.endDate ?? '—' }}</nz-descriptions-item>
                 @if (project()!.description) {
                   <nz-descriptions-item nzTitle="Descripción" [nzSpan]="2">{{ project()!.description }}</nz-descriptions-item>
+                }
+              </nz-descriptions>
+            </nz-card>
+
+            <nz-card nzTitle="Clasificación y gobernanza" style="margin-bottom:16px">
+              <nz-descriptions nzBordered [nzColumn]="2">
+                <nz-descriptions-item nzTitle="Promotor">{{ project()!.promoterName ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Unidad orgánica">{{ project()!.organicUnitName ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Grupo SIPT">{{ project()!.siptGroup ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Prioridad estratégica">{{ project()!.groupPriority ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Orden UOR">{{ project()!.uorOrder ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Nº beneficiarios">{{ project()!.beneficiaryCount ?? '—' }}</nz-descriptions-item>
+                @if (project()!.specificationsUrl) {
+                  <nz-descriptions-item nzTitle="Especificaciones" [nzSpan]="2">
+                    <a [href]="project()!.specificationsUrl" target="_blank">{{ project()!.specificationsUrl }}</a>
+                  </nz-descriptions-item>
+                }
+                @if (project()!.epicUrl) {
+                  <nz-descriptions-item nzTitle="Épica (Jira)" [nzSpan]="2">
+                    <a [href]="project()!.epicUrl" target="_blank">{{ project()!.epicUrl }}</a>
+                  </nz-descriptions-item>
+                }
+                @if (project()!.desiredDeploymentDate) {
+                  <nz-descriptions-item nzTitle="Fecha deseable implantación">{{ project()!.desiredDeploymentDate }}</nz-descriptions-item>
                 }
               </nz-descriptions>
             </nz-card>
@@ -286,6 +289,42 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                 }
               </tbody>
             </nz-table>
+          </nz-tab>
+
+          <!-- TAB: Notas -->
+          <nz-tab nzTitle="Notas" (nzSelect)="loadNotes()">
+            <div style="max-width:700px;margin:16px auto">
+              @if (notesLoading()) {
+                <div style="text-align:center;padding:32px"><nz-spin /></div>
+              } @else {
+                @for (note of notes(); track note.id) {
+                  <div style="display:flex;gap:12px;margin-bottom:16px">
+                    <nz-avatar [nzText]="note.authorName[0]" style="background:#1890ff;flex-shrink:0"></nz-avatar>
+                    <div style="flex:1">
+                      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
+                        <span style="font-weight:600">{{ note.authorName }}</span>
+                        <span style="font-size:12px;color:#8c8c8c">{{ formatCommentDate(note.createdAt) }}</span>
+                        <span style="font-size:12px;color:#ff4d4f;cursor:pointer;margin-left:auto"
+                          nz-popconfirm nzPopconfirmTitle="¿Eliminar esta nota?"
+                          (nzOnConfirm)="deleteNote(note)">Eliminar</span>
+                      </div>
+                      <p style="margin:0;white-space:pre-wrap">{{ note.text }}</p>
+                    </div>
+                  </div>
+                  <nz-divider style="margin:8px 0"></nz-divider>
+                } @empty {
+                  <p style="color:#999;text-align:center">Sin notas aún.</p>
+                }
+                <div style="margin-top:16px">
+                  <textarea nz-input [(ngModel)]="newNoteText" [nzAutosize]="{ minRows: 3, maxRows: 6 }"
+                    placeholder="Añadir una nota..." style="margin-bottom:8px"></textarea>
+                  <button nz-button nzType="primary" [nzLoading]="addingNote()"
+                    [disabled]="!newNoteText.trim()" (click)="addNote()">
+                    Publicar nota
+                  </button>
+                </div>
+              }
+            </div>
           </nz-tab>
 
           <!-- TAB: Product Backlog -->
@@ -623,6 +662,15 @@ export class ProjectDetailComponent {
   addingComment = signal(false);
   newCommentText = '';
 
+  notes = signal<ProjectNoteDto[]>([]);
+  notesLoading = signal(false);
+  addingNote = signal(false);
+  newNoteText = '';
+
+  readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
+    value: v, label: PROJECT_STATUS_LABELS[v],
+  }));
+
   epicForm: CreateEpicDto = { title: '', priority: 0, sortOrder: 0 };
   sprintForm: CreateSprintDto = { name: '' };
   workItemForm: {
@@ -664,7 +712,7 @@ export class ProjectDetailComponent {
   project = toSignal<ProjectDetail | null>(
     this.refresh$.pipe(
       startWith(undefined),
-      switchMap(() => this.service.getProject(this.projectIdStr))
+      switchMap(() => this.service.getProject(this.projectId))
     )
   );
 
@@ -689,19 +737,8 @@ export class ProjectDetailComponent {
     )
   );
 
-  transitions(): StatusTransition[] {
-    const p = this.project();
-    if (!p) return [];
-    return TRANSITIONS[p.status] ?? [];
-  }
-
-  canEdit(): boolean {
-    const s = this.project()?.status;
-    return s === 'Proposed' || s === 'Approved';
-  }
-
   complexityLabel(c: string): string {
-    return ({ Low: 'Baja', Medium: 'Media', High: 'Alta', VeryHigh: 'Muy alta' } as Record<string, string>)[c] ?? c;
+    return (PROJECT_COMPLEXITY_LABELS as Record<string, string>)[c] ?? c;
   }
 
   statusColor(s: WorkItemStatus): string { return STATUS_COLORS[s]; }
@@ -711,16 +748,45 @@ export class ProjectDetailComponent {
   goBack(): void { this.router.navigate(['/projects']); }
 
   transition(status: ProjectStatus): void {
-    this.service.transitionStatus(this.projectIdStr, status).subscribe({
+    this.service.transitionStatus(this.projectId, status).subscribe({
       next: () => { this.message.success('Estado actualizado'); this.refresh$.next(); },
       error: () => this.message.error('No se pudo cambiar el estado'),
     });
   }
 
   removeTeam(team: ProjectTeam): void {
-    this.service.removeTeam(this.projectIdStr, String(team.teamId)).subscribe({
+    this.service.removeTeam(this.projectId, team.teamId).subscribe({
       next: () => { this.message.success(`Equipo "${team.teamName}" desasignado`); this.refresh$.next(); },
       error: () => this.message.error('Error al desasignar el equipo'),
+    });
+  }
+
+  loadNotes(): void {
+    this.notesLoading.set(true);
+    this.service.getNotes(this.projectId).subscribe({
+      next: n => { this.notes.set(n); this.notesLoading.set(false); },
+      error: () => { this.notesLoading.set(false); },
+    });
+  }
+
+  addNote(): void {
+    if (!this.newNoteText.trim()) return;
+    this.addingNote.set(true);
+    this.service.createNote(this.projectId, this.newNoteText).subscribe({
+      next: () => {
+        this.addingNote.set(false);
+        this.newNoteText = '';
+        this.loadNotes();
+        this.message.success('Nota añadida');
+      },
+      error: () => { this.addingNote.set(false); this.message.error('Error al añadir nota'); },
+    });
+  }
+
+  deleteNote(note: ProjectNoteDto): void {
+    this.service.deleteNote(this.projectId, note.id).subscribe({
+      next: () => { this.message.success('Nota eliminada'); this.loadNotes(); },
+      error: () => this.message.error('Error al eliminar nota'),
     });
   }
 

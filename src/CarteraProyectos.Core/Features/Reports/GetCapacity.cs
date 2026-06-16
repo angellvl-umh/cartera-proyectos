@@ -33,7 +33,11 @@ public sealed class GetCapacityHandler(IAppDbContext db)
 
         var activeProjectStatuses = new[]
         {
-            ProjectStatus.Approved, ProjectStatus.InProgress, ProjectStatus.Paused
+            ProjectStatus.PlanningWithClient,
+            ProjectStatus.PlanningSprint,
+            ProjectStatus.InSprint,
+            ProjectStatus.DevelopmentOutsideSprint,
+            ProjectStatus.InTesting,
         };
 
         var result = new List<TeamCapacityDto>();

@@ -19,7 +19,7 @@ public class EpicHandlerTests
     private static async Task<(AppDbContext db, Project project)> DbWithProject()
     {
         var db = CreateDb();
-        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
         return (db, project);

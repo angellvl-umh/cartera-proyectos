@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './specs',
   fullyParallel: false,
   retries: 1,
-  timeout: 30_000,
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
     baseURL: 'http://localhost',

@@ -1,5 +1,6 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Projects;
+using CarteraProyectos.Core.Features.Projects.Notes;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 
@@ -14,14 +15,16 @@ public static class ProjectEndpoints
         group.MapGet("/", async (
             IMediator mediator, CancellationToken ct,
             string? status, int? year, int? teamId, string? complexity, string? q,
+            int? tagId, string? siptGroup, int? promoterId,
             int page = 1, int pageSize = 20) =>
         {
             ProjectStatus? st = status is not null && Enum.TryParse<ProjectStatus>(status, out var s) ? s : null;
             ProjectComplexity? cx = complexity is not null && Enum.TryParse<ProjectComplexity>(complexity, out var c) ? c : null;
-            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, page, pageSize), ct));
+            SiptGroup? sg = siptGroup is not null && Enum.TryParse<SiptGroup>(siptGroup, out var g) ? g : null;
+            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, tagId, sg, promoterId, page, pageSize), ct));
         })
         .WithName("GetProjects")
-        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q (búsqueda de texto). Soporta paginación con page y pageSize (máx 100).");
+        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q, tagId, siptGroup, promoterId. Soporta paginación.");
 
         group.MapGet("/{id:int}", async (int id, IMediator mediator, CancellationToken ct) =>
         {
@@ -41,12 +44,11 @@ public static class ProjectEndpoints
         .WithName("CreateProject")
         .WithDescription("Crea un nuevo proyecto en estado Propuesto. Solo Gestor.");
 
-        group.MapPut("/{id:int}", async (int id, CreateProjectCommand body, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
+        group.MapPut("/{id:int}", async (int id, UpdateProjectCommand body, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
             var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
             if (requester is null) return Results.Unauthorized();
-            await mediator.Send(new UpdateProjectCommand(id, body.Title, body.Description, body.RequestingUnit,
-                body.Complexity, body.PortfolioYear, body.StartDate, body.EndDate, requester.Id), ct);
+            await mediator.Send(body with { Id = id, RequestingPersonId = requester.Id }, ct);
             return Results.NoContent();
         })
         .WithName("UpdateProject")
@@ -96,9 +98,35 @@ public static class ProjectEndpoints
         .WithName("RemoveTeamFromProject")
         .WithDescription("Desasigna un equipo de un proyecto. Solo Gestor.");
 
+        group.MapGet("/{id:int}/notes", async (int id, IMediator mediator, CancellationToken ct) =>
+            Results.Ok(await mediator.Send(new GetProjectNotesQuery(id), ct)))
+            .WithName("GetProjectNotes")
+            .WithDescription("Lista todas las notas de un proyecto ordenadas por fecha.");
+
+        group.MapPost("/{id:int}/notes", async (int id, CreateNoteRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
+        {
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            var noteId = await mediator.Send(new CreateProjectNoteCommand(id, requester.Id, req.Text), ct);
+            return Results.Created($"/api/projects/{id}/notes/{noteId}", new { id = noteId });
+        })
+        .WithName("CreateProjectNote")
+        .WithDescription("Añade una nota al proyecto. Gestor y JefeEquipo del proyecto.");
+
+        group.MapDelete("/{id:int}/notes/{noteId:int}", async (int id, int noteId, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
+        {
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            await mediator.Send(new DeleteProjectNoteCommand(id, noteId, requester.Id), ct);
+            return Results.NoContent();
+        })
+        .WithName("DeleteProjectNote")
+        .WithDescription("Elimina una nota. Solo el autor o el Gestor.");
+
         return app;
     }
 }
 
 record TransitionStatusRequest(string Status);
 record AssignTeamRequest(int TeamId, bool IsPrimary);
+record CreateNoteRequest(string Text);

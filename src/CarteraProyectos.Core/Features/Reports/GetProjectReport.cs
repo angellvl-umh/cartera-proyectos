@@ -8,7 +8,7 @@ namespace CarteraProyectos.Core.Features.Reports;
 public record GetProjectReportQuery(int ProjectId) : IRequest<ProjectReportDto>;
 
 public record ProjectReportDto(
-    int ProjectId, string Title, string Status, string RequestingUnit,
+    int ProjectId, string Title, string Status, string? RequestingUnit,
     string? StartDate, string? EndDate,
     int TotalWorkItems, int DoneWorkItems,
     IReadOnlyList<EpicReportDto> Epics,

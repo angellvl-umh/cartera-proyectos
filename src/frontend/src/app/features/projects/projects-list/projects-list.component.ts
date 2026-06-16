@@ -16,7 +16,15 @@ import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { ProjectsService } from '../projects.service';
-import { Project, ProjectComplexity, ProjectDetail, ProjectFilters, ProjectStatus } from '../project.model';
+import {
+  PROJECT_COMPLEXITY_LABELS,
+  PROJECT_STATUS_LABELS,
+  Project,
+  ProjectComplexity,
+  ProjectDetail,
+  ProjectFilters,
+  ProjectStatus,
+} from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
 
@@ -183,21 +191,13 @@ export class ProjectsListComponent {
   pageSize = signal(20);
   total = signal(0);
 
-  readonly statusOptions: { value: ProjectStatus; label: string }[] = [
-    { value: 'Proposed', label: 'Propuesto' },
-    { value: 'Approved', label: 'Aprobado' },
-    { value: 'InProgress', label: 'En ejecución' },
-    { value: 'Paused', label: 'Pausado' },
-    { value: 'Completed', label: 'Completado' },
-    { value: 'Cancelled', label: 'Cancelado' },
-  ];
+  readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
+    value: v, label: PROJECT_STATUS_LABELS[v],
+  }));
 
-  readonly complexityOptions: { value: ProjectComplexity; label: string }[] = [
-    { value: 'Low', label: 'Baja' },
-    { value: 'Medium', label: 'Media' },
-    { value: 'High', label: 'Alta' },
-    { value: 'VeryHigh', label: 'Muy alta' },
-  ];
+  readonly complexityOptions = (Object.keys(PROJECT_COMPLEXITY_LABELS) as ProjectComplexity[]).map(v => ({
+    value: v, label: PROJECT_COMPLEXITY_LABELS[v],
+  }));
 
   constructor() {
     this.loadProjects();
@@ -246,24 +246,18 @@ export class ProjectsListComponent {
   }
 
   complexityLabel(c: ProjectComplexity): string {
-    const map: Record<ProjectComplexity, string> = {
-      Low: 'Baja',
-      Medium: 'Media',
-      High: 'Alta',
-      VeryHigh: 'Muy alta',
-    };
-    return map[c] ?? c;
+    return PROJECT_COMPLEXITY_LABELS[c] ?? c;
   }
 
-  canEdit(status: ProjectStatus): boolean {
-    return status === 'Proposed' || status === 'Approved';
+  canEdit(_status: ProjectStatus): boolean {
+    return true;
   }
 
   canDelete(status: ProjectStatus): boolean {
-    return status === 'Proposed' || status === 'Cancelled';
+    return status === 'Stopped' || status === 'PostponedByClient';
   }
 
-  goToDetail(id: string): void {
+  goToDetail(id: number): void {
     this.router.navigate(['/projects', id]);
   }
 
@@ -292,7 +286,7 @@ export class ProjectsListComponent {
     this.loadProjects();
   }
 
-  deleteProject(id: string): void {
+  deleteProject(id: number): void {
     this.service.deleteProject(id).subscribe({
       next: () => {
         this.message.success('Proyecto eliminado');

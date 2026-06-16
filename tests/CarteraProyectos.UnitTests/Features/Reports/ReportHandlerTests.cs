@@ -23,15 +23,15 @@ public class ReportHandlerTests
     private static Person MakePerson(string name = "Alice", PersonRole role = PersonRole.Desarrollador)
         => Person.CreateFromClaims(Guid.NewGuid().ToString(), name, $"{name.ToLower()}@test.com", role);
 
-    private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.Proposed)
+    private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.Stopped)
     {
-        var p = Project.Create(title, null, "TIC", ProjectComplexity.Low, 2026, null, null);
-        if (status != ProjectStatus.Proposed) p.TransitionTo(status);
+        var p = Project.Create(title, null, "TIC", ProjectComplexity.VerySmall, 2026, null, null);
+        if (status != ProjectStatus.Stopped) p.TransitionTo(status);
         return p;
     }
 
     private static async Task<(AppDbContext db, Person person, Project project, Team team)> SeedPersonInTeamWithProject(
-        ProjectStatus projectStatus = ProjectStatus.InProgress)
+        ProjectStatus projectStatus = ProjectStatus.InSprint)
     {
         var db = CreateDb();
 
@@ -133,7 +133,7 @@ public class ReportHandlerTests
     public async Task GetPortfolio_NoFilter_ReturnsAllProjects()
     {
         await using var db = CreateDb();
-        db.Projects.Add(MakeProject("Proyecto A", ProjectStatus.InProgress));
+        db.Projects.Add(MakeProject("Proyecto A", ProjectStatus.InSprint));
         db.Projects.Add(MakeProject("Proyecto B", ProjectStatus.Completed));
         await db.SaveChangesAsync();
 
@@ -142,7 +142,7 @@ public class ReportHandlerTests
 
         result.Projects.Count.ShouldBe(2);
         result.Stats.Total.ShouldBe(2);
-        result.Stats.InProgress.ShouldBe(1);
+        result.Stats.InSprint.ShouldBe(1);
         result.Stats.Completed.ShouldBe(1);
     }
 
@@ -150,12 +150,12 @@ public class ReportHandlerTests
     public async Task GetPortfolio_FilterByStatus_ReturnsOnlyMatchingProjects()
     {
         await using var db = CreateDb();
-        db.Projects.Add(MakeProject("Proyecto A", ProjectStatus.InProgress));
+        db.Projects.Add(MakeProject("Proyecto A", ProjectStatus.InSprint));
         db.Projects.Add(MakeProject("Proyecto B", ProjectStatus.Completed));
         await db.SaveChangesAsync();
 
         var handler = new GetPortfolioHandler(db);
-        var result = await handler.Handle(new GetPortfolioQuery(Status: "InProgress"), CancellationToken.None);
+        var result = await handler.Handle(new GetPortfolioQuery(Status: "InSprint"), CancellationToken.None);
 
         result.Projects.Count.ShouldBe(1);
         result.Projects[0].Title.ShouldBe("Proyecto A");
@@ -165,8 +165,8 @@ public class ReportHandlerTests
     public async Task GetPortfolio_FilterByYear_ReturnsOnlyMatchingYear()
     {
         await using var db = CreateDb();
-        var p2025 = Project.Create("Proyecto 2025", null, "TIC", ProjectComplexity.Low, 2025, null, null);
-        var p2026 = Project.Create("Proyecto 2026", null, "TIC", ProjectComplexity.Low, 2026, null, null);
+        var p2025 = Project.Create("Proyecto 2025", null, "TIC", ProjectComplexity.VerySmall, 2025, null, null);
+        var p2026 = Project.Create("Proyecto 2026", null, "TIC", ProjectComplexity.VerySmall, 2026, null, null);
         db.Projects.AddRange(p2025, p2026);
         await db.SaveChangesAsync();
 
@@ -181,9 +181,9 @@ public class ReportHandlerTests
     public async Task GetPortfolio_AvailableYears_ReturnsDistinctOrderedYears()
     {
         await using var db = CreateDb();
-        db.Projects.Add(Project.Create("A", null, "TIC", ProjectComplexity.Low, 2024, null, null));
-        db.Projects.Add(Project.Create("B", null, "TIC", ProjectComplexity.Low, 2026, null, null));
-        db.Projects.Add(Project.Create("C", null, "TIC", ProjectComplexity.Low, 2026, null, null));
+        db.Projects.Add(Project.Create("A", null, "TIC", ProjectComplexity.VerySmall, 2024, null, null));
+        db.Projects.Add(Project.Create("B", null, "TIC", ProjectComplexity.VerySmall, 2026, null, null));
+        db.Projects.Add(Project.Create("C", null, "TIC", ProjectComplexity.VerySmall, 2026, null, null));
         await db.SaveChangesAsync();
 
         var handler = new GetPortfolioHandler(db);
@@ -196,7 +196,7 @@ public class ReportHandlerTests
     public async Task GetPortfolio_ProjectWithWorkItemsAndMilestones_CountsCorrectly()
     {
         await using var db = CreateDb();
-        var project = MakeProject(status: ProjectStatus.InProgress);
+        var project = MakeProject(status: ProjectStatus.InSprint);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
@@ -379,7 +379,7 @@ public class ReportHandlerTests
     {
         await using var db = CreateDb();
         var person = MakePerson();
-        var project = MakeProject(status: ProjectStatus.InProgress);
+        var project = MakeProject(status: ProjectStatus.InSprint);
         var team = Team.Create("Dev Team", null, null);
 
         db.Persons.Add(person);
@@ -414,7 +414,7 @@ public class ReportHandlerTests
     {
         await using var db = CreateDb();
         var person = MakePerson();
-        var project = MakeProject(status: ProjectStatus.InProgress);
+        var project = MakeProject(status: ProjectStatus.InSprint);
         var team = Team.Create("Red Team", null, null);
 
         db.Persons.Add(person);

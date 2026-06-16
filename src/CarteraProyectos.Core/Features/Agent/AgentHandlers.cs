@@ -9,11 +9,11 @@ namespace CarteraProyectos.Core.Features.Agent;
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
 public record AgentProjectSummaryDto(
-    int Id, string Title, string Status, string RequestingUnit,
+    int Id, string Title, string Status, string? RequestingUnit,
     int TotalTasks, int DoneTasks, int ActiveSprints);
 
 public record AgentProjectDetailDto(
-    int Id, string Title, string Status, string RequestingUnit,
+    int Id, string Title, string Status, string? RequestingUnit,
     string? StartDate, string? EndDate,
     int TotalTasks, int DoneTasks,
     IReadOnlyList<AgentSprintSummaryDto> Sprints,
@@ -210,7 +210,11 @@ public sealed class AgentGetCapacityHandler(IAppDbContext db)
             .OrderBy(t => t.Name)
             .ToListAsync(ct);
 
-        var activeStatuses = new[] { ProjectStatus.Approved, ProjectStatus.InProgress, ProjectStatus.Paused };
+        var activeStatuses = new[]
+        {
+            ProjectStatus.PlanningWithClient, ProjectStatus.PlanningSprint,
+            ProjectStatus.InSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.InTesting,
+        };
         var result = new List<AgentTeamCapacityDto>();
 
         foreach (var team in teams)

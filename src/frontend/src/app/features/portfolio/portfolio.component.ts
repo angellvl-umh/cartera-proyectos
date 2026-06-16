@@ -31,8 +31,15 @@ interface PortfolioProjectDto {
   activeSprintCount: number;
 }
 interface PortfolioStatsDto {
-  total: number; proposed: number; approved: number; inProgress: number;
-  paused: number; completed: number; cancelled: number;
+  total: number;
+  stopped: number;
+  planningWithClient: number;
+  planningSprint: number;
+  inSprint: number;
+  developmentOutsideSprint: number;
+  inTesting: number;
+  completed: number;
+  postponedByClient: number;
 }
 interface PortfolioDto {
   projects: PortfolioProjectDto[];
@@ -41,15 +48,17 @@ interface PortfolioDto {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Proposed: 'default', Approved: 'processing', InProgress: 'success',
-  Paused: 'warning', Completed: 'success', Cancelled: 'error',
+  Stopped: 'default', PlanningWithClient: 'blue', PlanningSprint: 'cyan',
+  InSprint: 'green', DevelopmentOutsideSprint: 'geekblue',
+  InTesting: 'orange', Completed: 'purple', PostponedByClient: 'red',
 };
 const STATUS_LABELS: Record<string, string> = {
-  Proposed: 'Propuesto', Approved: 'Aprobado', InProgress: 'En ejecución',
-  Paused: 'Pausado', Completed: 'Completado', Cancelled: 'Cancelado',
+  Stopped: 'Parado', PlanningWithClient: 'Planif. cliente', PlanningSprint: 'Planif. sprint',
+  InSprint: 'En sprint', DevelopmentOutsideSprint: 'Desarro. fuera sprint',
+  InTesting: 'En pruebas', Completed: 'Finalizado', PostponedByClient: 'Pospuesto cliente',
 };
 const COMPLEXITY_COLORS: Record<string, string> = {
-  Low: 'green', Medium: 'blue', High: 'orange', VeryHigh: 'red',
+  VerySmall: 'green', Small: 'blue', Medium: 'orange', Large: 'red',
 };
 
 @Component({
@@ -66,8 +75,8 @@ const COMPLEXITY_COLORS: Record<string, string> = {
     .header { margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
     .header-left h2 { margin: 0 0 4px; font-size: 22px; }
     .header-left p  { margin: 0; color: #8c8c8c; font-size: 13px; }
-    .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }
-    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
     @media (max-width: 500px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
     .stat-box { background: #fff; border-radius: 8px; padding: 14px 16px; text-align: center;
                 border: 1px solid #f0f0f0; box-shadow: 0 1px 4px rgba(0,0,0,.05); cursor: pointer;
@@ -110,29 +119,37 @@ const COMPLEXITY_COLORS: Record<string, string> = {
 
       <!-- Stats por estado (clicables para filtrar) -->
       <div class="stats-grid">
-        <div class="stat-box" [class.active]="selectedStatus() === 'Proposed'" (click)="toggleStatus('Proposed')">
-          <div class="stat-label">Propuestos</div>
-          <div class="stat-value" style="color:#595959">{{ data()!.stats.proposed }}</div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'Stopped'" (click)="toggleStatus('Stopped')">
+          <div class="stat-label">Parados</div>
+          <div class="stat-value" style="color:#595959">{{ data()!.stats.stopped }}</div>
         </div>
-        <div class="stat-box" [class.active]="selectedStatus() === 'Approved'" (click)="toggleStatus('Approved')">
-          <div class="stat-label">Aprobados</div>
-          <div class="stat-value" style="color:#1890ff">{{ data()!.stats.approved }}</div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'PlanningWithClient'" (click)="toggleStatus('PlanningWithClient')">
+          <div class="stat-label">Planif. cliente</div>
+          <div class="stat-value" style="color:#1890ff">{{ data()!.stats.planningWithClient }}</div>
         </div>
-        <div class="stat-box" [class.active]="selectedStatus() === 'InProgress'" (click)="toggleStatus('InProgress')">
-          <div class="stat-label">En ejecución</div>
-          <div class="stat-value" style="color:#52c41a">{{ data()!.stats.inProgress }}</div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'PlanningSprint'" (click)="toggleStatus('PlanningSprint')">
+          <div class="stat-label">Planif. sprint</div>
+          <div class="stat-value" style="color:#13c2c2">{{ data()!.stats.planningSprint }}</div>
         </div>
-        <div class="stat-box" [class.active]="selectedStatus() === 'Paused'" (click)="toggleStatus('Paused')">
-          <div class="stat-label">Pausados</div>
-          <div class="stat-value" style="color:#faad14">{{ data()!.stats.paused }}</div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'InSprint'" (click)="toggleStatus('InSprint')">
+          <div class="stat-label">En sprint</div>
+          <div class="stat-value" style="color:#52c41a">{{ data()!.stats.inSprint }}</div>
+        </div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'DevelopmentOutsideSprint'" (click)="toggleStatus('DevelopmentOutsideSprint')">
+          <div class="stat-label">Fuera sprint</div>
+          <div class="stat-value" style="color:#2f54eb">{{ data()!.stats.developmentOutsideSprint }}</div>
+        </div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'InTesting'" (click)="toggleStatus('InTesting')">
+          <div class="stat-label">En pruebas</div>
+          <div class="stat-value" style="color:#fa8c16">{{ data()!.stats.inTesting }}</div>
         </div>
         <div class="stat-box" [class.active]="selectedStatus() === 'Completed'" (click)="toggleStatus('Completed')">
-          <div class="stat-label">Completados</div>
-          <div class="stat-value" style="color:#52c41a">{{ data()!.stats.completed }}</div>
+          <div class="stat-label">Finalizados</div>
+          <div class="stat-value" style="color:#722ed1">{{ data()!.stats.completed }}</div>
         </div>
-        <div class="stat-box" [class.active]="selectedStatus() === 'Cancelled'" (click)="toggleStatus('Cancelled')">
-          <div class="stat-label">Cancelados</div>
-          <div class="stat-value" style="color:#ff4d4f">{{ data()!.stats.cancelled }}</div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'PostponedByClient'" (click)="toggleStatus('PostponedByClient')">
+          <div class="stat-label">Pospuestos</div>
+          <div class="stat-value" style="color:#ff4d4f">{{ data()!.stats.postponedByClient }}</div>
         </div>
       </div>
 

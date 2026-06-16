@@ -31,22 +31,22 @@ public class TransitionProjectStatusHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidTransition_ProposedToApproved_ByGestor_Succeeds()
+    public async Task Handle_GestorCambiaAnyStatus_Succeeds()
     {
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Approved, gestor.Id);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, gestor.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
 
         var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.Approved);
+        updated!.Status.ShouldBe(ProjectStatus.InSprint);
     }
 
     [Fact]
-    public async Task Handle_InvalidTransition_ProposedToCompleted_ThrowsInvalidOperationException()
+    public async Task Handle_GestorCambiaACompleted_Succeeds()
     {
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
@@ -54,63 +54,61 @@ public class TransitionProjectStatusHandlerTests
         var handler = new TransitionProjectStatusHandler(db);
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
 
-        await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(cmd, CancellationToken.None));
+        await handler.Handle(cmd, CancellationToken.None);
+
+        var updated = await db.Projects.FindAsync(project.Id);
+        updated!.Status.ShouldBe(ProjectStatus.Completed);
     }
 
     [Fact]
-    public async Task Handle_Transition_ApprovedToInProgress_ByDesarrollador_ThrowsUnauthorizedAccessException()
+    public async Task Handle_DesarrolladorCambiaStatus_ThrowsUnauthorizedAccessException()
     {
         await using var db = CreateInMemoryContext();
 
         var dev = Person.CreateFromClaims("sub-dev", "Dev User", "dev@test.com", PersonRole.Desarrollador);
         db.Persons.Add(dev);
 
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.Low, null, null, null);
-        project.TransitionTo(ProjectStatus.Approved);
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
 
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InProgress, dev.Id);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, dev.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(cmd, CancellationToken.None));
     }
 
     [Fact]
-    public async Task Handle_Transition_ApprovedToInProgress_ByJefeEquipoNotAssigned_ThrowsUnauthorizedAccessException()
+    public async Task Handle_JefeEquipoNoAsignado_ThrowsUnauthorizedAccessException()
     {
         await using var db = CreateInMemoryContext();
 
         var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
         db.Persons.Add(jefe);
 
-        // A different team that is NOT assigned to the project
         var otherTeam = Team.Create("Otro Equipo", null, null);
         db.Teams.Add(otherTeam);
 
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.Low, null, null, null);
-        project.TransitionTo(ProjectStatus.Approved);
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
 
         await db.SaveChangesAsync();
 
-        // Jefe belongs to the other team but the project has no teams assigned
         var membership = PersonTeamMembership.Create(jefe.Id, otherTeam.Id);
         db.PersonTeamMemberships.Add(membership);
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InProgress, jefe.Id);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, jefe.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(cmd, CancellationToken.None));
     }
 
     [Fact]
-    public async Task Handle_Transition_ApprovedToInProgress_ByJefeEquipoAssigned_Succeeds()
+    public async Task Handle_JefeEquipoAsignado_Succeeds()
     {
         await using var db = CreateInMemoryContext();
 
@@ -120,13 +118,11 @@ public class TransitionProjectStatusHandlerTests
         var team = Team.Create("Equipo Asignado", null, null);
         db.Teams.Add(team);
 
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.Low, null, null, null);
-        project.TransitionTo(ProjectStatus.Approved);
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
 
         await db.SaveChangesAsync();
 
-        // Assign team to project and jefe to team
         var assignment = ProjectTeamAssignment.Create(project.Id, team.Id, true);
         db.ProjectTeamAssignments.Add(assignment);
 
@@ -136,11 +132,11 @@ public class TransitionProjectStatusHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InProgress, jefe.Id);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, jefe.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
 
         var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.InProgress);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningSprint);
     }
 }

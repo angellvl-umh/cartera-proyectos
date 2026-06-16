@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
@@ -47,6 +47,19 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
           <li nz-menu-item routerLink="/capacity" routerLinkActive="ant-menu-item-selected">
             <span nz-icon nzType="team"></span>
             <span>Capacidad</span>
+          </li>
+          <li nz-submenu nzTitle="Administración" nzIcon="setting">
+            <ul>
+              <li nz-menu-item routerLink="/admin/promoters" routerLinkActive="ant-menu-item-selected">
+                <span>Promotores</span>
+              </li>
+              <li nz-menu-item routerLink="/admin/organic-units" routerLinkActive="ant-menu-item-selected">
+                <span>Unidades Orgánicas</span>
+              </li>
+              <li nz-menu-item routerLink="/admin/tags" routerLinkActive="ant-menu-item-selected">
+                <span>Etiquetas</span>
+              </li>
+            </ul>
           </li>
         </ul>
       </nz-sider>

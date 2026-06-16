@@ -19,7 +19,7 @@ public class ProjectHandlerTests
     // --- CreateProject ---
 
     [Fact]
-    public async Task CreateProject_ValidCommand_CreatesProjectWithProposedStatus()
+    public async Task CreateProject_ValidCommand_CreatesProjectWithStoppedStatus()
     {
         await using var db = CreateDb();
         var handler = new CreateProjectHandler(db);
@@ -32,9 +32,36 @@ public class ProjectHandlerTests
         var project = await db.Projects.FindAsync(id);
         project.ShouldNotBeNull();
         project.Title.ShouldBe("Portal Alumno");
-        project.Status.ShouldBe(ProjectStatus.Proposed);
+        project.Status.ShouldBe(ProjectStatus.Stopped);
         project.RequestingUnit.ShouldBe("RRHH");
         project.Complexity.ShouldBe(ProjectComplexity.Medium);
+    }
+
+    [Fact]
+    public async Task CreateProject_WithNewFields_StoresAllFields()
+    {
+        await using var db = CreateDb();
+        var handler = new CreateProjectHandler(db);
+
+        var id = await handler.Handle(
+            new CreateProjectCommand(
+                "Portal Alumno", null, null, ProjectComplexity.Small, 2026, null, null,
+                PreviousReferenceId: 42,
+                BeneficiaryCount: 500,
+                GroupPriority: 3,
+                SiptGroup: SiptGroup.Academico,
+                SpecificationsUrl: "https://drive.google.com/doc",
+                EpicUrl: "https://jira.umh.es/epic/1"),
+            CancellationToken.None);
+
+        var project = await db.Projects.FindAsync(id);
+        project.ShouldNotBeNull();
+        project.PreviousReferenceId.ShouldBe(42);
+        project.BeneficiaryCount.ShouldBe(500);
+        project.GroupPriority.ShouldBe(3);
+        project.SiptGroup.ShouldBe(SiptGroup.Academico);
+        project.SpecificationsUrl.ShouldBe("https://drive.google.com/doc");
+        project.EpicUrl.ShouldBe("https://jira.umh.es/epic/1");
     }
 
     // --- UpdateProject ---
@@ -43,20 +70,20 @@ public class ProjectHandlerTests
     public async Task UpdateProject_ValidCommand_UpdatesFields()
     {
         await using var db = CreateDb();
-        var project = Project.Create("Original", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("Original", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
         var handler = new UpdateProjectHandler(db);
         await handler.Handle(
-            new UpdateProjectCommand(project.Id, "Actualizado", "Nueva desc", "ADMIN", ProjectComplexity.High, 2027, null, null),
+            new UpdateProjectCommand(project.Id, "Actualizado", "Nueva desc", "ADMIN", ProjectComplexity.Large, 2027, null, null),
             CancellationToken.None);
 
         var updated = await db.Projects.FindAsync(project.Id);
         updated!.Title.ShouldBe("Actualizado");
         updated.Description.ShouldBe("Nueva desc");
         updated.RequestingUnit.ShouldBe("ADMIN");
-        updated.Complexity.ShouldBe(ProjectComplexity.High);
+        updated.Complexity.ShouldBe(ProjectComplexity.Large);
     }
 
     [Fact]
@@ -67,17 +94,17 @@ public class ProjectHandlerTests
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
-                new UpdateProjectCommand(999, "X", null, "TIC", ProjectComplexity.Low, null, null, null),
+                new UpdateProjectCommand(999, "X", null, "TIC", ProjectComplexity.VerySmall, null, null, null),
                 CancellationToken.None));
     }
 
     // --- DeleteProject ---
 
     [Fact]
-    public async Task DeleteProject_ExistingProject_RemovesIt()
+    public async Task DeleteProject_StoppedProject_RemovesIt()
     {
         await using var db = CreateDb();
-        var project = Project.Create("A borrar", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("A borrar", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
@@ -97,17 +124,14 @@ public class ProjectHandlerTests
             () => handler.Handle(new DeleteProjectCommand(999), CancellationToken.None));
     }
 
-    // --- GetProjects ---
-
     [Fact]
-    public async Task DeleteProject_InProgressProject_ThrowsInvalidOperationException()
+    public async Task DeleteProject_ActiveProject_ThrowsInvalidOperationException()
     {
         await using var db = CreateDb();
-        var project = Project.Create("Activo", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("Activo", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
-        project.TransitionTo(ProjectStatus.Approved);
-        project.TransitionTo(ProjectStatus.InProgress);
+        project.TransitionTo(ProjectStatus.InSprint);
         await db.SaveChangesAsync();
 
         var handler = new DeleteProjectHandler(db);
@@ -122,9 +146,9 @@ public class ProjectHandlerTests
     {
         await using var db = CreateDb();
         db.Projects.AddRange(
-            Project.Create("P1", null, "TIC", ProjectComplexity.Low, null, null, null),
-            Project.Create("P2", null, "TIC", ProjectComplexity.Low, null, null, null),
-            Project.Create("P3", null, "TIC", ProjectComplexity.Low, null, null, null));
+            Project.Create("P1", null, "TIC", ProjectComplexity.VerySmall, null, null, null),
+            Project.Create("P2", null, "TIC", ProjectComplexity.VerySmall, null, null, null),
+            Project.Create("P3", null, "TIC", ProjectComplexity.VerySmall, null, null, null));
         await db.SaveChangesAsync();
 
         var handler = new GetProjectsHandler(db);

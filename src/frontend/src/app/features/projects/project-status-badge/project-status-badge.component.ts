@@ -1,19 +1,21 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { NzTagModule } from 'ng-zorro-antd/tag';
-import { ProjectStatus } from '../project.model';
+import { PROJECT_STATUS_LABELS, ProjectStatus } from '../project.model';
 
 interface StatusConfig {
   label: string;
   color: string;
 }
 
-const STATUS_CONFIG: Record<string, StatusConfig> = {
-  Proposed: { label: 'Propuesto', color: 'blue' },
-  Approved: { label: 'Aprobado', color: 'cyan' },
-  InProgress: { label: 'En ejecución', color: 'green' },
-  Paused: { label: 'Pausado', color: 'orange' },
-  Completed: { label: 'Completado', color: 'purple' },
-  Cancelled: { label: 'Cancelado', color: 'red' },
+const STATUS_COLORS: Record<ProjectStatus, string> = {
+  Stopped: 'default',
+  PlanningWithClient: 'blue',
+  PlanningSprint: 'cyan',
+  InSprint: 'green',
+  DevelopmentOutsideSprint: 'geekblue',
+  InTesting: 'orange',
+  Completed: 'purple',
+  PostponedByClient: 'red',
 };
 
 @Component({
@@ -29,6 +31,10 @@ export class ProjectStatusBadgeComponent {
   @Input({ required: true }) status!: ProjectStatus | string;
 
   config(): StatusConfig {
-    return STATUS_CONFIG[this.status] ?? { label: this.status, color: 'default' };
+    const s = this.status as ProjectStatus;
+    return {
+      label: PROJECT_STATUS_LABELS[s] ?? this.status,
+      color: STATUS_COLORS[s] ?? 'default',
+    };
   }
 }

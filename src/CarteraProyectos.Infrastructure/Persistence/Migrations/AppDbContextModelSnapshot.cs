@@ -92,6 +92,31 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.ToTable("Epics");
                 });
 
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.OrganicUnit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("OrganicUnits");
+                });
+
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Person", b =>
                 {
                     b.Property<int>("Id")
@@ -153,6 +178,9 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("BeneficiaryCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Complexity")
                         .IsRequired()
                         .HasColumnType("text");
@@ -161,16 +189,41 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateOnly?>("DesiredDeploymentDate")
+                        .HasColumnType("date");
+
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("EpicUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("GroupPriority")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("OrganicUnitId")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("PortfolioYear")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("PreviousReferenceId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PromoterId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("RequestingUnit")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SiptGroup")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SpecificationsUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<DateOnly?>("StartDate")
                         .HasColumnType("date");
@@ -181,12 +234,49 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int?>("UorOrder")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrganicUnitId");
+
+                    b.HasIndex("PromoterId");
+
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectNotes");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectTeamAssignment", b =>
@@ -205,6 +295,27 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.HasIndex("TeamId");
 
                     b.ToTable("ProjectTeamAssignments");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Promoter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Promoters");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Sprint", b =>
@@ -245,6 +356,31 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("Sprints");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Tag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Color")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Tags");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Team", b =>
@@ -380,6 +516,21 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.ToTable("WorkItemAssignments", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectTag", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TagsId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ProjectId", "TagsId");
+
+                    b.HasIndex("TagsId");
+
+                    b.ToTable("ProjectTags", (string)null);
+                });
+
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Comment", b =>
                 {
                     b.HasOne("CarteraProyectos.Core.Domain.Person", "Author")
@@ -427,6 +578,42 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.Navigation("Person");
 
                     b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Project", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.OrganicUnit", "OrganicUnit")
+                        .WithMany()
+                        .HasForeignKey("OrganicUnitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CarteraProyectos.Core.Domain.Promoter", "Promoter")
+                        .WithMany()
+                        .HasForeignKey("PromoterId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("OrganicUnit");
+
+                    b.Navigation("Promoter");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectNote", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.Person", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CarteraProyectos.Core.Domain.Project", "Project")
+                        .WithMany("Notes")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectTeamAssignment", b =>
@@ -509,6 +696,21 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ProjectTag", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CarteraProyectos.Core.Domain.Tag", null)
+                        .WithMany()
+                        .HasForeignKey("TagsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Epic", b =>
                 {
                     b.Navigation("WorkItems");
@@ -517,6 +719,8 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Project", b =>
                 {
                     b.Navigation("Epics");
+
+                    b.Navigation("Notes");
 
                     b.Navigation("Teams");
                 });

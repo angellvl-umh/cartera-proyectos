@@ -16,7 +16,7 @@ public record DashboardDto(
 public record DashboardMeDto(int Id, string Name, string Email, string Role);
 
 public record DashboardProjectDto(
-    int Id, string Title, string Status, string RequestingUnit,
+    int Id, string Title, string Status, string? RequestingUnit,
     string? StartDate, string? EndDate,
     int TotalWorkItems, int DoneWorkItems);
 

@@ -19,7 +19,7 @@ public class WorkItemHandlerTests
     private static async Task<(AppDbContext db, Project project)> DbWithProject()
     {
         var db = CreateDb();
-        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var project = Project.Create("Proyecto Test", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
         return (db, project);
@@ -72,7 +72,7 @@ public class WorkItemHandlerTests
     public async Task CreateWorkItem_EpicFromOtherProject_ThrowsKeyNotFoundException()
     {
         var (db, project) = await DbWithProject();
-        var otherProject = Project.Create("Otro", null, "TIC", ProjectComplexity.Low, null, null, null);
+        var otherProject = Project.Create("Otro", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(otherProject);
         var epic = Epic.Create(otherProject.Id, "Épica ajena", null, 0, 0);
         db.Epics.Add(epic);

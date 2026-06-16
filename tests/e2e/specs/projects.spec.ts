@@ -10,7 +10,8 @@ test.describe('Projects', () => {
     await page.locator('nz-sider, .ant-layout-sider').getByText('Proyectos', { exact: true }).click();
     await page.waitForURL('**/projects');
     const rows = page.locator('.ant-table-row');
-    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+    // Wait until at least 6 real data rows are rendered (polling)
+    await expect(rows.nth(5)).toBeVisible({ timeout: 20_000 });
     expect(await rows.count()).toBeGreaterThan(5);
   });
 

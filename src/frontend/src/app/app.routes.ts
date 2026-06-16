@@ -38,5 +38,10 @@ export const routes: Routes = [
     canActivate: [AutoLoginPartialRoutesGuard],
     loadComponent: () => import('./features/capacity/capacity.component').then(m => m.CapacityComponent),
   },
+  {
+    path: 'admin',
+    canActivate: [AutoLoginPartialRoutesGuard],
+    loadChildren: () => import('./features/admin/admin.routes').then(m => m.adminRoutes),
+  },
   { path: 'callback', loadComponent: () => import('./core/callback.component').then(m => m.CallbackComponent) },
 ];

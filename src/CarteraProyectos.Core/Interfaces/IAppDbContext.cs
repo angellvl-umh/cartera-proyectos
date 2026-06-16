@@ -15,6 +15,10 @@ public interface IAppDbContext
     DbSet<WorkItem> WorkItems { get; }
     DbSet<Comment> Comments { get; }
     DbSet<WorkItemEmbedding> WorkItemEmbeddings { get; }
+    DbSet<Promoter> Promoters { get; }
+    DbSet<OrganicUnit> OrganicUnits { get; }
+    DbSet<Tag> Tags { get; }
+    DbSet<ProjectNote> ProjectNotes { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
