@@ -68,13 +68,25 @@ class Tools:
         result = self._get("/me", __user__.get("email", ""))
         return json.dumps(result, ensure_ascii=False)
 
-    def get_projects(self, __user__: dict) -> str:
+    def get_projects(
+        self,
+        __user__: dict,
+        sipt_group: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> str:
         """
-        Listar proyectos del usuario.
-        Devuelve los proyectos asociados a los equipos del usuario con su estado y progreso de tareas.
+        Listar proyectos del usuario, con filtros opcionales.
+        Devuelve los proyectos del usuario con su estado y progreso de tareas.
         Úsalo cuando el usuario pregunte por sus proyectos o el estado general de la cartera.
+        :param sipt_group: Filtrar por grupo SIPT. Valores válidos: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico
+        :param status: Filtrar por estado. Valores válidos: Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient
         """
-        result = self._get("/projects", __user__.get("email", ""))
+        params: dict = {}
+        if sipt_group:
+            params["siptGroup"] = sipt_group
+        if status:
+            params["status"] = status
+        result = self._get("/projects", __user__.get("email", ""), params=params or None)
         return json.dumps(result, ensure_ascii=False)
 
     def get_project_detail(self, project_id: int, __user__: dict) -> str:
@@ -171,6 +183,30 @@ class Tools:
             __user__.get("email", ""),
             {"text": text},
         )
+        return json.dumps(result, ensure_ascii=False)
+
+    def add_project_note(self, project_id: int, text: str, __user__: dict) -> str:
+        """
+        Añadir una nota de seguimiento a un proyecto.
+        La nota queda registrada con el autor y la fecha actual.
+        Úsalo cuando el usuario quiera documentar decisiones, hitos, bloqueos o novedades sobre un proyecto concreto.
+        :param project_id: ID numérico del proyecto
+        :param text: Texto de la nota de seguimiento
+        """
+        result = self._post(
+            f"/projects/{project_id}/notes",
+            __user__.get("email", ""),
+            {"text": text},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def reindex(self, __user__: dict) -> str:
+        """
+        Regenerar el índice de embeddings para búsqueda semántica.
+        Genera o actualiza los vectores de todas las tareas. Ejecutar después de crear o modificar tareas masivamente.
+        Puede tardar varios segundos según el número de tareas.
+        """
+        result = self._post("/reindex", __user__.get("email", ""))
         return json.dumps(result, ensure_ascii=False)
 
     # ── Charts ────────────────────────────────────────────────────────────────

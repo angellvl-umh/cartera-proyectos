@@ -46,8 +46,6 @@ ON CONFLICT ("Name") DO NOTHING;
 -- ─── 3. PERSONAS ─────────────────────────────────────────────────────────────
 
 INSERT INTO "Persons" ("SubjectId", "Name", "Email", "Role") VALUES
-  -- Usuario Gestor (mapeado a la cuenta Keycloak gestor/gestor123)
-  ('seed-gestor',               'Gestor CPTI',          'gestor@universidad.es',        'Gestor'),
   -- ACADEMICO
   ('seed-ppujante',             'Pablo Pujante',         'ppujante@umh.es',              'JefeEquipo'),
   ('seed-hlillo',               'Héctor Lillo',           'hlillo@umh.es',                'Desarrollador'),

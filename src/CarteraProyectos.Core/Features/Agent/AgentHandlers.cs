@@ -54,7 +54,7 @@ public record AgentReindexResultDto(int Indexed, int Failed);
 // ─── Queries / Commands ───────────────────────────────────────────────────────
 
 public record AgentGetMyTasksQuery(int PersonId) : IRequest<AgentMyTasksDto>;
-public record AgentGetProjectsQuery(int PersonId) : IRequest<IReadOnlyList<AgentProjectSummaryDto>>;
+public record AgentGetProjectsQuery(int PersonId, string? SiptGroup = null, string? Status = null) : IRequest<IReadOnlyList<AgentProjectSummaryDto>>;
 public record AgentGetProjectDetailQuery(int ProjectId) : IRequest<AgentProjectDetailDto>;
 public record AgentGetCapacityQuery : IRequest<AgentCapacityDto>;
 public record AgentSearchTasksQuery(string Q, int PersonId, int TopN = 5) : IRequest<IReadOnlyList<AgentSearchResultDto>>;
@@ -71,6 +71,9 @@ public record AgentUpdateTaskStatusCommand(
 
 public record AgentAddCommentCommand(
     int PersonId, int WorkItemId, string Text) : IRequest;
+
+public record AgentAddProjectNoteCommand(
+    int PersonId, int ProjectId, string Text) : IRequest<int>;
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -142,6 +145,14 @@ public sealed class AgentGetProjectsHandler(IAppDbContext db)
 
             baseQuery = db.Projects.Where(p => myProjectIds.Contains(p.Id));
         }
+
+        if (!string.IsNullOrWhiteSpace(request.SiptGroup) &&
+            Enum.TryParse<SiptGroup>(request.SiptGroup, out var siptGroup))
+            baseQuery = baseQuery.Where(p => p.SiptGroup == siptGroup);
+
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<ProjectStatus>(request.Status, out var status))
+            baseQuery = baseQuery.Where(p => p.Status == status);
 
         var projects = await baseQuery
             .Select(p => new
@@ -403,5 +414,23 @@ public sealed class AgentAddCommentHandler(IAppDbContext db)
         var comment = Comment.Create(request.WorkItemId, request.PersonId, request.Text);
         db.Comments.Add(comment);
         await db.SaveChangesAsync(ct);
+    }
+}
+
+public sealed class AgentAddProjectNoteHandler(IAppDbContext db)
+    : IRequestHandler<AgentAddProjectNoteCommand, int>
+{
+    public async Task<int> Handle(AgentAddProjectNoteCommand request, CancellationToken ct)
+    {
+        var project = await db.Projects.FindAsync([request.ProjectId], ct)
+            ?? throw new KeyNotFoundException($"Proyecto {request.ProjectId} no encontrado.");
+
+        var author = await db.Persons.FindAsync([request.PersonId], ct)
+            ?? throw new KeyNotFoundException("Persona no encontrada.");
+
+        var note = ProjectNote.Create(request.ProjectId, request.PersonId, request.Text);
+        db.ProjectNotes.Add(note);
+        await db.SaveChangesAsync(ct);
+        return note.Id;
     }
 }

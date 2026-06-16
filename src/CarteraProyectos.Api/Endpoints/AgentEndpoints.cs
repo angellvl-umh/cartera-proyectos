@@ -27,16 +27,17 @@ public static class AgentEndpoints
         .WithDescription("Devuelve las tareas activas, backlog y completadas del usuario que realiza la consulta. Usa este endpoint cuando el usuario pregunte '¿qué tengo pendiente?', '¿en qué estoy trabajando?', '¿cuáles son mis tareas?'.");
 
         // ── HU-IA-01: Lista de proyectos ──────────────────────────────────────
-        group.MapGet("/projects", async (HttpContext http, IAppDbContext db, ISender sender) =>
+        group.MapGet("/projects", async (HttpContext http, IAppDbContext db, ISender sender,
+            string? siptGroup, string? status) =>
         {
             var person = await ResolvePersonAsync(http, db);
             if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
-            var result = await sender.Send(new AgentGetProjectsQuery(person.Id));
+            var result = await sender.Send(new AgentGetProjectsQuery(person.Id, siptGroup, status));
             return Results.Ok(result);
         })
         .WithName("get_projects")
         .WithSummary("Listar proyectos del usuario")
-        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado y progreso de tareas. Usa este endpoint cuando el usuario pregunte por sus proyectos o por el estado general de la cartera.");
+        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado y progreso de tareas. Filtra opcionalmente por siptGroup (WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico) y/o status (Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient). Usa este endpoint cuando el usuario pregunte por sus proyectos o el estado general de la cartera.");
 
         // ── HU-IA-01: Detalle de proyecto ─────────────────────────────────────
         group.MapGet("/projects/{id:int}", async (int id, ISender sender) =>
@@ -108,6 +109,18 @@ public static class AgentEndpoints
         .WithName("add_task_comment")
         .WithSummary("Añadir un comentario o nota de seguimiento a una tarea")
         .WithDescription("Añade un comentario de seguimiento a una tarea existente. El comentario queda registrado con el autor y la fecha. Úsalo cuando el usuario quiera documentar avances, bloqueos o novedades sobre una tarea.");
+
+        // ── HU-IA-08: Añadir nota a proyecto ─────────────────────────────────
+        group.MapPost("/projects/{id:int}/notes", async (int id, AgentNoteRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
+            var noteId = await sender.Send(new AgentAddProjectNoteCommand(person.Id, id, req.Text));
+            return Results.Created($"/api/projects/{id}/notes/{noteId}", new { id = noteId, message = $"Nota añadida al proyecto {id}." });
+        })
+        .WithName("add_project_note")
+        .WithSummary("Añadir una nota de seguimiento a un proyecto")
+        .WithDescription("Añade una nota o comentario de seguimiento a un proyecto existente. La nota queda registrada con el autor y la fecha. Úsalo cuando el usuario quiera documentar decisiones, hitos, bloqueos o novedades sobre un proyecto concreto.");
 
         // ── Admin: Reindexar embeddings ───────────────────────────────────────
         group.MapPost("/reindex", async (ISender sender) =>
@@ -196,3 +209,5 @@ public record AgentCreateTaskRequest(
     string? Priority, int? EpicId, int? SprintId, bool? AssignToSelf);
 
 public record AgentCommentRequest(string Text);
+
+public record AgentNoteRequest(string Text);

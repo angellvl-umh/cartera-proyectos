@@ -74,6 +74,6 @@ docker compose exec -T db psql -U postgres -d cartera_app < infra/seed.sql
 
 ## Notas
 
-- **Usuario gestor**: el seed incluye la persona `gestor@universidad.es` con `Role = 'Gestor'` y `SubjectId = 'seed-gestor'`. Esto mapea automáticamente la cuenta Keycloak `gestor / gestor123` al rol correcto desde el primer login, sin necesidad de promoción manual.
+- **Usuario gestor**: el seed NO incluye la persona del gestor. La provisión ocurre automáticamente en el primer login: el backend crea la fila con el UUID real de Keycloak y le asigna rol `Gestor` porque `gestor@universidad.es` está en `Admin__InitialGestorEmails`. No es necesaria ninguna acción manual.
 - **DataSeeder.cs**: el backend también carga estos mismos datos automáticamente al arrancar en modo `Development` (si la tabla `Projects` está vacía). El seed SQL es útil cuando se quiere cargar datos sin arrancar el backend, o para entornos de CI.
 - **Enums almacenados como strings**: `Status`, `Complexity`, `SiptGroup` y `Role` se guardan como texto en PostgreSQL. Los valores válidos están documentados en `CLAUDE.md`.
