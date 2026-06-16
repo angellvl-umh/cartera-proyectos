@@ -31,6 +31,11 @@ export class ProjectsService {
     if (filters?.complexity) params = params.set('complexity', filters.complexity);
     if (filters?.q) params = params.set('q', filters.q);
     if (filters?.tagId) params = params.set('tagId', filters.tagId.toString());
+    if (filters?.tagIds?.length) {
+      for (const id of filters.tagIds) {
+        params = params.append('tagIds', id.toString());
+      }
+    }
     if (filters?.siptGroup) params = params.set('siptGroup', filters.siptGroup);
     if (filters?.promoterId) params = params.set('promoterId', filters.promoterId.toString());
     return this.http.get<PagedResult<Project>>(this.base, { params });

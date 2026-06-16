@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -15,6 +16,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzTagModule } from 'ng-zorro-antd/tag';
 import { ProjectsService } from '../projects.service';
 import {
   PROJECT_COMPLEXITY_LABELS,
@@ -24,6 +26,7 @@ import {
   ProjectDetail,
   ProjectFilters,
   ProjectStatus,
+  TagDto,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
@@ -42,6 +45,7 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
     NzSpaceModule,
     NzIconModule,
     NzSpinModule,
+    NzTagModule,
     ProjectStatusBadgeComponent,
     ProjectFormComponent,
   ],
@@ -86,6 +90,20 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
             <nz-option [nzValue]="opt.value" [nzLabel]="opt.label" />
           }
         </nz-select>
+        <nz-select
+          [(ngModel)]="filterTagIds"
+          (ngModelChange)="applyFilters()"
+          nzMode="multiple"
+          nzPlaceHolder="Etiquetas"
+          nzAllowClear
+          nzShowSearch
+          [nzMaxTagCount]="2"
+          style="width: 240px"
+        >
+          @for (t of allTags(); track t.id) {
+            <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
+          }
+        </nz-select>
       </div>
 
       <!-- Tabla -->
@@ -104,9 +122,9 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
         <thead>
           <tr>
             <th>Título</th>
-            <th>Unidad solicitante</th>
             <th>Complejidad</th>
             <th>Estado</th>
+            <th>Etiquetas</th>
             <th>Año cartera</th>
             <th nzWidth="200px">Acciones</th>
           </tr>
@@ -115,10 +133,25 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
           @for (row of projects(); track row.id) {
             <tr>
               <td>{{ row.title }}</td>
-              <td>{{ row.requestingUnit }}</td>
               <td>{{ complexityLabel(row.complexity) }}</td>
               <td>
                 <app-project-status-badge [status]="row.status" />
+              </td>
+              <td>
+                <nz-select
+                  [ngModel]="tagIdsMap()[row.id] ?? []"
+                  (ngModelChange)="onTagsChange(row, $event)"
+                  nzMode="multiple"
+                  nzPlaceHolder="+ Etiqueta"
+                  nzAllowClear
+                  [nzMaxTagCount]="3"
+                  style="width: 100%; min-width: 160px"
+                  nzSize="small"
+                >
+                  @for (t of allTags(); track t.id) {
+                    <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
+                  }
+                </nz-select>
               </td>
               <td>{{ row.portfolioYear ?? '—' }}</td>
               <td>
@@ -182,7 +215,9 @@ export class ProjectsListComponent {
   filterQ = '';
   filterStatus: ProjectStatus | null = null;
   filterComplexity: ProjectComplexity | null = null;
+  filterTagIds: number[] = [];
 
+  allTags = signal<TagDto[]>([]);
   projects = signal<Project[]>([]);
   loading = signal(false);
   formVisible = signal(false);
@@ -200,6 +235,7 @@ export class ProjectsListComponent {
   }));
 
   constructor() {
+    this.service.getTags().subscribe(tags => this.allTags.set(tags));
     this.loadProjects();
   }
 
@@ -211,6 +247,7 @@ export class ProjectsListComponent {
     if (this.filterQ) f.q = this.filterQ;
     if (this.filterStatus) f.status = this.filterStatus;
     if (this.filterComplexity) f.complexity = this.filterComplexity;
+    if (this.filterTagIds.length) f.tagIds = this.filterTagIds;
     return f;
   }
 
@@ -243,6 +280,29 @@ export class ProjectsListComponent {
     this.pageSize.set(size);
     this.currentPage.set(1);
     this.loadProjects();
+  }
+
+  tagIdsMap = computed(() => {
+    const map: Record<number, number[]> = {};
+    for (const p of this.projects()) {
+      map[p.id] = p.tags.map(t => t.id);
+    }
+    return map;
+  });
+
+  onTagsChange(row: Project, tagIds: number[]): void {
+    this.service.updateProject(row.id, {
+      title: row.title,
+      complexity: row.complexity,
+      tagIds,
+    }).subscribe({
+      next: () => {
+        row.tags = tagIds.map(id => this.allTags().find(t => t.id === id)!).filter(Boolean);
+        this.projects.update(list => [...list]);
+        this.message.success('Etiquetas actualizadas');
+      },
+      error: () => this.message.error('Error al actualizar etiquetas'),
+    });
   }
 
   complexityLabel(c: ProjectComplexity): string {

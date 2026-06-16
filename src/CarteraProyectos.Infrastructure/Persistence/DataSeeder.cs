@@ -56,6 +56,13 @@ public static class DataSeeder
         })
         { var e = OrganicUnit.Create(n); db.OrganicUnits.Add(e); unit[n] = e; }
 
+        // --- Tags ---
+        foreach (var (name, color) in new[] {
+            ("Prioritario", "#f5222d"), ("Migración", "#fa8c16"), ("Nueva funcionalidad", "#52c41a"),
+            ("Mantenimiento", "#1890ff"), ("Seguridad", "#722ed1"), ("Accesibilidad", "#13c2c2"),
+            ("Deuda técnica", "#eb2f96"), ("Integración", "#faad14") })
+        { db.Tags.Add(Tag.Create(name, color)); }
+
         await db.SaveChangesAsync();
 
         static DateOnly? D(string? s)

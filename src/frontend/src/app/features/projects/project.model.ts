@@ -35,7 +35,7 @@ export const PROJECT_COMPLEXITY_LABELS: Record<ProjectComplexity, string> = {
   Large: 'Grande',
 };
 
-export type SiptGroup = 'WebTransversal' | 'RRHH' | 'Academico' | 'Sede' | 'Observatorio';
+export type SiptGroup = 'WebTransversal' | 'RRHH' | 'Academico' | 'Sede' | 'Observatorio' | 'InvestigacionEconomico';
 
 export const SIPT_GROUP_LABELS: Record<SiptGroup, string> = {
   WebTransversal: 'Web Transversal',
@@ -43,6 +43,7 @@ export const SIPT_GROUP_LABELS: Record<SiptGroup, string> = {
   Academico: 'Académico',
   Sede: 'Sede',
   Observatorio: 'Observatorio',
+  InvestigacionEconomico: 'Investigación / Económico',
 };
 
 export interface TagDto {
@@ -137,6 +138,7 @@ export interface ProjectFilters {
   complexity?: ProjectComplexity;
   q?: string;
   tagId?: number;
+  tagIds?: number[];
   siptGroup?: SiptGroup;
   promoterId?: number;
   page?: number;

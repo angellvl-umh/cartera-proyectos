@@ -14,6 +14,7 @@ public record GetProjectsQuery(
     ProjectComplexity? Complexity = null,
     string? Q = null,
     int? TagId = null,
+    int[]? TagIds = null,
     SiptGroup? SiptGroup = null,
     int? PromoterId = null,
     int Page = 1,
@@ -65,7 +66,9 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
                                   || (p.Description != null && p.Description.ToLower().Contains(q)));
         }
 
-        if (request.TagId.HasValue)
+        if (request.TagIds is { Length: > 0 })
+            query = query.Where(p => p.Tags.Any(t => request.TagIds.Contains(t.Id)));
+        else if (request.TagId.HasValue)
             query = query.Where(p => p.Tags.Any(t => t.Id == request.TagId.Value));
 
         if (request.SiptGroup.HasValue)
