@@ -27,7 +27,7 @@ Visualización de la carga de trabajo de personas y equipos para facilitar la to
 **para** equilibrar la carga y detectar sobreasignación.
 
 **Criterios de aceptación:**
-- Se listan todas las tareas activas (In Progress, In Review) de la persona
+- Se listan todas las tareas activas (In Progress, Blocked) de la persona
 - Se muestran las tareas pendientes (To Do) asignadas
 - Se indica en qué proyectos está involucrada
 - Se muestra en cuántos equipos participa

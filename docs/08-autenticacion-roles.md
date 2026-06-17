@@ -36,7 +36,7 @@ sequenceDiagram
 
 | Rol | Permisos principales |
 |-----|---------------------|
-| Gestor de cartera | Acceso total: CRUD proyectos, equipos, personas, épicas, tareas, informes, asignar roles |
+| Gestor de cartera | Acceso total: CRUD proyectos, equipos, personas, épicas, tareas, sprints, informes, asignar roles, y CRUD de los catálogos Promotores/Unidades orgánicas/Etiquetas |
 | Jefe de equipo | Crear épicas y tareas; gestionar tareas de **cualquier equipo asignado al proyecto**; ver carga; generar informes de sus proyectos |
 | Desarrollador | Crear tareas, autoasignarse, actualizar estado de sus propias tareas |
 
@@ -77,7 +77,7 @@ sequenceDiagram
 **para** mantener la integridad de los datos y la gobernanza.
 
 **Criterios de aceptación:**
-- **Gestor de cartera**: acceso total (CRUD proyectos, equipos, personas, épicas, tareas, informes, asignar roles)
+- **Gestor de cartera**: acceso total (CRUD proyectos, equipos, personas, épicas, tareas, sprints, informes, asignar roles, CRUD de catálogos Promotores/Unidades orgánicas/Etiquetas)
 - **Jefe de equipo**: crear épicas y tareas; gestionar tareas de cualquier equipo asignado al proyecto; ver carga de su equipo; generar informes de sus proyectos
 - **Desarrollador**: crear tareas, autoasignarse tareas no asignadas, actualizar estado de sus propias tareas
 - Los endpoints de la API devuelven 403 si el usuario no tiene permisos

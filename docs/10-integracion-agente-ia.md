@@ -87,6 +87,7 @@ sequenceDiagram
 - Pregunta ejemplo: "¿Cómo va el proyecto de migración de LDAP?"
 - El agente responde con: estado, % avance, tareas pendientes, equipo asignado
 - Si hay ambigüedad, el agente pregunta a cuál proyecto se refiere
+- Para listar proyectos (`get_projects`), el agente admite filtrar opcionalmente por grupo SIPT (`siptGroup`) y/o por estado (`status`)
 - Funciona desde Open WebUI
 
 ---
@@ -147,17 +148,31 @@ sequenceDiagram
 
 ---
 
-### HU-IA-06: Añadir nota de seguimiento vía chat
+### HU-IA-06: Añadir comentario de seguimiento a una tarea vía chat
 
 **Como** desarrollador,
 **quiero** añadir un comentario de seguimiento a una tarea hablando con el agente,
 **para** documentar mi progreso de forma natural.
 
 **Criterios de aceptación:**
-- Frase ejemplo: "Añade al proyecto de LDAP que hemos terminado la fase de testing"
-- El agente identifica el proyecto/tarea y añade el comentario
+- Frase ejemplo: "Añade un comentario a la tarea del proxy diciendo que hemos terminado la fase de testing"
+- El agente identifica la tarea (por búsqueda semántica si es necesario) y añade el comentario (`add_task_comment`)
 - El comentario queda registrado con autoría y fecha
 - Esta información se usa en los informes de seguimiento
+
+---
+
+### HU-IA-06b: Añadir nota de seguimiento a un proyecto vía chat
+
+**Como** gestor de cartera o jefe de equipo,
+**quiero** añadir una nota de seguimiento a un proyecto hablando con el agente,
+**para** documentar decisiones, hitos o bloqueos a nivel de proyecto sin entrar en la aplicación web.
+
+**Criterios de aceptación:**
+- Frase ejemplo: "Añade al proyecto de LDAP que hemos terminado la fase de testing"
+- El agente identifica el proyecto y añade la nota (`add_project_note`, `POST /api/agent/projects/{id}/notes`)
+- La nota queda registrada con autoría y fecha, y es distinta de los comentarios de tarea (HU-IA-06): vive a nivel de proyecto, no de tarea concreta
+- Esta información se usa en los informes de seguimiento y es visible en el detalle del proyecto
 
 ---
 
@@ -175,6 +190,20 @@ sequenceDiagram
 
 ---
 
+### HU-IA-09: Regenerar el índice de búsqueda semántica vía chat
+
+**Como** administrador,
+**quiero** poder pedirle al agente que regenere el índice de embeddings de las tareas,
+**para** asegurar que la búsqueda semántica refleja cambios masivos recientes sin tener que reiniciar el backend.
+
+**Criterios de aceptación:**
+- El agente expone la tool `reindex` (`POST /api/agent/reindex`)
+- Regenera o actualiza los embeddings vectoriales de todas las tareas
+- Puede tardar varios segundos según el volumen de tareas; el agente informa que la operación está en curso
+- Pensada para ejecutarse tras crear o modificar tareas de forma masiva (ej. importaciones)
+
+---
+
 ### HU-IA-08: Configurar la API como Tool Server en Open WebUI
 
 **Como** administrador,
@@ -187,3 +216,34 @@ sequenceDiagram
 - La autenticación se hace con API Key
 - LiteLLM está configurado como proxy hacia Bedrock con function calling
 - El modelo puede invocar las tools definidas en la spec
+
+---
+
+### HU-IA-10: Generar gráficos a partir de los datos consultados
+
+**Como** usuario del agente IA,
+**quiero** pedir un gráfico (tarta o barras) sobre los datos que acabo de consultar,
+**para** entender visualmente la información sin tener que abrir el dashboard web.
+
+**Criterios de aceptación:**
+- Los gráficos se generan en la tool de Open WebUI (`cartera_tool.py`, Python + matplotlib), **no** en el backend .NET: la tool reutiliza las queries JSON existentes (`get_my_tasks`, `get_projects`, `get_capacity`) y solo renderiza la imagen
+- El backend expone únicamente un endpoint genérico de almacenamiento efímero (`POST/GET /api/agent/charts`) para subir el PNG generado y devolver una URL corta, evitando inflar el contexto del LLM con base64
+- Tools de gráfico disponibles: `chart_team_capacity` (barras), `chart_project_progress` (barras agrupadas), `chart_my_tasks_by_status` (donut o barras), `chart_projects_by_status` (tarta o barras), `chart_projects_by_team` (barras o tarta)
+- Donde el dato se presta a ambos formatos (conteos por categoría), la tool acepta un parámetro `chart_type` con valores `pie` o `bar` (o `donut` como variante de `pie` en el caso de mis tareas); el LLM elige el formato según lo que pida el usuario o usa el valor por defecto de cada gráfico
+- El resultado se inserta en la respuesta del chat como imagen embebida (`![gráfico](url)`)
+
+---
+
+### HU-IA-11: Exportar el listado de proyectos a Excel
+
+**Como** gestor de cartera,
+**quiero** pedirle al agente que exporte el listado de proyectos a un fichero Excel descargable,
+**para** compartirlo o trabajarlo fuera de la plataforma.
+
+**Criterios de aceptación:**
+- Tool `export_projects_excel`, con los mismos filtros opcionales que `get_projects` (`siptGroup`, `status`)
+- No aplica paginación: el Excel incluye todos los proyectos que cumplen el filtro
+- Columnas: ID, Título, Estado, Unidad solicitante, Equipo principal, Tareas totales, Tareas hechas, Sprints activos
+- El fichero se genera en la tool de Open WebUI (Python + openpyxl) a partir de la misma query JSON que `get_projects`, no en el backend
+- El backend almacena el `.xlsx` de forma efímera en el mismo almacén genérico usado para los gráficos (`POST/GET /api/agent/exports`) y devuelve una URL de descarga con el nombre de fichero correcto
+- El resultado se inserta en la respuesta del chat como enlace de descarga (`[proyectos.xlsx](url)`)

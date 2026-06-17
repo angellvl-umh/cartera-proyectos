@@ -26,11 +26,11 @@ public sealed class TransitionProjectStatusHandler(IAppDbContext db)
         if (person.Role == PersonRole.JefeEquipo)
         {
             var teamIds = project.Teams.Select(t => t.TeamId).ToHashSet();
-            var isAssigned = await db.PersonTeamMemberships
-                .AnyAsync(m => teamIds.Contains(m.TeamId) && m.PersonId == request.RequestingPersonId, cancellationToken);
+            var isLeadOfProjectTeam = await db.Teams
+                .AnyAsync(t => teamIds.Contains(t.Id) && t.LeadPersonId == request.RequestingPersonId, cancellationToken);
 
-            if (!isAssigned)
-                throw new UnauthorizedAccessException("El JefeEquipo debe pertenecer a un equipo asignado al proyecto.");
+            if (!isLeadOfProjectTeam)
+                throw new UnauthorizedAccessException("El JefeEquipo debe liderar uno de los equipos asignados al proyecto.");
         }
 
         project.TransitionTo(request.NewStatus);

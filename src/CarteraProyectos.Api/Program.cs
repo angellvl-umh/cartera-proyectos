@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.RateLimiting;
 using CarteraProyectos.Api.Endpoints;
 using CarteraProyectos.Core.Common;
 using CarteraProyectos.Core.Interfaces;
@@ -45,6 +46,7 @@ builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(ValidationBehavior<,>).Assembly));
 builder.Services.AddValidatorsFromAssembly(typeof(ValidationBehavior<,>).Assembly);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AgentAuditBehavior<,>));
 builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IAppDbContext>(
     sp => sp.GetRequiredService<AppDbContext>());
 
@@ -126,6 +128,17 @@ builder.Services.AddCors(options =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("agent", o =>
+    {
+        o.PermitLimit = 60;
+        o.Window = TimeSpan.FromMinutes(1);
+        o.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = 429;
+});
+
 var app = builder.Build();
 
 // Migrate DB on startup + seed demo data if empty
@@ -159,6 +172,7 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // OpenAPI + Scalar
 app.MapOpenApi();  // sirve /openapi/v1.json y /openapi/agent.json automáticamente

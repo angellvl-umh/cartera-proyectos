@@ -33,6 +33,7 @@ public record ProjectDetailDto(
     DateOnly? DesiredDeploymentDate,
     string? SpecificationsUrl,
     string? EpicUrl,
+    decimal? EstimatedBudget,
     List<TagDto> Tags);
 
 public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetProjectQuery, ProjectDetailDto?>
@@ -71,6 +72,7 @@ public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetPro
             project.DesiredDeploymentDate,
             project.SpecificationsUrl,
             project.EpicUrl,
+            project.EstimatedBudget,
             project.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList());
     }
 }

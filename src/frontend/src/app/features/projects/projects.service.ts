@@ -10,10 +10,12 @@ import {
   ProjectFilters,
   ProjectNoteDto,
   ProjectStatus,
+  ProjectWeeklyUpdateDto,
   PromoterDto,
   TagDto,
   Team,
   UpdateProjectDto,
+  UpsertWeeklyUpdateDto,
 } from './project.model';
 
 @Injectable({ providedIn: 'root' })
@@ -84,6 +86,15 @@ export class ProjectsService {
 
   deleteNote(projectId: number, noteId: number): Observable<void> {
     return this.http.delete<void>(`${this.base}/${projectId}/notes/${noteId}`);
+  }
+
+  // Weekly updates
+  getWeeklyUpdates(projectId: number): Observable<ProjectWeeklyUpdateDto[]> {
+    return this.http.get<ProjectWeeklyUpdateDto[]>(`${this.base}/${projectId}/weekly-updates`);
+  }
+
+  upsertWeeklyUpdate(projectId: number, data: UpsertWeeklyUpdateDto): Observable<{ id: number }> {
+    return this.http.post<{ id: number }>(`${this.base}/${projectId}/weekly-updates`, data);
   }
 
   // Catalog lookups

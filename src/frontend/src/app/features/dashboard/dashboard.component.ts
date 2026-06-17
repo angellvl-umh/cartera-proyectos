@@ -22,6 +22,7 @@ import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { PROJECT_STATUS_LABELS } from '../projects/project.model';
 
 interface DashboardMeDto {
   id: number; name: string; email: string; role: string;
@@ -53,21 +54,15 @@ interface DashboardDto {
 }
 
 const PROJECT_STATUS_COLORS: Record<string, string> = {
-  Proposed:   'default',
-  Approved:   'processing',
-  InProgress: 'success',
-  Paused:     'warning',
-  Completed:  'success',
-  Cancelled:  'error',
-};
-
-const PROJECT_STATUS_LABELS: Record<string, string> = {
-  Proposed:   'Propuesto',
-  Approved:   'Aprobado',
-  InProgress: 'En ejecución',
-  Paused:     'Pausado',
-  Completed:  'Completado',
-  Cancelled:  'Cancelado',
+  Stopped: 'default',
+  PlanningWithClient: 'processing',
+  WaitingForDevelopers: 'warning',
+  PlanningSprint: 'processing',
+  InSprint: 'success',
+  DevelopmentOutsideSprint: 'success',
+  InTesting: 'processing',
+  Completed: 'success',
+  PostponedByClient: 'error',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -527,7 +522,7 @@ export class DashboardComponent {
   }
 
   projectStatusLabel(status: string): string {
-    return PROJECT_STATUS_LABELS[status] ?? status;
+    return (PROJECT_STATUS_LABELS as Record<string, string>)[status] ?? status;
   }
 
   projectStatusColor(status: string): string {

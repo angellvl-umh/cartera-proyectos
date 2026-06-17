@@ -71,6 +71,14 @@ public static class ReportEndpoints
             .WithName("GetCapacity")
             .WithDescription("Carga de trabajo actual de todos los equipos con nivel de carga por persona (Green/Yellow/Red).");
 
+        // Informe semanal de seguimiento de cartera
+        app.MapGet("/api/reports/weekly-portfolio",
+            async (IMediator mediator, CancellationToken ct, int? year = null, int? teamId = null, string? siptGroup = null) =>
+                Results.Ok(await mediator.Send(new GetWeeklyPortfolioReportQuery(year, teamId, siptGroup), ct)))
+            .RequireAuthorization()
+            .WithName("GetWeeklyPortfolioReport")
+            .WithDescription("Informe semanal de seguimiento de cartera: proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT.");
+
         return app;
     }
 }

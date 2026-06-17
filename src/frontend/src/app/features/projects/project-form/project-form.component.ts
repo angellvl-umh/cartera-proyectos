@@ -189,6 +189,14 @@ import {
                   nzPlaceHolder="Usuarios beneficiados" style="width:100%" />
               </nz-form-control>
             </nz-form-item>
+
+            <nz-form-item>
+              <nz-form-label>Presupuesto estimado (€)</nz-form-label>
+              <nz-form-control>
+                <nz-input-number formControlName="estimatedBudget" [nzMin]="0"
+                  nzPlaceHolder="Presupuesto estimado" style="width:100%" />
+              </nz-form-control>
+            </nz-form-item>
           </div>
 
           <nz-form-item>
@@ -278,6 +286,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
     desiredDeploymentDate: new FormControl<Date | null>(null),
     specificationsUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
     epicUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
+    estimatedBudget: new FormControl<number | null>(null),
     tagIds: new FormControl<number[]>([]),
   });
 
@@ -308,6 +317,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
         desiredDeploymentDate: p.desiredDeploymentDate ? new Date(p.desiredDeploymentDate) : null,
         specificationsUrl: p.specificationsUrl ?? null,
         epicUrl: p.epicUrl ?? null,
+        estimatedBudget: p.estimatedBudget ?? null,
         tagIds: p.tags.map(t => t.id),
       });
     } else if (this.visible && !this.project) {
@@ -343,6 +353,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
       desiredDeploymentDate: this.toDateStr(raw.desiredDeploymentDate),
       specificationsUrl: raw.specificationsUrl || null,
       epicUrl: raw.epicUrl || null,
+      estimatedBudget: raw.estimatedBudget ?? null,
       tagIds: raw.tagIds ?? [],
     };
 

@@ -29,6 +29,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/portfolio/portfolio.component').then(m => m.PortfolioComponent),
   },
   {
+    path: 'reports/weekly-portfolio',
+    canActivate: [AutoLoginPartialRoutesGuard],
+    loadComponent: () => import('./features/reports/weekly-portfolio-report.component').then(m => m.WeeklyPortfolioReportComponent),
+  },
+  {
     path: 'my-tasks',
     canActivate: [AutoLoginPartialRoutesGuard],
     loadComponent: () => import('./features/my-tasks/my-tasks.component').then(m => m.MyTasksComponent),

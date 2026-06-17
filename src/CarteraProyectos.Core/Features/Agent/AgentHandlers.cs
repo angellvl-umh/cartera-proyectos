@@ -10,6 +10,7 @@ namespace CarteraProyectos.Core.Features.Agent;
 
 public record AgentProjectSummaryDto(
     int Id, string Title, string Status, string? RequestingUnit,
+    string? PrimaryTeamName,
     int TotalTasks, int DoneTasks, int ActiveSprints);
 
 public record AgentProjectDetailDto(
@@ -64,16 +65,28 @@ public record AgentCreateTaskCommand(
     int PersonId, int ProjectId, string Title,
     string? Description, string Priority,
     int? EpicId, int? SprintId,
-    bool AssignToSelf) : IRequest<int>;
+    bool AssignToSelf) : IRequest<int>, IAgentAuditable
+{
+    public int RequestingPersonId => PersonId;
+}
 
 public record AgentUpdateTaskStatusCommand(
-    int PersonId, int WorkItemId, string NewStatus) : IRequest;
+    int PersonId, int WorkItemId, string NewStatus) : IRequest, IAgentAuditable
+{
+    public int RequestingPersonId => PersonId;
+}
 
 public record AgentAddCommentCommand(
-    int PersonId, int WorkItemId, string Text) : IRequest;
+    int PersonId, int WorkItemId, string Text) : IRequest, IAgentAuditable
+{
+    public int RequestingPersonId => PersonId;
+}
 
 public record AgentAddProjectNoteCommand(
-    int PersonId, int ProjectId, string Text) : IRequest<int>;
+    int PersonId, int ProjectId, string Text) : IRequest<int>, IAgentAuditable
+{
+    public int RequestingPersonId => PersonId;
+}
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -158,6 +171,10 @@ public sealed class AgentGetProjectsHandler(IAppDbContext db)
             .Select(p => new
             {
                 p.Id, p.Title, p.Status, p.RequestingUnit,
+                PrimaryTeamName = db.ProjectTeamAssignments
+                    .Where(a => a.ProjectId == p.Id && a.IsPrimary)
+                    .Select(a => a.Team.Name)
+                    .FirstOrDefault(),
                 TotalTasks    = db.WorkItems.Count(w => w.ProjectId == p.Id),
                 DoneTasks     = db.WorkItems.Count(w => w.ProjectId == p.Id && w.Status == WorkItemStatus.Done),
                 ActiveSprints = db.Sprints.Count(s => s.ProjectId == p.Id && s.Status == SprintStatus.Active),
@@ -166,7 +183,7 @@ public sealed class AgentGetProjectsHandler(IAppDbContext db)
             .ToListAsync(ct);
 
         return projects.Select(p => new AgentProjectSummaryDto(
-            p.Id, p.Title, p.Status.ToString(), p.RequestingUnit,
+            p.Id, p.Title, p.Status.ToString(), p.RequestingUnit, p.PrimaryTeamName,
             p.TotalTasks, p.DoneTasks, p.ActiveSprints)).ToList();
     }
 }

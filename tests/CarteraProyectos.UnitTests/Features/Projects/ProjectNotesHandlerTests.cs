@@ -78,15 +78,38 @@ public class ProjectNotesHandlerTests
     }
 
     [Fact]
-    public async Task CreateProjectNote_JefeEquipo_CreatesNote()
+    public async Task CreateProjectNote_JefeEquipoLiderDelEquipoAsignado_CreatesNote()
     {
         var (db, project) = await DbWithProject();
         var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
+
+        var team = Team.Create("Equipo Asignado", null, jefe.Id);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        await db.SaveChangesAsync();
 
         var id = await new CreateProjectNoteHandler(db).Handle(
             new CreateProjectNoteCommand(project.Id, jefe.Id, "Nota del jefe"), CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task CreateProjectNote_JefeEquipoNoLiderDeNingunEquipoAsignado_ThrowsUnauthorizedAccessException()
+    {
+        var (db, project) = await DbWithProject();
+        var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
+
+        var team = Team.Create("Equipo Asignado", null, null);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        await db.SaveChangesAsync();
+
+        await Should.ThrowAsync<UnauthorizedAccessException>(() =>
+            new CreateProjectNoteHandler(db).Handle(
+                new CreateProjectNoteCommand(project.Id, jefe.Id, "Nota del jefe"), CancellationToken.None));
     }
 
     [Fact]

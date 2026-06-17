@@ -1,4 +1,7 @@
+using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
+using CarteraProyectos.Core.Features.Projects.WeeklyUpdates;
+using CarteraProyectos.Core.Features.Reports;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +15,8 @@ public static class AgentEndpoints
         var group = app.MapGroup("/api/agent")
             .WithTags("Agent")
             .WithGroupName("agent")
-            .AddEndpointFilter(AgentApiKeyFilter);
+            .AddEndpointFilter(AgentApiKeyFilter)
+            .RequireRateLimiting("agent");
 
         // ── HU-IA-07: Mis tareas ──────────────────────────────────────────────
         group.MapGet("/me", async (HttpContext http, IAppDbContext db, ISender sender) =>
@@ -37,7 +41,7 @@ public static class AgentEndpoints
         })
         .WithName("get_projects")
         .WithSummary("Listar proyectos del usuario")
-        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado y progreso de tareas. Filtra opcionalmente por siptGroup (WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico) y/o status (Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient). Usa este endpoint cuando el usuario pregunte por sus proyectos o el estado general de la cartera.");
+        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado, equipo principal (primaryTeamName) y progreso de tareas. Filtra opcionalmente por siptGroup (WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico) y/o status (Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient). Usa este endpoint cuando el usuario pregunte por sus proyectos o el estado general de la cartera.");
 
         // ── HU-IA-01: Detalle de proyecto ─────────────────────────────────────
         group.MapGet("/projects/{id:int}", async (int id, ISender sender) =>
@@ -122,6 +126,30 @@ public static class AgentEndpoints
         .WithSummary("Añadir una nota de seguimiento a un proyecto")
         .WithDescription("Añade una nota o comentario de seguimiento a un proyecto existente. La nota queda registrada con el autor y la fecha. Úsalo cuando el usuario quiera documentar decisiones, hitos, bloqueos o novedades sobre un proyecto concreto.");
 
+        // ── HU-IA-06b: Registrar avance semanal de proyecto ──────────────────
+        group.MapPost("/projects/{id:int}/weekly-updates", async (int id, AgentWeeklyUpdateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
+            if (!Enum.TryParse<ProjectHealthStatus>(req.HealthStatus, out var health))
+                return Results.BadRequest("healthStatus debe ser OnTrack, AtRisk o Blocked.");
+            var updateId = await sender.Send(new UpsertProjectWeeklyUpdateCommand(id, person.Id, req.Summary, health));
+            return Results.Ok(new { id = updateId, message = $"Avance semanal registrado para el proyecto {id}." });
+        })
+        .WithName("add_weekly_update")
+        .WithSummary("Registrar el avance semanal de un proyecto")
+        .WithDescription("Registra (o actualiza si ya existe uno esta semana) el avance semanal del usuario en un proyecto. healthStatus debe ser OnTrack (en curso), AtRisk (en riesgo) o Blocked (bloqueado). Solo se permite un registro por persona y proyecto por semana ISO; un segundo registro la misma semana actualiza el anterior. Úsalo cuando el usuario quiera reportar cómo va un proyecto esta semana.");
+
+        // ── HU-IA-09: Informe semanal de cartera ───────────────────────────────
+        group.MapGet("/weekly-portfolio-report", async (ISender sender, int? year = null, int? teamId = null, string? siptGroup = null) =>
+        {
+            var result = await sender.Send(new GetWeeklyPortfolioReportQuery(year, teamId, siptGroup));
+            return Results.Ok(result);
+        })
+        .WithName("get_weekly_portfolio_report")
+        .WithSummary("Informe semanal de seguimiento de cartera")
+        .WithDescription("Devuelve proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT. Usa este endpoint cuando necesites un resumen del estado de la cartera esta semana.");
+
         // ── Admin: Reindexar embeddings ───────────────────────────────────────
         group.MapPost("/reindex", async (ISender sender) =>
         {
@@ -137,23 +165,45 @@ public static class AgentEndpoints
         {
             using var ms = new System.IO.MemoryStream();
             await request.Body.CopyToAsync(ms, ct);
-            var id = ChartStore.Store(ms.ToArray());
+            var id = AgentBlobStore.Store(ms.ToArray(), "image/png", null);
             var externalUrl = config["Agent:ExternalUrl"] ?? "http://localhost:5000";
             return Results.Ok(new { id, url = $"{externalUrl}/api/agent/charts/{id}" });
         })
         .WithName("store_chart")
         .ExcludeFromDescription();  // no exponer en el spec del agente
+
+        // ── Exports: almacenamiento temporal de ficheros (Excel, etc.) ─────────
+        group.MapPost("/exports", async (HttpRequest request, IConfiguration config, string? fileName, CancellationToken ct) =>
+        {
+            using var ms = new System.IO.MemoryStream();
+            await request.Body.CopyToAsync(ms, ct);
+            const string xlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            var id = AgentBlobStore.Store(ms.ToArray(), xlsxContentType, fileName ?? "export.xlsx");
+            var externalUrl = config["Agent:ExternalUrl"] ?? "http://localhost:5000";
+            return Results.Ok(new { id, url = $"{externalUrl}/api/agent/exports/{id}" });
+        })
+        .WithName("store_export")
+        .ExcludeFromDescription();  // no exponer en el spec del agente
     }
 
-    // Endpoint público (sin API key) para servir las imágenes al navegador
+    // Endpoints públicos (sin API key) para servir ficheros al navegador
     public static void MapAgentChartEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/agent/charts/{id}", (string id) =>
         {
-            var data = ChartStore.Get(id);
-            return data is null
+            var blob = AgentBlobStore.Get(id);
+            return blob is null
                 ? Results.NotFound()
-                : Results.File(data, "image/png");
+                : Results.File(blob.Data, blob.ContentType);
+        })
+        .ExcludeFromDescription();
+
+        app.MapGet("/api/agent/exports/{id}", (string id) =>
+        {
+            var blob = AgentBlobStore.Get(id);
+            return blob is null
+                ? Results.NotFound()
+                : Results.File(blob.Data, blob.ContentType, blob.FileName);
         })
         .ExcludeFromDescription();
     }
@@ -184,20 +234,22 @@ public static class AgentEndpoints
     }
 }
 
-// ── Chart store (in-memory, TTL no necesario — los charts son efímeros) ─────────
+// ── Blob store (in-memory, TTL no necesario — los ficheros son efímeros) ────────
 
-internal static class ChartStore
+internal sealed record AgentBlob(byte[] Data, string ContentType, string? FileName);
+
+internal static class AgentBlobStore
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> _store = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AgentBlob> _store = new();
 
-    public static string Store(byte[] data)
+    public static string Store(byte[] data, string contentType, string? fileName)
     {
         var id = Guid.NewGuid().ToString("N");
-        _store[id] = data;
+        _store[id] = new AgentBlob(data, contentType, fileName);
         return id;
     }
 
-    public static byte[]? Get(string id) => _store.TryGetValue(id, out var data) ? data : null;
+    public static AgentBlob? Get(string id) => _store.TryGetValue(id, out var blob) ? blob : null;
 }
 
 // ── Request bodies ────────────────────────────────────────────────────────────
@@ -211,3 +263,5 @@ public record AgentCreateTaskRequest(
 public record AgentCommentRequest(string Text);
 
 public record AgentNoteRequest(string Text);
+
+public record AgentWeeklyUpdateRequest(string Summary, string HealthStatus);

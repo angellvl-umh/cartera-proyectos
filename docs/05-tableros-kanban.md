@@ -13,8 +13,8 @@ Visualización del trabajo en curso mediante tableros Kanban interactivos. Se of
 **para** visualizar de un vistazo el progreso del trabajo.
 
 **Criterios de aceptación:**
-- Columnas: Backlog, To Do, In Progress, In Review, Done
-- Cada tarjeta muestra: título, asignado, prioridad, épica
+- Columnas: Backlog, To Do, In Progress, Blocked, Done
+- Cada tarjeta muestra: título, asignados (puede haber varios), prioridad, épica
 - Se puede filtrar por épica o por persona asignada
 - Se puede ocultar/mostrar la columna "Done" para reducir ruido
 

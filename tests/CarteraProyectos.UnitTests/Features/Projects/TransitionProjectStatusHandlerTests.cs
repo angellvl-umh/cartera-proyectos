@@ -108,7 +108,38 @@ public class TransitionProjectStatusHandlerTests
     }
 
     [Fact]
-    public async Task Handle_JefeEquipoAsignado_Succeeds()
+    public async Task Handle_JefeEquipoLiderDelEquipoAsignado_Succeeds()
+    {
+        await using var db = CreateInMemoryContext();
+
+        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
+        db.Persons.Add(jefe);
+        await db.SaveChangesAsync();
+
+        var team = Team.Create("Equipo Asignado", null, jefe.Id);
+        db.Teams.Add(team);
+
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
+        db.Projects.Add(project);
+
+        await db.SaveChangesAsync();
+
+        var assignment = ProjectTeamAssignment.Create(project.Id, team.Id, true);
+        db.ProjectTeamAssignments.Add(assignment);
+
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, jefe.Id);
+
+        await handler.Handle(cmd, CancellationToken.None);
+
+        var updated = await db.Projects.FindAsync(project.Id);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningSprint);
+    }
+
+    [Fact]
+    public async Task Handle_JefeEquipoMiembroPeroNoLider_ThrowsUnauthorizedAccessException()
     {
         await using var db = CreateInMemoryContext();
 
@@ -134,9 +165,7 @@ public class TransitionProjectStatusHandlerTests
         var handler = new TransitionProjectStatusHandler(db);
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, jefe.Id);
 
-        await handler.Handle(cmd, CancellationToken.None);
-
-        var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.PlanningSprint);
+        await Should.ThrowAsync<UnauthorizedAccessException>(
+            () => handler.Handle(cmd, CancellationToken.None));
     }
 }

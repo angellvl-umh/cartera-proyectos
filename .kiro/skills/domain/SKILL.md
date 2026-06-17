@@ -6,7 +6,7 @@ description: Domain knowledge for Cartera de Proyectos TIC - entities, roles, bu
 # Cartera de Proyectos TIC — Domain Knowledge
 
 ## Context
-University IT project portfolio management platform. Manages projects, teams, people, epics, tasks (work items), and provides Kanban boards, capacity dashboards, reports, semantic search, and AI agent integration.
+University IT project portfolio management platform. Manages projects, teams, people, epics, tasks (work items), sprints, catalogs (promoters, organic units, tags), and provides Kanban boards, capacity dashboards, reports, semantic search, and AI agent integration.
 
 ## Entities
 
@@ -34,18 +34,56 @@ University IT project portfolio management platform. Manages projects, teams, pe
 | TeamId | int | FK → Team |
 | JoinedAt | date | |
 
+### Promoter
+| Field | Type | Notes |
+|-------|------|-------|
+| Id | int | PK |
+| Name | string | Required, max 200, unique by convention |
+
+Catalog entity. CRUD is Gestor-only (`/api/promoters`). Cannot be deleted while referenced by a Project.
+
+### OrganicUnit
+| Field | Type | Notes |
+|-------|------|-------|
+| Id | int | PK |
+| Name | string | Required, max 200 |
+| Code | string? | max 50 |
+
+Catalog entity. CRUD is Gestor-only (`/api/organic-units`). Replaces the old free-text `RequestingUnit` semantically for new projects (Project still keeps `RequestingUnit` as a nullable legacy field). Cannot be deleted while referenced by a Project.
+
+### Tag
+| Field | Type | Notes |
+|-------|------|-------|
+| Id | int | PK |
+| Name | string | Required, max 100 |
+| Color | string? | max 20, hex color |
+
+Catalog entity. CRUD is Gestor-only (`/api/tags`). Joined to Project via `ProjectTags`. Deleting a tag detaches it from all projects automatically.
+
 ### Project
 | Field | Type | Notes |
 |-------|------|-------|
 | Id | int | PK |
-| Title | string | Required |
+| Title | string | Required, max 150 |
 | Description | string? | |
-| RequestingUnit | string | Required |
-| Complexity | enum | Low / Medium / High / VeryHigh |
-| Status | enum | Proposed / Approved / InProgress / Paused / Completed / Cancelled |
+| RequestingUnit | string? | Legacy free-text field, kept nullable for old data; new projects use `OrganicUnitId` |
+| Complexity | enum | VerySmall / Small / Medium / Large / VeryLarge |
+| Status | enum | Stopped / PlanningWithClient / WaitingForDevelopers / PlanningSprint / InSprint / DevelopmentOutsideSprint / InTesting / Completed / PostponedByClient |
 | PortfolioYear | int? | null = out of portfolio |
 | StartDate | DateOnly? | |
 | EndDate | DateOnly? | |
+| PreviousReferenceId | int? | ID in a previous/legacy portfolio system |
+| BeneficiaryCount | int? | Number of users benefited |
+| PromoterId | int? | FK → Promoter |
+| OrganicUnitId | int? | FK → OrganicUnit |
+| UorOrder | int? | Internal priority order set by the requesting unit |
+| GroupPriority | int? | Institutional strategic priority |
+| SiptGroup | enum? | WebTransversal / RRHH / Academico / Sede / Observatorio / InvestigacionEconomico |
+| DesiredDeploymentDate | DateOnly? | Target go-live date |
+| SpecificationsUrl | string? | max 500, link to specs doc |
+| EpicUrl | string? | max 500, link to external epic/Jira |
+| Tags | Tag[] | Many-to-many via `ProjectTags` |
+| Notes | ProjectNote[] | Follow-up log |
 
 ### ProjectTeamAssignment
 | Field | Type | Notes |
@@ -53,6 +91,17 @@ University IT project portfolio management platform. Manages projects, teams, pe
 | ProjectId | int | FK → Project |
 | TeamId | int | FK → Team |
 | IsPrimary | bool | One team can be primary |
+
+### ProjectNote
+| Field | Type | Notes |
+|-------|------|-------|
+| Id | int | PK |
+| ProjectId | int | FK → Project |
+| AuthorId | int | FK → Person |
+| Text | string | Required |
+| CreatedAt | DateTimeOffset | |
+
+Project-level follow-up log (decisions, milestones, blockers). Created via UI or via the AI agent (`add_project_note`). Distinct from `Comment`, which is attached to a `WorkItem`.
 
 ### Epic
 | Field | Type | Notes |
@@ -64,21 +113,39 @@ University IT project portfolio management platform. Manages projects, teams, pe
 | Priority | int | |
 | SortOrder | int | |
 
+### Sprint
+| Field | Type | Notes |
+|-------|------|-------|
+| Id | int | PK |
+| ProjectId | int | FK → Project |
+| Status | enum | Planning / Active / Completed |
+
+Sprint **does** have a strict finite state machine (see below) — unlike Project status, which is free-form.
+
 ### WorkItem
 | Field | Type | Notes |
 |-------|------|-------|
 | Id | int | PK |
-| EpicId | int? | FK → Epic (null = backlog general) |
-| ProjectId | int? | FK → Project (null = backlog general) |
+| ProjectId | int | FK → Project (required) |
+| EpicId | int? | FK → Epic (null = project backlog without epic) |
+| SprintId | int? | FK → Sprint (null = not assigned to a sprint) |
 | Title | string | Required |
 | Description | string? | |
-| Status | enum | Backlog / ToDo / InProgress / InReview / Done |
-| Priority | int | |
-| AssignedToId | int? | FK → Person |
+| Status | enum | Backlog / ToDo / InProgress / Blocked / Done |
+| Priority | enum | Low / Medium / High / Critical |
 | SortOrder | int | |
-| Estimation | string? | Free text (e.g. "3d", "8h") |
+| EstimationHours | int? | Hour-based estimate |
+| EstimationPoints | int? | Story-point estimate (separate from hours, not free text) |
 | IsHito | bool | Marks the task as a milestone; default false |
 | HitoDate | DateOnly? | Target date for the milestone (only meaningful when IsHito = true) |
+| DueDate | DateOnly? | Due date for the task |
+| Assignees | Person[] | **Many-to-many** — a task can have multiple assigned people, not a single `AssignedToId` |
+
+### WorkItemEmbedding
+| Field | Type | Notes |
+|-------|------|-------|
+| WorkItemId | int | FK → WorkItem |
+| Embedding | vector | pgvector embedding generated from title+description, used for semantic search |
 
 ### Comment
 | Field | Type | Notes |
@@ -91,23 +158,25 @@ University IT project portfolio management platform. Manages projects, teams, pe
 
 ## State Machines
 
-### Project Status
+### Project Status — free-form, role-gated only
+Project status has **no** finite state machine: any status can transition to any other status. `Project.TransitionTo(next)` performs no validation on the value itself. Authorization is the only gate:
+
+| Role | Allowed |
+|------|---------|
+| Desarrollador | Never allowed — always rejected |
+| JefeEquipo | Allowed only if they belong to a team assigned to the project (any assigned team, not just the primary one) |
+| Gestor | Always allowed |
+
+### Sprint Status — genuine FSM
 ```
-[*] → Proposed
-Proposed → Approved (Gestor only)
-Proposed → Cancelled (Gestor only)
-Approved → InProgress (Gestor, JefeEquipo of project)
-Approved → Cancelled (Gestor only)
-InProgress → Paused (Gestor, JefeEquipo of project)
-InProgress → Completed (Gestor, JefeEquipo of project)
-InProgress → Cancelled (Gestor only)
-Paused → InProgress (Gestor, JefeEquipo of project)
-Paused → Cancelled (Gestor only)
+Planning → Active
+Active → Completed
+Completed → (terminal, no further transitions)
 ```
 
 ### WorkItem Status
 ```
-Backlog → ToDo → InProgress → InReview → Done
+Backlog → ToDo → InProgress → Blocked / Done
 (any non-Done state can move back to any earlier state)
 Done is terminal — a task in Done cannot go back. Reopen by creating a new task.
 ```
@@ -119,10 +188,12 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 | Action | Gestor | JefeEquipo | Desarrollador |
 |--------|--------|------------|---------------|
 | CRUD Projects | ✅ | ❌ | ❌ |
-| Approve projects | ✅ | ❌ | ❌ |
+| Change project status | ✅ | ✅ (project's teams) | ❌ |
 | Assign projects to teams | ✅ | ❌ | ❌ |
 | CRUD Teams/Persons | ✅ | ❌ | ❌ |
+| CRUD Promoters/OrganicUnits/Tags | ✅ | ❌ | ❌ |
 | Assign roles | ✅ | ❌ | ❌ |
+| Add project notes | ✅ | ✅ (own projects) | ❌ |
 | Create epics | ✅ | ✅ (projects where they are JefeEquipo) | ❌ |
 | Create tasks | ✅ | ✅ | ✅ |
 | Assign tasks | ✅ | ✅ (project's teams) | Self-assign only |
@@ -139,12 +210,16 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 | Gestor de cartera | `PersonRole.Gestor` |
 | Jefe de equipo | `PersonRole.JefeEquipo` |
 | Desarrollador | `PersonRole.Desarrollador` |
-| Propuesto | `ProjectStatus.Proposed` |
-| Aprobado | `ProjectStatus.Approved` |
-| En ejecución | `ProjectStatus.InProgress` |
-| Pausado | `ProjectStatus.Paused` |
-| Completado | `ProjectStatus.Completed` |
-| Cancelado | `ProjectStatus.Cancelled` |
+| Parado | `ProjectStatus.Stopped` |
+| Planificando con cliente | `ProjectStatus.PlanningWithClient` |
+| Esperando desarrolladores | `ProjectStatus.WaitingForDevelopers` |
+| Planificando sprint | `ProjectStatus.PlanningSprint` |
+| En sprint | `ProjectStatus.InSprint` |
+| Desarrollo fuera de sprint | `ProjectStatus.DevelopmentOutsideSprint` |
+| En pruebas | `ProjectStatus.InTesting` |
+| Finalizado | `ProjectStatus.Completed` |
+| Pospuesto por cliente | `ProjectStatus.PostponedByClient` |
+| Muy pequeño / Pequeño / Medio / Grande / Muy grande | `ProjectComplexity.VerySmall/Small/Medium/Large/VeryLarge` |
 | Tareas | `WorkItem` |
 | Hito | `WorkItem` with `IsHito = true` |
 
@@ -153,23 +228,32 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 1. A person can belong to multiple teams simultaneously
 2. A project can be assigned to multiple teams (one is primary)
 3. Team cannot be deleted if it has active projects
-4. WorkItems without Project/Epic belong to "backlog general"
-5. Only persons in a project's team can be assigned tasks of that project
+4. WorkItems always belong to a Project; `EpicId` is nullable (project backlog without epic) and `SprintId` is nullable (not yet planned into a sprint)
+5. Only persons in a project's team can be assigned tasks of that project; a task can have multiple assignees
 6. User provisioning is automatic from SSO JWT claims (sub, name, email)
 7. Default role on first login: Desarrollador
 8. AI agent actions respect user permissions via X-Open-WebUI-User-Email header
-9. Semantic search uses pgvector embeddings (generated async, graceful degradation)
-10. Reports exportable to PDF (QuestPDF) and Excel (ClosedXML)
+9. Semantic search uses pgvector embeddings over WorkItems (generated async via Bedrock Titan embeddings, graceful degradation if unavailable)
+10. Project status changes are free-form (any value → any value); only role authorization is checked, there is no transition table
+11. Sprint status follows a strict one-directional FSM: Planning → Active → Completed
+12. Promoters/OrganicUnits/Tags cannot be deleted while referenced by a Project (Promoters, OrganicUnits) or are silently detached on delete (Tags)
+13. ProjectNotes and Comments are append-only follow-up logs (no edit/delete by other users besides author or Gestor)
 
 ## API Structure
 ```
-/api/projects      - CRUD projects, status changes, team assignment
-/api/teams         - CRUD teams, membership
-/api/persons       - CRUD persons, role management
-/api/epics         - CRUD epics within projects
-/api/workitems     - CRUD tasks, status changes, assignment
-/api/backlog       - General backlog (tasks without project)
-/api/capacity      - Team/person workload
-/api/reports       - Report generation
-/api/agent         - Aggregated queries for AI (search, summaries)
+/api/projects          - CRUD projects, status changes, team assignment, notes (/api/projects/{id}/notes)
+/api/promoters         - CRUD promoters (Gestor only)
+/api/organic-units     - CRUD organic units (Gestor only)
+/api/tags              - CRUD tags (Gestor only)
+/api/teams             - CRUD teams, membership
+/api/persons           - CRUD persons, role management, profile (/api/persons/{id}/profile)
+/api/epics             - CRUD epics within projects
+/api/workitems         - CRUD tasks, status changes, assignment
+/api/sprints           - CRUD sprints, status transitions
+/api/comments          - Comments on work items
+/api/dashboard         - User dashboard summary
+/api/capacity          - Team/person workload
+/api/portfolio         - Global portfolio view, filterable
+/api/me/workitems      - Current user's cross-project tasks
+/api/agent             - AI agent Tool Server (me, projects, project detail, capacity, search, status, create task, comment, project notes, reindex, charts)
 ```

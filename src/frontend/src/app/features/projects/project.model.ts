@@ -8,6 +8,7 @@ export interface PagedResult<T> {
 export type ProjectStatus =
   | 'Stopped'
   | 'PlanningWithClient'
+  | 'WaitingForDevelopers'
   | 'PlanningSprint'
   | 'InSprint'
   | 'DevelopmentOutsideSprint'
@@ -18,6 +19,7 @@ export type ProjectStatus =
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   Stopped: 'Parado',
   PlanningWithClient: 'Planificando con cliente',
+  WaitingForDevelopers: 'Esperando desarrolladores',
   PlanningSprint: 'Planificando sprint',
   InSprint: 'En sprint',
   DevelopmentOutsideSprint: 'Desarrollo fuera de sprint',
@@ -72,6 +74,35 @@ export interface ProjectNoteDto {
   createdAt: string;
 }
 
+export type ProjectHealthStatus = 'OnTrack' | 'AtRisk' | 'Blocked';
+
+export const PROJECT_HEALTH_STATUS_LABELS: Record<ProjectHealthStatus, string> = {
+  OnTrack: 'En curso',
+  AtRisk: 'En riesgo',
+  Blocked: 'Bloqueado',
+};
+
+export const PROJECT_HEALTH_STATUS_COLORS: Record<ProjectHealthStatus, string> = {
+  OnTrack: 'green',
+  AtRisk: 'gold',
+  Blocked: 'red',
+};
+
+export interface ProjectWeeklyUpdateDto {
+  id: number;
+  authorId: number;
+  authorName: string;
+  weekOf: string;
+  summary: string;
+  healthStatus: ProjectHealthStatus;
+  updatedAt: string;
+}
+
+export interface UpsertWeeklyUpdateDto {
+  summary: string;
+  healthStatus: ProjectHealthStatus;
+}
+
 export interface Project {
   id: number;
   title: string;
@@ -85,6 +116,7 @@ export interface Project {
   siptGroup: SiptGroup | null;
   promoterId: number | null;
   promoterName: string | null;
+  estimatedBudget: number | null;
   tags: TagDto[];
 }
 
@@ -126,6 +158,7 @@ export interface CreateProjectDto {
   desiredDeploymentDate?: string | null;
   specificationsUrl?: string | null;
   epicUrl?: string | null;
+  estimatedBudget?: number | null;
   tagIds?: number[];
 }
 

@@ -46,6 +46,10 @@ interface MeDto { id: number; name: string; email: string; role: string; }
             <span nz-icon nzType="fund"></span>
             <span>Cartera</span>
           </li>
+          <li nz-menu-item routerLink="/reports/weekly-portfolio" routerLinkActive="ant-menu-item-selected">
+            <span nz-icon nzType="schedule"></span>
+            <span>Informe semanal</span>
+          </li>
           <li nz-menu-item routerLink="/my-tasks" routerLinkActive="ant-menu-item-selected">
             <span nz-icon nzType="check-square"></span>
             <span>Mis tareas</span>

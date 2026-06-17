@@ -26,7 +26,8 @@ public sealed class CreateProjectNoteHandler(IAppDbContext db) : IRequestHandler
         var author = await db.Persons.FindAsync([request.AuthorId], cancellationToken)
             ?? throw new KeyNotFoundException($"Persona con Id {request.AuthorId} no encontrada.");
 
-        // Gestor and JefeEquipo can add notes
+        // Gestor: sin restricción. Desarrollador: debe pertenecer a un equipo del proyecto.
+        // JefeEquipo: debe liderar (Team.LeadPersonId) uno de los equipos asignados al proyecto.
         if (author.Role == PersonRole.Desarrollador)
         {
             var isInProjectTeam = await db.ProjectTeamAssignments
@@ -35,6 +36,17 @@ public sealed class CreateProjectNoteHandler(IAppDbContext db) : IRequestHandler
                     cancellationToken);
             if (!isInProjectTeam)
                 throw new UnauthorizedAccessException("Sin permisos para añadir notas a este proyecto.");
+        }
+        else if (author.Role == PersonRole.JefeEquipo)
+        {
+            var teamIds = await db.ProjectTeamAssignments
+                .Where(a => a.ProjectId == request.ProjectId)
+                .Select(a => a.TeamId)
+                .ToListAsync(cancellationToken);
+            var isLeadOfProjectTeam = await db.Teams
+                .AnyAsync(t => teamIds.Contains(t.Id) && t.LeadPersonId == request.AuthorId, cancellationToken);
+            if (!isLeadOfProjectTeam)
+                throw new UnauthorizedAccessException("El Jefe de equipo debe liderar uno de los equipos asignados al proyecto.");
         }
 
         var note = ProjectNote.Create(request.ProjectId, request.AuthorId, request.Text);

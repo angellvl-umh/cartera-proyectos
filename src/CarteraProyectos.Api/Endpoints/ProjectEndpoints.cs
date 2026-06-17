@@ -1,6 +1,7 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Features.Projects.Notes;
+using CarteraProyectos.Core.Features.Projects.WeeklyUpdates;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -124,6 +125,21 @@ public static class ProjectEndpoints
         .WithName("DeleteProjectNote")
         .WithDescription("Elimina una nota. Solo el autor o el Gestor.");
 
+        group.MapGet("/{id:int}/weekly-updates", async (int id, IMediator mediator, CancellationToken ct) =>
+            Results.Ok(await mediator.Send(new GetProjectWeeklyUpdatesQuery(id), ct)))
+            .WithName("GetProjectWeeklyUpdates")
+            .WithDescription("Lista todas las actualizaciones semanales de un proyecto ordenadas por semana descendente.");
+
+        group.MapPost("/{id:int}/weekly-updates", async (int id, UpsertWeeklyUpdateRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
+        {
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+            var updateId = await mediator.Send(new UpsertProjectWeeklyUpdateCommand(id, requester.Id, req.Summary, req.HealthStatus), ct);
+            return Results.Ok(new { id = updateId });
+        })
+        .WithName("UpsertProjectWeeklyUpdate")
+        .WithDescription("Crea o actualiza la actualización semanal del proyecto para la semana actual. Gestor, JefeEquipo del proyecto o Desarrollador en equipo asignado.");
+
         return app;
     }
 }
@@ -131,3 +147,4 @@ public static class ProjectEndpoints
 record TransitionStatusRequest(string Status);
 record AssignTeamRequest(int TeamId, bool IsPrimary);
 record CreateNoteRequest(string Text);
+record UpsertWeeklyUpdateRequest(string Summary, ProjectHealthStatus HealthStatus);

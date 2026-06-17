@@ -34,6 +34,7 @@ interface PortfolioStatsDto {
   total: number;
   stopped: number;
   planningWithClient: number;
+  waitingForDevelopers: number;
   planningSprint: number;
   inSprint: number;
   developmentOutsideSprint: number;
@@ -48,12 +49,12 @@ interface PortfolioDto {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Stopped: 'default', PlanningWithClient: 'blue', PlanningSprint: 'cyan',
+  Stopped: 'default', PlanningWithClient: 'blue', WaitingForDevelopers: 'gold', PlanningSprint: 'cyan',
   InSprint: 'green', DevelopmentOutsideSprint: 'geekblue',
   InTesting: 'orange', Completed: 'purple', PostponedByClient: 'red',
 };
 const STATUS_LABELS: Record<string, string> = {
-  Stopped: 'Parado', PlanningWithClient: 'Planif. cliente', PlanningSprint: 'Planif. sprint',
+  Stopped: 'Parado', PlanningWithClient: 'Planif. cliente', WaitingForDevelopers: 'Esperando dev.', PlanningSprint: 'Planif. sprint',
   InSprint: 'En sprint', DevelopmentOutsideSprint: 'Desarro. fuera sprint',
   InTesting: 'En pruebas', Completed: 'Finalizado', PostponedByClient: 'Pospuesto cliente',
 };
@@ -126,6 +127,10 @@ const COMPLEXITY_COLORS: Record<string, string> = {
         <div class="stat-box" [class.active]="selectedStatus() === 'PlanningWithClient'" (click)="toggleStatus('PlanningWithClient')">
           <div class="stat-label">Planif. cliente</div>
           <div class="stat-value" style="color:#1890ff">{{ data()!.stats.planningWithClient }}</div>
+        </div>
+        <div class="stat-box" [class.active]="selectedStatus() === 'WaitingForDevelopers'" (click)="toggleStatus('WaitingForDevelopers')">
+          <div class="stat-label">Esperando dev.</div>
+          <div class="stat-value" style="color:#d4b106">{{ data()!.stats.waitingForDevelopers }}</div>
         </div>
         <div class="stat-box" [class.active]="selectedStatus() === 'PlanningSprint'" (click)="toggleStatus('PlanningSprint')">
           <div class="stat-label">Planif. sprint</div>

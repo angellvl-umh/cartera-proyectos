@@ -24,6 +24,7 @@ public record CreateProjectCommand(
     DateOnly? DesiredDeploymentDate = null,
     string? SpecificationsUrl = null,
     string? EpicUrl = null,
+    decimal? EstimatedBudget = null,
     IReadOnlyList<int>? TagIds = null) : IRequest<int>;
 
 public sealed class CreateProjectValidator : AbstractValidator<CreateProjectCommand>
@@ -57,7 +58,8 @@ public sealed class CreateProjectHandler(IAppDbContext db) : IRequestHandler<Cre
             request.PreviousReferenceId, request.BeneficiaryCount,
             request.PromoterId, request.OrganicUnitId, request.UorOrder,
             request.GroupPriority, request.SiptGroup,
-            request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl);
+            request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl,
+            request.EstimatedBudget);
 
         if (request.TagIds is { Count: > 0 })
         {

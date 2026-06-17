@@ -10,6 +10,7 @@ interface StatusConfig {
 const STATUS_COLORS: Record<ProjectStatus, string> = {
   Stopped: 'default',
   PlanningWithClient: 'blue',
+  WaitingForDevelopers: 'gold',
   PlanningSprint: 'cyan',
   InSprint: 'green',
   DevelopmentOutsideSprint: 'geekblue',

@@ -47,6 +47,7 @@ public class Project
     public DateOnly? DesiredDeploymentDate { get; private set; }
     public string? SpecificationsUrl { get; private set; }
     public string? EpicUrl { get; private set; }
+    public decimal? EstimatedBudget { get; private set; }
 
     // Navegación
     public Promoter? Promoter { get; private set; }
@@ -55,6 +56,7 @@ public class Project
     public ICollection<Epic> Epics { get; } = [];
     public ICollection<Tag> Tags { get; } = [];
     public ICollection<ProjectNote> Notes { get; } = [];
+    public ICollection<ProjectWeeklyUpdate> WeeklyUpdates { get; } = [];
 
     public void TransitionTo(ProjectStatus next) => Status = next;
 
@@ -65,7 +67,8 @@ public class Project
         int? promoterId = null, int? organicUnitId = null, int? uorOrder = null,
         int? groupPriority = null, SiptGroup? siptGroup = null,
         DateOnly? desiredDeploymentDate = null,
-        string? specificationsUrl = null, string? epicUrl = null)
+        string? specificationsUrl = null, string? epicUrl = null,
+        decimal? estimatedBudget = null)
     {
         Title = title;
         Description = description;
@@ -84,6 +87,7 @@ public class Project
         DesiredDeploymentDate = desiredDeploymentDate;
         SpecificationsUrl = specificationsUrl;
         EpicUrl = epicUrl;
+        EstimatedBudget = estimatedBudget;
     }
 
     public static Project Create(
@@ -93,7 +97,8 @@ public class Project
         int? promoterId = null, int? organicUnitId = null, int? uorOrder = null,
         int? groupPriority = null, SiptGroup? siptGroup = null,
         DateOnly? desiredDeploymentDate = null,
-        string? specificationsUrl = null, string? epicUrl = null)
+        string? specificationsUrl = null, string? epicUrl = null,
+        decimal? estimatedBudget = null)
         => new()
         {
             Title = title,
@@ -113,5 +118,6 @@ public class Project
             DesiredDeploymentDate = desiredDeploymentDate,
             SpecificationsUrl = specificationsUrl,
             EpicUrl = epicUrl,
+            EstimatedBudget = estimatedBudget,
         };
 }

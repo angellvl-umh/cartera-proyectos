@@ -8,6 +8,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, Subject, startWith } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import { DecimalPipe } from '@angular/common';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDescriptionsModule } from 'ng-zorro-antd/descriptions';
@@ -36,11 +37,16 @@ import { SprintService, Sprint, CreateSprintDto } from '../sprint.service';
 import { CommentsService, CommentDto } from '../comments.service';
 import {
   PROJECT_COMPLEXITY_LABELS,
+  PROJECT_HEALTH_STATUS_COLORS,
+  PROJECT_HEALTH_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
   ProjectDetail,
+  ProjectHealthStatus,
   ProjectNoteDto,
   ProjectStatus,
   ProjectTeam,
+  ProjectWeeklyUpdateDto,
+  UpsertWeeklyUpdateDto,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
@@ -79,7 +85,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FormsModule,
+    FormsModule, DecimalPipe,
     NzCardModule, NzButtonModule, NzDescriptionsModule, NzTableModule,
     NzPopconfirmModule, NzSpaceModule, NzDividerModule, NzIconModule,
     NzSpinModule, NzTabsModule, NzTagModule, NzModalModule, NzFormModule,
@@ -159,6 +165,9 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                 <nz-descriptions-item nzTitle="Prioridad estratégica">{{ project()!.groupPriority ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Orden UOR">{{ project()!.uorOrder ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Nº beneficiarios">{{ project()!.beneficiaryCount ?? '—' }}</nz-descriptions-item>
+                @if (project()!.estimatedBudget !== null && project()!.estimatedBudget !== undefined) {
+                  <nz-descriptions-item nzTitle="Presupuesto estimado">{{ project()!.estimatedBudget | number }} €</nz-descriptions-item>
+                }
                 @if (project()!.specificationsUrl) {
                   <nz-descriptions-item nzTitle="Especificaciones" [nzSpan]="2">
                     <a [href]="project()!.specificationsUrl" target="_blank">{{ project()!.specificationsUrl }}</a>
@@ -321,6 +330,50 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                   <button nz-button nzType="primary" [nzLoading]="addingNote()"
                     [disabled]="!newNoteText.trim()" (click)="addNote()">
                     Publicar nota
+                  </button>
+                </div>
+              }
+            </div>
+          </nz-tab>
+
+          <!-- TAB: Avance Semanal -->
+          <nz-tab nzTitle="Avance Semanal" (nzSelect)="loadWeeklyUpdates()">
+            <div style="max-width:700px;margin:16px auto">
+              @if (weeklyUpdatesLoading()) {
+                <div style="text-align:center;padding:32px"><nz-spin /></div>
+              } @else {
+                @for (wu of weeklyUpdates(); track wu.id) {
+                  <div style="display:flex;gap:12px;margin-bottom:16px">
+                    <nz-avatar [nzText]="wu.authorName[0]" style="background:#1890ff;flex-shrink:0"></nz-avatar>
+                    <div style="flex:1">
+                      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+                        <span style="font-weight:600">{{ wu.authorName }}</span>
+                        <span style="font-size:12px;color:#8c8c8c">Semana del {{ formatWeekOf(wu.weekOf) }}</span>
+                        <nz-tag [nzColor]="HEALTH_STATUS_COLORS[wu.healthStatus]">{{ HEALTH_STATUS_LABELS[wu.healthStatus] }}</nz-tag>
+                      </div>
+                      <p style="margin:0;white-space:pre-wrap">{{ wu.summary }}</p>
+                    </div>
+                  </div>
+                  <nz-divider style="margin:8px 0"></nz-divider>
+                } @empty {
+                  <p style="color:#999;text-align:center">Sin actualizaciones aún.</p>
+                }
+                <div style="margin-top:16px">
+                  <div style="margin-bottom:8px">
+                    <nz-select [(ngModel)]="newWeeklyUpdateHealthStatus" style="width:200px">
+                      <nz-option nzValue="OnTrack" nzLabel="🟢 En curso"></nz-option>
+                      <nz-option nzValue="AtRisk" nzLabel="🟡 En riesgo"></nz-option>
+                      <nz-option nzValue="Blocked" nzLabel="🔴 Bloqueado"></nz-option>
+                    </nz-select>
+                  </div>
+                  <textarea nz-input [(ngModel)]="newWeeklyUpdateSummary" [nzAutosize]="{ minRows: 3, maxRows: 6 }"
+                    [maxlength]="1000" placeholder="Describe el avance de esta semana..." style="margin-bottom:4px"></textarea>
+                  <div style="text-align:right;font-size:12px;color:#8c8c8c;margin-bottom:8px">
+                    {{ newWeeklyUpdateSummary.length }}/1000
+                  </div>
+                  <button nz-button nzType="primary" [nzLoading]="savingWeeklyUpdate()"
+                    [disabled]="!newWeeklyUpdateSummary.trim()" (click)="saveWeeklyUpdate()">
+                    Guardar avance
                   </button>
                 </div>
               }
@@ -667,6 +720,15 @@ export class ProjectDetailComponent {
   addingNote = signal(false);
   newNoteText = '';
 
+  weeklyUpdates = signal<ProjectWeeklyUpdateDto[]>([]);
+  weeklyUpdatesLoading = signal(false);
+  savingWeeklyUpdate = signal(false);
+  newWeeklyUpdateSummary = '';
+  newWeeklyUpdateHealthStatus: ProjectHealthStatus = 'OnTrack';
+
+  readonly HEALTH_STATUS_LABELS = PROJECT_HEALTH_STATUS_LABELS;
+  readonly HEALTH_STATUS_COLORS = PROJECT_HEALTH_STATUS_COLORS;
+
   readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
     value: v, label: PROJECT_STATUS_LABELS[v],
   }));
@@ -788,6 +850,35 @@ export class ProjectDetailComponent {
       next: () => { this.message.success('Nota eliminada'); this.loadNotes(); },
       error: () => this.message.error('Error al eliminar nota'),
     });
+  }
+
+  loadWeeklyUpdates(): void {
+    this.weeklyUpdatesLoading.set(true);
+    this.service.getWeeklyUpdates(this.projectId).subscribe({
+      next: list => { this.weeklyUpdates.set(list); this.weeklyUpdatesLoading.set(false); },
+      error: () => { this.weeklyUpdatesLoading.set(false); },
+    });
+  }
+
+  saveWeeklyUpdate(): void {
+    if (!this.newWeeklyUpdateSummary.trim()) return;
+    this.savingWeeklyUpdate.set(true);
+    this.service.upsertWeeklyUpdate(this.projectId, {
+      summary: this.newWeeklyUpdateSummary.trim(),
+      healthStatus: this.newWeeklyUpdateHealthStatus,
+    }).subscribe({
+      next: () => {
+        this.savingWeeklyUpdate.set(false);
+        this.newWeeklyUpdateSummary = '';
+        this.loadWeeklyUpdates();
+        this.message.success('Avance guardado');
+      },
+      error: () => { this.savingWeeklyUpdate.set(false); this.message.error('Error al guardar el avance'); },
+    });
+  }
+
+  formatWeekOf(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   openEdit(): void { this.formVisible.set(true); }

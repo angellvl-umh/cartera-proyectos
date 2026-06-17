@@ -103,6 +103,7 @@ public class AgentGetProjectsHandlerTests
 
         result.Count.ShouldBe(1);
         result[0].Title.ShouldBe("Proyecto del equipo");
+        result[0].PrimaryTeamName.ShouldBe("Equipo Alpha");
     }
 
     [Fact]

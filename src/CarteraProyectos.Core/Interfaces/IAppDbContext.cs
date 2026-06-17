@@ -19,6 +19,8 @@ public interface IAppDbContext
     DbSet<OrganicUnit> OrganicUnits { get; }
     DbSet<Tag> Tags { get; }
     DbSet<ProjectNote> ProjectNotes { get; }
+    DbSet<ProjectWeeklyUpdate> ProjectWeeklyUpdates { get; }
+    DbSet<AgentActionLog> AgentActionLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

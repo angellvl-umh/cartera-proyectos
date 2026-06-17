@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Gestión del ciclo de vida de proyectos. Los proyectos pueden estar incluidos en la cartera de un año concreto o ser proyectos fuera de cartera. Un proyecto puede asignarse a múltiples equipos.
+Gestión del ciclo de vida de proyectos. Los proyectos pueden estar incluidos en la cartera de un año concreto o ser proyectos fuera de cartera. Un proyecto puede asignarse a múltiples equipos, tiene un promotor institucional y una unidad orgánica solicitante, puede etiquetarse libremente y mantiene un histórico de notas de seguimiento.
 
 ## Modelo de datos
 
@@ -10,16 +10,53 @@ Gestión del ciclo de vida de proyectos. Los proyectos pueden estar incluidos en
 erDiagram
     Project ||--o{ ProjectTeamAssignment : asignado
     Team ||--o{ ProjectTeamAssignment : trabaja
+    Project }o--|| Promoter : promovido_por
+    Project }o--|| OrganicUnit : solicitado_por
+    Project ||--o{ ProjectTags : etiquetado
+    Tag ||--o{ ProjectTags : usada_en
+    Project ||--o{ ProjectNote : tiene
+    Person ||--o{ ProjectNote : autor
     Project {
         int Id
         string Title
         string Description
-        string RequestingUnit
+        string RequestingUnit "legacy, nullable"
         enum Complexity
         enum Status
         int PortfolioYear
         date StartDate
         date EndDate
+        int PreviousReferenceId
+        int BeneficiaryCount
+        int PromoterId
+        int OrganicUnitId
+        int UorOrder
+        int GroupPriority
+        enum SiptGroup
+        date DesiredDeploymentDate
+        string SpecificationsUrl
+        string EpicUrl
+    }
+    Promoter {
+        int Id
+        string Name
+    }
+    OrganicUnit {
+        int Id
+        string Name
+        string Code
+    }
+    Tag {
+        int Id
+        string Name
+        string Color
+    }
+    ProjectNote {
+        int Id
+        int ProjectId
+        int AuthorId
+        string Text
+        datetime CreatedAt
     }
     ProjectTeamAssignment {
         int ProjectId
@@ -27,6 +64,26 @@ erDiagram
         bool IsPrimary
     }
 ```
+
+### Enumerados
+
+| Enum | Valores |
+|------|---------|
+| `ProjectStatus` | `Stopped` (Parado), `PlanningWithClient` (Planificando con cliente), `WaitingForDevelopers` (Esperando desarrolladores), `PlanningSprint` (Planificando sprint), `InSprint` (En sprint), `DevelopmentOutsideSprint` (Desarrollo fuera de sprint), `InTesting` (En pruebas), `Completed` (Finalizado), `PostponedByClient` (Pospuesto por cliente) |
+| `ProjectComplexity` | `VerySmall` (Muy pequeño), `Small` (Pequeño), `Medium` (Medio), `Large` (Grande), `VeryLarge` (Muy grande) |
+| `SiptGroup` | `WebTransversal`, `RRHH`, `Academico`, `Sede`, `Observatorio`, `InvestigacionEconomico` |
+
+> El estado del proyecto **no sigue una máquina de estados restrictiva**: cualquier estado puede transicionar a cualquier otro. La única restricción es de rol (ver HU-PR-04).
+
+## Catálogos administrables
+
+Tres catálogos de apoyo, gestionados exclusivamente por el Gestor de cartera desde `/admin`:
+
+- **Promotores** (`Promoter`): institución o unidad que promueve el proyecto. CRUD en `/api/promoters`.
+- **Unidades orgánicas** (`OrganicUnit`): unidad solicitante, con nombre y código opcional. CRUD en `/api/organic-units`. Sustituye semánticamente al antiguo campo de texto libre `RequestingUnit` (que se mantiene en la BD, ahora opcional, solo por compatibilidad con datos antiguos).
+- **Etiquetas** (`Tag`): etiquetas de cartera con nombre y color, asociables a múltiples proyectos. CRUD en `/api/tags`.
+
+Ninguno de los tres catálogos puede eliminarse mientras tenga proyectos asociados (Promotores, Unidades orgánicas), salvo las Etiquetas, que al eliminarse se desasocian automáticamente de los proyectos.
 
 ## Historias de Usuario
 
@@ -37,9 +94,9 @@ erDiagram
 **para** registrarlo en el sistema y poder planificar su ejecución.
 
 **Criterios de aceptación:**
-- Campos obligatorios: título, unidad solicitante, complejidad estimada
-- Campos opcionales: descripción, fecha inicio prevista, fecha fin prevista
-- El proyecto se crea en estado "Propuesto"
+- Campos obligatorios: título (máx. 150 caracteres), complejidad
+- Campos opcionales: descripción, unidad orgánica solicitante, promotor, fecha inicio prevista, fecha fin prevista, referencia anterior, nº de beneficiarios, orden UOR, prioridad de grupo (1-5), grupo SIPT, fecha deseada de implantación, URL de especificaciones, URL de épica externa, etiquetas
+- El proyecto se crea en estado `Stopped` (Parado) por defecto
 - Se genera un identificador único automáticamente
 
 ---
@@ -74,56 +131,36 @@ erDiagram
 
 ### HU-PR-04: Cambiar estado de un proyecto
 
-**Como** gestor de cartera,
-**quiero** cambiar el estado de un proyecto a lo largo de su ciclo de vida,
-**para** reflejar su progreso real.
+**Como** gestor de cartera o jefe de equipo del proyecto,
+**quiero** cambiar el estado de un proyecto,
+**para** reflejar su situación real en cada momento.
 
 **Criterios de aceptación:**
-- Estados posibles: Propuesto → Aprobado → En ejecución → Pausado → Completado → Cancelado
-- Se registra la fecha de cada cambio de estado
-- Solo ciertos roles pueden cambiar a ciertos estados (ej: solo Gestor puede Aprobar)
+- Estados disponibles: Parado, Planificando con cliente, Esperando desarrolladores, Planificando sprint, En sprint, Desarrollo fuera de sprint, En pruebas, Finalizado, Pospuesto por cliente
+- **No existe restricción de transición entre estados**: cualquier estado puede pasar a cualquier otro estado, en cualquier orden
+- Solo el Gestor de cartera, o un Jefe de equipo de alguno de los equipos asignados al proyecto, puede cambiar el estado
+- Un Desarrollador no puede cambiar el estado de un proyecto
 
-**Máquina de estados:**
+**Permisos:**
 
-```mermaid
-stateDiagram-v2
-    [*] --> Propuesto
-    Propuesto --> Aprobado : Gestor aprueba
-    Propuesto --> Cancelado : Gestor cancela
-    Aprobado --> EnEjecucion : Gestor/Jefe inicia
-    Aprobado --> Cancelado : Gestor cancela
-    EnEjecucion --> Pausado : Gestor/Jefe pausa
-    EnEjecucion --> Completado : Gestor/Jefe completa
-    EnEjecucion --> Cancelado : Gestor cancela
-    Pausado --> EnEjecucion : Gestor/Jefe reanuda
-    Pausado --> Cancelado : Gestor cancela
-```
-
-**Permisos por transición:**
-
-| Transición | Roles permitidos |
-|-----------|-----------------|
-| Propuesto → Aprobado | Gestor de cartera |
-| Propuesto → Cancelado | Gestor de cartera |
-| Aprobado → En ejecución | Gestor de cartera, Jefe de equipo (del proyecto) |
-| Aprobado → Cancelado | Gestor de cartera |
-| En ejecución → Pausado | Gestor de cartera, Jefe de equipo (del proyecto) |
-| En ejecución → Completado | Gestor de cartera, Jefe de equipo (del proyecto) |
-| En ejecución → Cancelado | Gestor de cartera |
-| Pausado → En ejecución | Gestor de cartera, Jefe de equipo (del proyecto) |
-| Pausado → Cancelado | Gestor de cartera |
+| Rol | ¿Puede cambiar el estado? |
+|-----|---------------------------|
+| Gestor de cartera | Sí, siempre |
+| Jefe de equipo | Sí, si pertenece a algún equipo asignado al proyecto (no necesariamente el primario) |
+| Desarrollador | No |
 
 ---
 
 ### HU-PR-05: Filtrar y buscar proyectos
 
 **Como** gestor de cartera,
-**quiero** filtrar proyectos por cartera/año, estado, equipo asignado y unidad solicitante,
+**quiero** filtrar proyectos por múltiples criterios,
 **para** encontrar rápidamente la información que necesito.
 
 **Criterios de aceptación:**
-- Filtros combinables: año de cartera, estado, equipo, unidad solicitante, complejidad
-- Búsqueda por texto en título y descripción
+- Filtros combinables: año de cartera (`year`), estado (`status`), equipo (`teamId`), complejidad (`complexity`), grupo SIPT (`siptGroup`), promotor (`promoterId`), etiqueta — una (`tagId`) o varias (`tagIds`)
+- Búsqueda por texto libre (`q`) en título y descripción
+- Resultado paginado (`page`, `pageSize`, máx. 100)
 - Los filtros se mantienen al navegar y volver
 - Se muestra el número total de resultados
 
@@ -133,10 +170,39 @@ stateDiagram-v2
 
 **Como** cualquier usuario con acceso,
 **quiero** ver toda la información de un proyecto en una vista de detalle,
-**para** entender su alcance, equipos asignados y estado actual.
+**para** entender su alcance, equipos asignados, etiquetas y estado actual.
 
 **Criterios de aceptación:**
-- Se muestran todos los datos del proyecto
-- Se listan los equipos asignados
+- Se muestran todos los datos del proyecto, incluidos los campos ampliados (promotor, unidad orgánica, prioridad de grupo, grupo SIPT, fechas, URLs externas)
+- Se listan los equipos asignados y las etiquetas
 - Se muestra el resumen de épicas y tareas (total, completadas, pendientes)
-- Se muestra el historial de cambios de estado
+- Se muestra el historial de notas de seguimiento (ver HU-PR-08)
+- Se muestra el historial de actualizaciones semanales de avance, con su indicador de estado de salud (ver `07-informes-seguimiento.md`, HU-IN-00)
+
+---
+
+### HU-PR-07: Gestionar catálogos de Promotores, Unidades orgánicas y Etiquetas
+
+**Como** gestor de cartera,
+**quiero** mantener los catálogos de Promotores, Unidades orgánicas y Etiquetas,
+**para** disponer de listas controladas al describir proyectos.
+
+**Criterios de aceptación:**
+- CRUD completo de cada catálogo, accesible solo para el Gestor (`/admin/promoters`, `/admin/organic-units`, `/admin/tags`)
+- Promotores y Unidades orgánicas no se pueden eliminar si tienen proyectos asociados
+- Las Etiquetas se pueden eliminar en cualquier momento; al hacerlo se desasocian automáticamente de los proyectos que las usaban
+- Las Etiquetas admiten un color (hex) para diferenciarlas visualmente
+
+---
+
+### HU-PR-08: Añadir nota de seguimiento a un proyecto
+
+**Como** gestor de cartera o jefe de equipo del proyecto,
+**quiero** añadir notas de seguimiento a un proyecto,
+**para** documentar decisiones, hitos o bloqueos a lo largo de su ciclo de vida.
+
+**Criterios de aceptación:**
+- Las notas tienen texto, autor y fecha de creación
+- Se muestran en el detalle del proyecto en orden cronológico
+- El agente IA puede añadir notas de proyecto en nombre del usuario (ver `10-integracion-agente-ia.md`)
+- Solo el autor de la nota o el Gestor pueden eliminarla

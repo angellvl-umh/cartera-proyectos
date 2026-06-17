@@ -27,10 +27,10 @@ public sealed class TransitionWorkItemStatusHandler(IAppDbContext db) : IRequest
                     .Where(a => a.ProjectId == workItem.ProjectId)
                     .Select(a => a.TeamId)
                     .ToListAsync(cancellationToken);
-                var isInProjectTeam = await db.PersonTeamMemberships
-                    .AnyAsync(m => teamIds.Contains(m.TeamId) && m.PersonId == request.RequestingPersonId, cancellationToken);
-                if (!isInProjectTeam)
-                    throw new UnauthorizedAccessException("El JefeEquipo debe pertenecer a un equipo asignado al proyecto.");
+                var isLeadOfProjectTeam = await db.Teams
+                    .AnyAsync(t => teamIds.Contains(t.Id) && t.LeadPersonId == request.RequestingPersonId, cancellationToken);
+                if (!isLeadOfProjectTeam)
+                    throw new UnauthorizedAccessException("El JefeEquipo debe liderar uno de los equipos asignados al proyecto.");
             }
             else if (requester.Role == PersonRole.Desarrollador)
             {

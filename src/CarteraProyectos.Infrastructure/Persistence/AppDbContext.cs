@@ -20,6 +20,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OrganicUnit> OrganicUnits => Set<OrganicUnit>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<ProjectNote> ProjectNotes => Set<ProjectNote>();
+    public DbSet<ProjectWeeklyUpdate> ProjectWeeklyUpdates => Set<ProjectWeeklyUpdate>();
+    public DbSet<AgentActionLog> AgentActionLogs => Set<AgentActionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,6 +63,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.SiptGroup).HasConversion<string>();
             e.Property(p => p.SpecificationsUrl).HasMaxLength(500);
             e.Property(p => p.EpicUrl).HasMaxLength(500);
+            e.Property(p => p.EstimatedBudget).HasColumnType("decimal(18,2)");
             e.HasOne(p => p.Promoter).WithMany()
                 .HasForeignKey(p => p.PromoterId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(p => p.OrganicUnit).WithMany()
@@ -69,6 +72,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .UsingEntity(j => j.ToTable("ProjectTags"));
             e.HasMany(p => p.Notes).WithOne(n => n.Project)
                 .HasForeignKey(n => n.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.WeeklyUpdates).WithOne(w => w.Project)
+                .HasForeignKey(w => w.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProjectTeamAssignment>(e =>
@@ -152,6 +157,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(n => n.Text).IsRequired();
             e.HasOne(n => n.Author).WithMany()
                 .HasForeignKey(n => n.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ProjectWeeklyUpdate>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.Property(w => w.Summary).IsRequired().HasMaxLength(1000);
+            e.Property(w => w.HealthStatus).HasConversion<string>();
+            e.HasIndex(w => new { w.ProjectId, w.AuthorId, w.WeekOf }).IsUnique();
+            e.HasOne(w => w.Author).WithMany()
+                .HasForeignKey(w => w.AuthorId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AgentActionLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.ActionName).IsRequired().HasMaxLength(200);
+            e.Property(a => a.Payload).HasMaxLength(500);
         });
     }
 }
