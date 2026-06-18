@@ -21,6 +21,9 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzStatisticModule } from 'ng-zorro-antd/statistic';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { ProjectStatusBadgeComponent } from '../projects/project-status-badge/project-status-badge.component';
+import { ComplexityIndicatorComponent } from '../projects/complexity-indicator/complexity-indicator.component';
+import { ProjectComplexity, ProjectStatus } from '../projects/project.model';
 
 interface PortfolioProjectDto {
   id: number; title: string; status: string; requestingUnit: string; complexity: string;
@@ -48,18 +51,10 @@ interface PortfolioDto {
   availableYears: number[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  Stopped: 'default', PlanningWithClient: 'blue', WaitingForDevelopers: 'gold', PlanningSprint: 'cyan',
-  InSprint: 'green', DevelopmentOutsideSprint: 'geekblue',
-  InTesting: 'orange', Completed: 'purple', PostponedByClient: 'red',
-};
 const STATUS_LABELS: Record<string, string> = {
   Stopped: 'Parado', PlanningWithClient: 'Planif. cliente', WaitingForDevelopers: 'Esperando dev.', PlanningSprint: 'Planif. sprint',
   InSprint: 'En sprint', DevelopmentOutsideSprint: 'Desarro. fuera sprint',
   InTesting: 'En pruebas', Completed: 'Finalizado', PostponedByClient: 'Pospuesto cliente',
-};
-const COMPLEXITY_COLORS: Record<string, string> = {
-  VerySmall: 'green', Small: 'blue', Medium: 'orange', Large: 'red',
 };
 
 @Component({
@@ -71,6 +66,7 @@ const COMPLEXITY_COLORS: Record<string, string> = {
     NzCardModule, NzTableModule, NzTagModule, NzButtonModule, NzIconModule,
     NzSpinModule, NzSelectModule, NzProgressModule, NzStatisticModule,
     NzEmptyModule, NzTooltipModule,
+    ProjectStatusBadgeComponent, ComplexityIndicatorComponent,
   ],
   styles: [`
     .header { margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
@@ -190,8 +186,8 @@ const COMPLEXITY_COLORS: Record<string, string> = {
                   }
                 </td>
                 <td style="font-size:13px;color:#595959">{{ p.requestingUnit }}</td>
-                <td><nz-tag [nzColor]="COMPLEXITY_COLORS[p.complexity]">{{ p.complexity }}</nz-tag></td>
-                <td><nz-tag [nzColor]="STATUS_COLORS[p.status]">{{ STATUS_LABELS[p.status] }}</nz-tag></td>
+                <td><app-complexity-indicator [complexity]="asComplexity(p.complexity)" size="table" /></td>
+                <td><app-project-status-badge [status]="asStatus(p.status)" /></td>
                 <td style="text-align:center">{{ p.portfolioYear ?? '—' }}</td>
                 <td style="font-size:13px">{{ p.primaryTeamName ?? '—' }}</td>
                 <td style="min-width:160px">
@@ -263,9 +259,15 @@ export class PortfolioComponent {
     )
   );
 
-  readonly STATUS_COLORS     = STATUS_COLORS;
-  readonly STATUS_LABELS     = STATUS_LABELS;
-  readonly COMPLEXITY_COLORS = COMPLEXITY_COLORS;
+  readonly STATUS_LABELS = STATUS_LABELS;
+
+  asStatus(status: string): ProjectStatus {
+    return status as ProjectStatus;
+  }
+
+  asComplexity(complexity: string): ProjectComplexity {
+    return complexity as ProjectComplexity;
+  }
 
   applyFilters(): void {
     this.filter$.next({ year: this.selectedYear, status: this.selectedStatus() });

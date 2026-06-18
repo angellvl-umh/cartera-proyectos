@@ -10,7 +10,6 @@ import { HttpClient } from '@angular/common/http';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
-import { NzStatisticModule } from 'ng-zorro-antd/statistic';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTagModule } from 'ng-zorro-antd/tag';
@@ -22,7 +21,16 @@ import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
-import { PROJECT_STATUS_LABELS } from '../projects/project.model';
+import {
+  PROJECT_COMPLEXITY_LABELS,
+  PROJECT_COMPLEXITY_ORDER,
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_PILL_COLORS,
+  ProjectComplexity,
+  ProjectStatus,
+} from '../projects/project.model';
+import { ComplexityIndicatorComponent } from '../projects/complexity-indicator/complexity-indicator.component';
+import { ProjectStatusBadgeComponent } from '../projects/project-status-badge/project-status-badge.component';
 
 interface DashboardMeDto {
   id: number; name: string; email: string; role: string;
@@ -53,28 +61,37 @@ interface DashboardDto {
   myWorkItems: WorkItemStatsDto;
 }
 
-const PROJECT_STATUS_COLORS: Record<string, string> = {
-  Stopped: 'default',
-  PlanningWithClient: 'processing',
-  WaitingForDevelopers: 'warning',
-  PlanningSprint: 'processing',
-  InSprint: 'success',
-  DevelopmentOutsideSprint: 'success',
-  InTesting: 'processing',
-  Completed: 'success',
-  PostponedByClient: 'error',
-};
+interface PortfolioProjectDto {
+  id: number; title: string; status: ProjectStatus; requestingUnit: string; complexity: ProjectComplexity;
+  portfolioYear?: number;
+}
+interface PortfolioStatsDto {
+  total: number;
+  stopped: number;
+  planningWithClient: number;
+  waitingForDevelopers: number;
+  planningSprint: number;
+  inSprint: number;
+  developmentOutsideSprint: number;
+  inTesting: number;
+  completed: number;
+  postponedByClient: number;
+}
+interface PortfolioDto {
+  projects: PortfolioProjectDto[];
+  stats: PortfolioStatsDto;
+  availableYears: number[];
+}
+
+const STATUS_ORDER: ProjectStatus[] = [
+  'InSprint', 'DevelopmentOutsideSprint', 'InTesting', 'WaitingForDevelopers',
+  'PlanningSprint', 'PlanningWithClient', 'Stopped', 'Completed', 'PostponedByClient',
+];
 
 const ROLE_LABELS: Record<string, string> = {
   Gestor:      'Gestor de cartera',
   JefeEquipo:  'Jefe de equipo',
   Desarrollador: 'Desarrollador',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  Gestor:       'purple',
-  JefeEquipo:   'blue',
-  Desarrollador: 'green',
 };
 
 @Component({
@@ -83,146 +100,149 @@ const ROLE_COLORS: Record<string, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
-    NzCardModule, NzAvatarModule, NzStatisticModule, NzProgressModule,
+    NzCardModule, NzAvatarModule, NzProgressModule,
     NzTableModule, NzTagModule, NzButtonModule, NzIconModule, NzSpinModule,
     NzGridModule, NzDividerModule, NzEmptyModule, NzBadgeModule, NzTooltipModule,
+    ComplexityIndicatorComponent, ProjectStatusBadgeComponent,
   ],
   styles: [`
-    .dashboard-wrapper { max-width: 1200px; margin: 0 auto; padding: 0 0 48px; }
+    .dashboard-wrapper { max-width: 1280px; margin: 0 auto; padding: 0 0 48px; }
 
-    .user-card {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 24px;
-      background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-      border-radius: 8px;
-      margin-bottom: 24px;
-      color: #fff;
-    }
-    .user-info h2 { margin: 0 0 4px; color: #fff; font-size: 22px; }
-    .user-info p  { margin: 0; color: rgba(255,255,255,0.85); font-size: 14px; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--brand-primary); margin: 0 0 4px; }
+    h1.page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; margin: 0 0 24px; color: var(--ink); }
 
-    .stat-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    @media (max-width: 800px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 18px; }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px 22px; }
+    .kpi-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .kpi-dot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; }
+    .kpi-label { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); }
+    .kpi-value { font-size: 38px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
+    .kpi-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
 
-    .stat-card {
-      background: #fff;
-      border-radius: 8px;
-      padding: 20px 24px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.07);
-      border: 1px solid #f0f0f0;
-    }
-    .stat-label { font-size: 13px; color: #8c8c8c; margin-bottom: 8px; }
-    .stat-value { font-size: 28px; font-weight: 700; line-height: 1; }
-    .stat-sub   { font-size: 12px; color: #8c8c8c; margin-top: 4px; }
+    .dist-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; margin-bottom: 18px; }
+    @media (max-width: 900px) { .dist-grid { grid-template-columns: 1fr; } }
 
-    .charts-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
+    .section-title { font-size: 15px; font-weight: 700; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+
+    .dist-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .dist-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); flex-shrink: 0; }
+    .dist-label-status { width: 172px; }
+    .dist-label-complexity { width: 96px; }
+    .dist-bar-track { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-track); overflow: hidden; }
+    .dist-bar-fill { height: 100%; border-radius: 999px; }
+    .dist-count { width: 28px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); flex-shrink: 0; }
+
+    .attention-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--border-faint-alt); }
+    .attention-row:first-of-type { border-top: none; }
+
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
     @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
 
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0 0 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .sprint-progress-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-    .sprint-progress-label {
-      width: 140px;
-      flex-shrink: 0;
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+    .sprint-progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .sprint-progress-label { width: 140px; flex-shrink: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sprint-progress-bar { flex: 1; }
-    .sprint-progress-count { font-size: 12px; color: #8c8c8c; width: 60px; text-align: right; flex-shrink: 0; }
+    .sprint-progress-count { font-size: 12px; color: var(--text-muted); width: 60px; text-align: right; flex-shrink: 0; }
 
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
+    .status-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
     .status-label { width: 90px; font-size: 13px; flex-shrink: 0; }
     .status-bar   { flex: 1; }
     .status-count { width: 32px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
   `],
   template: `
-    @if (!data()) {
+    @if (!data() || !portfolio()) {
       <div style="display:flex;justify-content:center;padding:80px">
         <nz-spin nzSize="large" />
       </div>
     } @else {
       <div class="dashboard-wrapper">
 
-        <!-- Usuario -->
-        <div class="user-card">
-          <nz-avatar [nzSize]="64" [nzText]="initials()" style="background:#fff;color:#1890ff;font-size:24px;font-weight:700;flex-shrink:0"></nz-avatar>
-          <div class="user-info" style="flex:1">
-            <h2>{{ data()!.me.name }}</h2>
-            <p>{{ data()!.me.email }}</p>
-            <nz-tag [nzColor]="roleColor(data()!.me.role)" style="margin-top:8px">
-              {{ roleLabel(data()!.me.role) }}
-            </nz-tag>
+        <p class="eyebrow">Cartera de Proyectos TIC</p>
+        <h1 class="page-title">Dashboard</h1>
+
+        <!-- KPIs de cartera -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label-row"><span class="kpi-dot" style="background:#1B1A18"></span><span class="kpi-label">Total proyectos</span></div>
+            <div class="kpi-value">{{ portfolio()!.stats.total }}</div>
+            <div class="kpi-sub">en la cartera</div>
           </div>
-          <button nz-button nzGhost (click)="logout()" style="color:#fff;border-color:rgba(255,255,255,.5)">
-            <span nz-icon nzType="logout"></span> Cerrar sesión
-          </button>
+          <div class="kpi-card">
+            <div class="kpi-label-row"><span class="kpi-dot" style="background:#2A5BA8"></span><span class="kpi-label">En curso</span></div>
+            <div class="kpi-value">{{ inCourseCount() }}</div>
+            <div class="kpi-sub">sprint, pruebas o desarrollo</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label-row"><span class="kpi-dot" style="background:var(--brand-primary)"></span><span class="kpi-label">Parados</span></div>
+            <div class="kpi-value" style="color:var(--brand-primary)">{{ portfolio()!.stats.stopped }}</div>
+            <div class="kpi-sub">requieren atención</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label-row"><span class="kpi-dot" style="background:#1F9D5B"></span><span class="kpi-label">Finalizados</span></div>
+            <div class="kpi-value">{{ portfolio()!.stats.completed }}</div>
+            <div class="kpi-sub">completados</div>
+          </div>
         </div>
 
-        <!-- Stat cards -->
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-label">Mis tareas</div>
-            <div class="stat-value" style="color:#1890ff">{{ data()!.myWorkItems.total }}</div>
-            <div class="stat-sub">en mis proyectos</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">En progreso</div>
-            <div class="stat-value" style="color:#faad14">{{ data()!.myWorkItems.inProgress }}</div>
-            <div class="stat-sub">tareas activas ahora</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Completadas</div>
-            <div class="stat-value" style="color:#52c41a">{{ data()!.myWorkItems.done }}</div>
-            <div class="stat-sub">
-              {{ donePercent() }}% del total
+        <!-- Distribuciones -->
+        <div class="dist-grid">
+          <nz-card [nzBordered]="true">
+            <div class="section-title">Proyectos por estado</div>
+            @for (row of statusDistribution(); track row.status) {
+              <div class="dist-row">
+                <span class="dist-label dist-label-status">
+                  <span class="kpi-dot" [style.background]="row.dot"></span>{{ row.label }}
+                </span>
+                <span class="dist-bar-track">
+                  <span class="dist-bar-fill" [style.width.%]="row.pct" [style.background]="row.dot"></span>
+                </span>
+                <span class="dist-count">{{ row.count }}</span>
+              </div>
+            }
+          </nz-card>
+
+          <nz-card [nzBordered]="true">
+            <div class="section-title">Por complejidad</div>
+            @for (row of complexityDistribution(); track row.complexity) {
+              <div class="dist-row">
+                <span class="dist-label dist-label-complexity">{{ row.label }}</span>
+                <span class="dist-bar-track">
+                  <span class="dist-bar-fill" [style.width.%]="row.pct" style="background:var(--complexity-filled)"></span>
+                </span>
+                <span class="dist-count">{{ row.count }}</span>
+              </div>
+            }
+          </nz-card>
+        </div>
+
+        <!-- Proyectos parados -->
+        <nz-card [nzBordered]="true" style="margin-bottom:24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="section-title" style="margin-bottom:0">
+              <span class="kpi-dot" style="background:var(--brand-primary)"></span> Proyectos parados — requieren atención
             </div>
+            <a routerLink="/portfolio" style="font-size:13px;color:var(--brand-primary);font-weight:600">Ver toda la cartera →</a>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Sprints activos</div>
-            <div class="stat-value" style="color:#722ed1">{{ data()!.activeSprints.length }}</div>
-            <div class="stat-sub">en mis proyectos</div>
-          </div>
-        </div>
+          @if (stoppedProjects().length === 0) {
+            <nz-empty nzNotFoundContent="Ningún proyecto parado" />
+          } @else {
+            @for (p of stoppedProjects(); track p.id) {
+              <div class="attention-row">
+                <div>
+                  <a [routerLink]="['/projects', p.id]" style="font-weight:600;font-size:14.5px">{{ p.title }}</a>
+                  <div style="font-size:12.5px;color:var(--text-muted)">{{ p.requestingUnit }}</div>
+                </div>
+                <app-complexity-indicator [complexity]="p.complexity" />
+              </div>
+            }
+          }
+        </nz-card>
 
-        <!-- Charts -->
+        <!-- Resumen personal -->
         <div class="charts-grid">
 
-          <!-- Gráfico donut: % completado + distribución -->
           <nz-card [nzBordered]="true">
-            <div class="section-title">
-              <span nz-icon nzType="pie-chart"></span> Mis tareas por estado
-            </div>
+            <div class="section-title"><span nz-icon nzType="pie-chart"></span> Mis tareas por estado</div>
 
             @if (data()!.myWorkItems.total === 0) {
               <nz-empty nzNotFoundContent="Sin tareas asignadas" />
@@ -232,50 +252,47 @@ const ROLE_COLORS: Record<string, string> = {
                   nzType="circle"
                   [nzPercent]="donePercent()"
                   [nzWidth]="100"
-                  nzStrokeColor="#52c41a"
+                  nzStrokeColor="#1F9D5B"
                   [nzFormat]="circleFmt">
                 </nz-progress>
                 <div>
-                  <p style="margin:0 0 4px;font-size:13px;color:#8c8c8c">Tareas completadas</p>
-                  <p style="margin:0;font-size:20px;font-weight:700;color:#52c41a">
+                  <p style="margin:0 0 4px;font-size:13px;color:var(--text-muted)">Tareas completadas</p>
+                  <p style="margin:0;font-size:20px;font-weight:700;color:#1F9D5B">
                     {{ data()!.myWorkItems.done }} / {{ data()!.myWorkItems.total }}
                   </p>
                 </div>
               </div>
 
               <div class="status-row">
-                <span class="status-label" style="color:#8c8c8c">Backlog</span>
+                <span class="status-label" style="color:var(--text-muted)">Backlog</span>
                 <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.backlog)" nzStrokeColor="#d9d9d9" [nzShowInfo]="false" nzSize="small"></nz-progress>
                 <span class="status-count">{{ data()!.myWorkItems.backlog }}</span>
               </div>
               <div class="status-row">
-                <span class="status-label" style="color:#1890ff">Por hacer</span>
-                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.toDo)" nzStrokeColor="#1890ff" [nzShowInfo]="false" nzSize="small"></nz-progress>
+                <span class="status-label" style="color:#2A5BA8">Por hacer</span>
+                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.toDo)" nzStrokeColor="#2A5BA8" [nzShowInfo]="false" nzSize="small"></nz-progress>
                 <span class="status-count">{{ data()!.myWorkItems.toDo }}</span>
               </div>
               <div class="status-row">
-                <span class="status-label" style="color:#faad14">En progreso</span>
-                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.inProgress)" nzStrokeColor="#faad14" [nzShowInfo]="false" nzSize="small"></nz-progress>
+                <span class="status-label" style="color:#C9A11A">En progreso</span>
+                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.inProgress)" nzStrokeColor="#C9A11A" [nzShowInfo]="false" nzSize="small"></nz-progress>
                 <span class="status-count">{{ data()!.myWorkItems.inProgress }}</span>
               </div>
               <div class="status-row">
-                <span class="status-label" style="color:#ff4d4f">Bloqueadas</span>
-                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.blocked)" nzStrokeColor="#ff4d4f" [nzShowInfo]="false" nzSize="small"></nz-progress>
+                <span class="status-label" style="color:var(--brand-primary)">Bloqueadas</span>
+                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.blocked)" [nzStrokeColor]="'var(--brand-primary)'" [nzShowInfo]="false" nzSize="small"></nz-progress>
                 <span class="status-count">{{ data()!.myWorkItems.blocked }}</span>
               </div>
               <div class="status-row">
-                <span class="status-label" style="color:#52c41a">Hecho</span>
-                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.done)" nzStrokeColor="#52c41a" [nzShowInfo]="false" nzSize="small"></nz-progress>
+                <span class="status-label" style="color:#1F9D5B">Hecho</span>
+                <nz-progress class="status-bar" [nzPercent]="pct(data()!.myWorkItems.done)" nzStrokeColor="#1F9D5B" [nzShowInfo]="false" nzSize="small"></nz-progress>
                 <span class="status-count">{{ data()!.myWorkItems.done }}</span>
               </div>
             }
           </nz-card>
 
-          <!-- Gráfico sprints: progreso de cada sprint activo -->
           <nz-card [nzBordered]="true">
-            <div class="section-title">
-              <span nz-icon nzType="thunderbolt"></span> Progreso de sprints activos
-            </div>
+            <div class="section-title"><span nz-icon nzType="thunderbolt"></span> Progreso de sprints activos</div>
 
             @if (data()!.activeSprints.length === 0) {
               <nz-empty nzNotFoundContent="Sin sprints activos" />
@@ -284,7 +301,7 @@ const ROLE_COLORS: Record<string, string> = {
                 <div class="sprint-progress-row">
                   <span class="sprint-progress-label" [nzTooltipTitle]="sprint.projectTitle + ' — ' + sprint.name" nz-tooltip>
                     <span style="font-weight:600">{{ sprint.name }}</span>
-                    <span style="display:block;font-size:11px;color:#8c8c8c">{{ sprint.projectTitle }}</span>
+                    <span style="display:block;font-size:11px;color:var(--text-muted)">{{ sprint.projectTitle }}</span>
                   </span>
                   <nz-progress
                     class="sprint-progress-bar"
@@ -297,10 +314,10 @@ const ROLE_COLORS: Record<string, string> = {
                 </div>
                 @if (sprint.endDate) {
                   <div style="margin-top:-6px;margin-bottom:12px;padding-left:152px">
-                    <span style="font-size:11px;color:#8c8c8c">
+                    <span style="font-size:11px;color:var(--text-muted)">
                       Fin: {{ sprint.endDate }}
                       @if (daysLeft(sprint.endDate) !== null) {
-                        · <span [style.color]="daysLeft(sprint.endDate)! <= 3 ? '#ff4d4f' : '#8c8c8c'">
+                        · <span [style.color]="daysLeft(sprint.endDate)! <= 3 ? 'var(--brand-primary)' : 'var(--text-muted)'">
                           {{ daysLeft(sprint.endDate) }}d restantes
                         </span>
                       }
@@ -311,20 +328,12 @@ const ROLE_COLORS: Record<string, string> = {
 
               @if (data()!.myWorkItems.total > 0) {
                 <nz-divider style="margin:16px 0 12px"></nz-divider>
-                <div style="font-size:13px;color:#8c8c8c;margin-bottom:8px">Distribución por prioridad</div>
+                <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Distribución por prioridad</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <nz-tag nzColor="error">
-                    🔴 Crítica: {{ data()!.myWorkItems.critical }}
-                  </nz-tag>
-                  <nz-tag nzColor="warning">
-                    🟠 Alta: {{ data()!.myWorkItems.high }}
-                  </nz-tag>
-                  <nz-tag nzColor="processing">
-                    🔵 Media: {{ data()!.myWorkItems.medium }}
-                  </nz-tag>
-                  <nz-tag>
-                    ⚪ Baja: {{ data()!.myWorkItems.low }}
-                  </nz-tag>
+                  <nz-tag nzColor="error">🔴 Crítica: {{ data()!.myWorkItems.critical }}</nz-tag>
+                  <nz-tag nzColor="warning">🟠 Alta: {{ data()!.myWorkItems.high }}</nz-tag>
+                  <nz-tag nzColor="processing">🔵 Media: {{ data()!.myWorkItems.medium }}</nz-tag>
+                  <nz-tag>⚪ Baja: {{ data()!.myWorkItems.low }}</nz-tag>
                 </div>
               }
             }
@@ -334,14 +343,8 @@ const ROLE_COLORS: Record<string, string> = {
 
         <!-- Mis proyectos -->
         <nz-card [nzBordered]="true" style="margin-bottom:16px">
-          <div class="section-title">
-            <span nz-icon nzType="project"></span> Mis proyectos
-          </div>
-          <nz-table
-            [nzData]="data()!.myProjects"
-            nzBordered
-            nzSize="small"
-            [nzShowPagination]="false">
+          <div class="section-title"><span nz-icon nzType="project"></span> Mis proyectos</div>
+          <nz-table [nzData]="data()!.myProjects" nzBordered nzSize="small" [nzShowPagination]="false">
             <thead>
               <tr>
                 <th>Proyecto</th>
@@ -354,31 +357,19 @@ const ROLE_COLORS: Record<string, string> = {
             <tbody>
               @for (p of data()!.myProjects; track p.id) {
                 <tr>
+                  <td><a [routerLink]="['/projects', p.id]" style="font-weight:600">{{ p.title }}</a></td>
+                  <td style="color:var(--text-secondary);font-size:13px">{{ p.requestingUnit }}</td>
                   <td>
-                    <a [routerLink]="['/projects', p.id]" style="font-weight:600">{{ p.title }}</a>
-                  </td>
-                  <td style="color:#595959;font-size:13px">{{ p.requestingUnit }}</td>
-                  <td>
-                    <nz-tag [nzColor]="projectStatusColor(p.status)">
-                      {{ projectStatusLabel(p.status) }}
-                    </nz-tag>
+                    <app-project-status-badge [status]="p.status" />
                   </td>
                   <td>
                     @if (p.totalWorkItems > 0) {
                       <div style="display:flex;align-items:center;gap:8px">
-                        <nz-progress
-                          style="flex:1"
-                          [nzPercent]="projectPct(p)"
-                          nzSize="small"
-                          [nzShowInfo]="false"
-                          nzStrokeColor="#52c41a">
-                        </nz-progress>
-                        <span style="font-size:12px;color:#8c8c8c;white-space:nowrap">
-                          {{ p.doneWorkItems }}/{{ p.totalWorkItems }}
-                        </span>
+                        <nz-progress style="flex:1" [nzPercent]="projectPct(p)" nzSize="small" [nzShowInfo]="false" nzStrokeColor="#1F9D5B"></nz-progress>
+                        <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">{{ p.doneWorkItems }}/{{ p.totalWorkItems }}</span>
                       </div>
                     } @else {
-                      <span style="color:#bfbfbf;font-size:13px">Sin tareas</span>
+                      <span style="color:var(--text-faint);font-size:13px">Sin tareas</span>
                     }
                   </td>
                   <td>
@@ -388,7 +379,7 @@ const ROLE_COLORS: Record<string, string> = {
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="5" style="text-align:center;color:#bfbfbf">No tienes proyectos asignados</td></tr>
+                <tr><td colspan="5" style="text-align:center;color:var(--text-faint)">No tienes proyectos asignados</td></tr>
               }
             </tbody>
           </nz-table>
@@ -397,14 +388,10 @@ const ROLE_COLORS: Record<string, string> = {
         <!-- Sprints activos -->
         <nz-card [nzBordered]="true">
           <div class="section-title">
-            <span nz-icon nzType="thunderbolt" nzTheme="fill" style="color:#722ed1"></span>
+            <span nz-icon nzType="thunderbolt" nzTheme="fill" style="color:var(--brand-primary)"></span>
             Sprints activos
           </div>
-          <nz-table
-            [nzData]="data()!.activeSprints"
-            nzBordered
-            nzSize="small"
-            [nzShowPagination]="false">
+          <nz-table [nzData]="data()!.activeSprints" nzBordered nzSize="small" [nzShowPagination]="false">
             <thead>
               <tr>
                 <th>Sprint</th>
@@ -419,43 +406,30 @@ const ROLE_COLORS: Record<string, string> = {
               @for (s of data()!.activeSprints; track s.id) {
                 <tr>
                   <td style="font-weight:600">{{ s.name }}</td>
-                  <td>
-                    <a [routerLink]="['/projects', s.projectId]" style="font-size:13px">{{ s.projectTitle }}</a>
-                  </td>
-                  <td style="font-size:13px;color:#595959;max-width:200px">
-                    {{ s.goal ?? '—' }}
-                  </td>
+                  <td><a [routerLink]="['/projects', s.projectId]" style="font-size:13px">{{ s.projectTitle }}</a></td>
+                  <td style="font-size:13px;color:var(--text-secondary);max-width:200px">{{ s.goal ?? '—' }}</td>
                   <td style="font-size:12px;white-space:nowrap">
                     {{ s.startDate ?? '?' }} → {{ s.endDate ?? '?' }}
                     @if (daysLeft(s.endDate) !== null) {
-                      <span [style.color]="daysLeft(s.endDate)! <= 3 ? '#ff4d4f' : '#8c8c8c'" style="display:block">
+                      <span [style.color]="daysLeft(s.endDate)! <= 3 ? 'var(--brand-primary)' : 'var(--text-muted)'" style="display:block">
                         {{ daysLeft(s.endDate) }}d restantes
                       </span>
                     }
                   </td>
                   <td>
                     <div style="display:flex;align-items:center;gap:8px">
-                      <nz-progress
-                        style="flex:1;min-width:80px"
-                        [nzPercent]="sprintPct(s)"
-                        nzSize="small"
-                        [nzShowInfo]="false"
-                        [nzStrokeColor]="sprintColor(s)">
-                      </nz-progress>
-                      <span style="font-size:12px;color:#8c8c8c;white-space:nowrap">
-                        {{ s.doneWorkItems }}/{{ s.workItemCount }}
-                      </span>
+                      <nz-progress style="flex:1;min-width:80px" [nzPercent]="sprintPct(s)" nzSize="small" [nzShowInfo]="false" [nzStrokeColor]="sprintColor(s)"></nz-progress>
+                      <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">{{ s.doneWorkItems }}/{{ s.workItemCount }}</span>
                     </div>
                   </td>
                   <td>
-                    <a nz-button nzSize="small" nzType="primary"
-                      [routerLink]="['/projects', s.projectId, 'sprints', s.id, 'kanban']">
+                    <a nz-button nzSize="small" nzType="primary" [routerLink]="['/projects', s.projectId, 'sprints', s.id, 'kanban']">
                       <span nz-icon nzType="layout"></span> Abrir
                     </a>
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="6" style="text-align:center;color:#bfbfbf">Sin sprints activos en tus proyectos</td></tr>
+                <tr><td colspan="6" style="text-align:center;color:var(--text-faint)">Sin sprints activos en tus proyectos</td></tr>
               }
             </tbody>
           </nz-table>
@@ -470,6 +444,7 @@ export class DashboardComponent {
   private readonly oidc = inject(OidcSecurityService);
 
   readonly data = toSignal(this.http.get<DashboardDto>('/api/dashboard'));
+  readonly portfolio = toSignal(this.http.get<PortfolioDto>('/api/portfolio'));
 
   readonly initials = computed(() => {
     const name = this.data()?.me.name ?? '';
@@ -484,6 +459,61 @@ export class DashboardComponent {
 
   readonly circleFmt = (p: number) => `${p}%`;
 
+  readonly inCourseCount = computed(() => {
+    const s = this.portfolio()?.stats;
+    if (!s) return 0;
+    return s.inSprint + s.developmentOutsideSprint + s.inTesting + s.waitingForDevelopers;
+  });
+
+  private statKey(status: ProjectStatus): keyof PortfolioStatsDto {
+    const map: Record<ProjectStatus, keyof PortfolioStatsDto> = {
+      Stopped: 'stopped',
+      PlanningWithClient: 'planningWithClient',
+      WaitingForDevelopers: 'waitingForDevelopers',
+      PlanningSprint: 'planningSprint',
+      InSprint: 'inSprint',
+      DevelopmentOutsideSprint: 'developmentOutsideSprint',
+      InTesting: 'inTesting',
+      Completed: 'completed',
+      PostponedByClient: 'postponedByClient',
+    };
+    return map[status];
+  }
+
+  readonly statusDistribution = computed(() => {
+    const stats = this.portfolio()?.stats;
+    if (!stats) return [];
+    const counts = STATUS_ORDER.map(status => ({ status, count: stats[this.statKey(status)] }));
+    const max = Math.max(...counts.map(c => c.count), 1);
+    return counts.map(c => ({
+      status: c.status,
+      label: PROJECT_STATUS_LABELS[c.status],
+      dot: PROJECT_STATUS_PILL_COLORS[c.status].dot,
+      count: c.count,
+      pct: Math.round((c.count / max) * 100),
+    }));
+  });
+
+  readonly complexityDistribution = computed(() => {
+    const projects = this.portfolio()?.projects ?? [];
+    const order: ProjectComplexity[] = ['VerySmall', 'Small', 'Medium', 'Large', 'VeryLarge'];
+    const counts = order.map(complexity => ({
+      complexity,
+      count: projects.filter(p => p.complexity === complexity).length,
+    }));
+    const max = Math.max(...counts.map(c => c.count), 1);
+    return counts.map(c => ({
+      complexity: c.complexity,
+      label: PROJECT_COMPLEXITY_LABELS[c.complexity],
+      count: c.count,
+      pct: Math.round((c.count / max) * 100),
+    }));
+  });
+
+  readonly stoppedProjects = computed(() =>
+    (this.portfolio()?.projects ?? []).filter(p => p.status === 'Stopped'),
+  );
+
   pct(count: number): number {
     const total = this.data()?.myWorkItems.total ?? 0;
     if (total === 0) return 0;
@@ -497,9 +527,9 @@ export class DashboardComponent {
 
   sprintColor(sprint: DashboardSprintDto): string {
     const pct = this.sprintPct(sprint);
-    if (pct >= 80) return '#52c41a';
-    if (pct >= 40) return '#faad14';
-    return '#1890ff';
+    if (pct >= 80) return '#1F9D5B';
+    if (pct >= 40) return '#C9A11A';
+    return '#2A5BA8';
   }
 
   projectPct(p: DashboardProjectDto): number {
@@ -515,18 +545,6 @@ export class DashboardComponent {
 
   roleLabel(role: string): string {
     return ROLE_LABELS[role] ?? role;
-  }
-
-  roleColor(role: string): string {
-    return ROLE_COLORS[role] ?? 'default';
-  }
-
-  projectStatusLabel(status: string): string {
-    return (PROJECT_STATUS_LABELS as Record<string, string>)[status] ?? status;
-  }
-
-  projectStatusColor(status: string): string {
-    return PROJECT_STATUS_COLORS[status] ?? 'default';
   }
 
   logout(): void {

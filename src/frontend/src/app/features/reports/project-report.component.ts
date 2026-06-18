@@ -19,6 +19,7 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzStatisticModule } from 'ng-zorro-antd/statistic';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzTimelineModule } from 'ng-zorro-antd/timeline';
+import { ProjectStatusBadgeComponent } from '../projects/project-status-badge/project-status-badge.component';
 
 interface EpicReport { id: number; title: string; totalWorkItems: number; doneWorkItems: number; }
 interface Milestone { id: number; title: string; status: string; hitoDate?: string; assignees: string[]; }
@@ -34,10 +35,6 @@ interface ProjectReportDto {
   sprints: SprintReport[];
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  Proposed: 'Propuesto', Approved: 'Aprobado', InProgress: 'En ejecución',
-  Paused: 'Pausado', Completed: 'Completado', Cancelled: 'Cancelado',
-};
 const SPRINT_STATUS_COLORS: Record<string, string> = {
   Planning: 'default', Active: 'processing', Completed: 'success',
 };
@@ -49,7 +46,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
   imports: [
     RouterLink, NzCardModule, NzProgressModule, NzTableModule, NzTagModule,
     NzButtonModule, NzIconModule, NzSpinModule, NzDividerModule, NzEmptyModule,
-    NzStatisticModule, NzBadgeModule, NzTimelineModule,
+    NzStatisticModule, NzBadgeModule, NzTimelineModule, ProjectStatusBadgeComponent,
   ],
   styles: [`
     .report-wrapper { max-width: 1000px; margin: 0 auto; }
@@ -78,7 +75,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           </a>
           <div style="display:flex;align-items:center;gap:12px">
             <h2 style="margin:0">{{ report()!.title }}</h2>
-            <nz-tag nzColor="processing">{{ statusLabel(report()!.status) }}</nz-tag>
+            <app-project-status-badge [status]="report()!.status" />
           </div>
           <p style="color:#8c8c8c;margin:4px 0 0;font-size:13px">{{ report()!.requestingUnit }}</p>
         </div>
@@ -256,6 +253,4 @@ export class ProjectReportComponent {
     if (!m.hitoDate) return 'blue';
     return this.isOverdue(m.hitoDate) ? 'red' : 'blue';
   }
-
-  statusLabel(s: string): string { return STATUS_LABELS[s] ?? s; }
 }

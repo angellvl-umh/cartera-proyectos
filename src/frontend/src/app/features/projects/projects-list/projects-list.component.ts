@@ -30,6 +30,8 @@ import {
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
+import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
+import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.component';
 
 @Component({
   selector: 'app-projects-list',
@@ -48,11 +50,29 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
     NzTagModule,
     ProjectStatusBadgeComponent,
     ProjectFormComponent,
+    ComplexityIndicatorComponent,
+    KanbanByStatusComponent,
   ],
+  styles: [`
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--brand-primary); margin: 0 0 4px; }
+    h1.page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; margin: 0; color: var(--ink); }
+    .page-subtitle { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
+    .toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .view-toggle { margin-left: auto; display: flex; gap: 3px; background: #EAE6DF; border-radius: 9px; padding: 3px; }
+    .view-toggle button {
+      border: none; background: transparent; border-radius: 7px; padding: 6px 14px;
+      font-size: 13px; font-weight: 600; color: #6B6661; cursor: pointer;
+    }
+    .view-toggle button.active { background: var(--ink); color: #fff; }
+  `],
   template: `
-    <div style="padding: 24px">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
-        <h2 style="margin: 0">Cartera de Proyectos</h2>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <div>
+          <p class="eyebrow">Cartera de Proyectos TIC</p>
+          <h1 class="page-title">Cartera de Proyectos</h1>
+          <p class="page-subtitle">{{ projects().length }} de {{ total() }} proyectos</p>
+        </div>
         <button nz-button nzType="primary" (click)="openCreate()">
           <span nz-icon nzType="plus"></span>
           Nuevo proyecto
@@ -60,7 +80,7 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
       </div>
 
       <!-- Filtros -->
-      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap">
+      <div class="toolbar">
         <input
           nz-input
           placeholder="Buscar por título..."
@@ -104,98 +124,111 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
             <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
           }
         </nz-select>
+
+        <div class="view-toggle">
+          <button type="button" [class.active]="viewMode() === 'tabla'" (click)="viewMode.set('tabla')">Tabla</button>
+          <button type="button" [class.active]="viewMode() === 'tablero'" (click)="viewMode.set('tablero')">Tablero</button>
+        </div>
       </div>
 
-      <!-- Tabla -->
-      <nz-table
-        [nzData]="projects()"
-        [nzLoading]="loading()"
-        [nzTotal]="total()"
-        [nzPageIndex]="currentPage()"
-        [nzPageSize]="pageSize()"
-        [nzFrontPagination]="false"
-        (nzPageIndexChange)="onPageChange($event)"
-        (nzPageSizeChange)="onPageSizeChange($event)"
-        nzBordered
-        nzSize="middle"
-      >
-        <thead>
-          <tr>
-            <th>Título</th>
-            <th>Complejidad</th>
-            <th>Estado</th>
-            <th>Etiquetas</th>
-            <th>Año cartera</th>
-            <th nzWidth="200px">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of projects(); track row.id) {
+      @if (viewMode() === 'tabla') {
+        <!-- Tabla -->
+        <nz-table
+          [nzData]="projects()"
+          [nzLoading]="loading()"
+          [nzTotal]="total()"
+          [nzPageIndex]="currentPage()"
+          [nzPageSize]="pageSize()"
+          [nzFrontPagination]="false"
+          (nzPageIndexChange)="onPageChange($event)"
+          (nzPageSizeChange)="onPageSizeChange($event)"
+          nzBordered
+          nzSize="middle"
+        >
+          <thead>
             <tr>
-              <td>{{ row.title }}</td>
-              <td>{{ complexityLabel(row.complexity) }}</td>
-              <td>
-                <app-project-status-badge [status]="row.status" />
-              </td>
-              <td>
-                <nz-select
-                  [ngModel]="tagIdsMap()[row.id] ?? []"
-                  (ngModelChange)="onTagsChange(row, $event)"
-                  nzMode="multiple"
-                  nzPlaceHolder="+ Etiqueta"
-                  nzAllowClear
-                  [nzMaxTagCount]="3"
-                  style="width: 100%; min-width: 160px"
-                  nzSize="small"
-                >
-                  @for (t of allTags(); track t.id) {
-                    <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
-                  }
-                </nz-select>
-              </td>
-              <td>{{ row.portfolioYear ?? '—' }}</td>
-              <td>
-                <nz-space>
-                  <button
-                    *nzSpaceItem
-                    nz-button
-                    nzSize="small"
-                    (click)="goToDetail(row.id)"
-                    title="Ver detalle"
-                  >
-                    <span nz-icon nzType="eye"></span>
-                  </button>
-                  @if (canEdit(row.status)) {
-                    <button
-                      *nzSpaceItem
-                      nz-button
-                      nzSize="small"
-                      (click)="openEdit(row)"
-                      title="Editar"
-                    >
-                      <span nz-icon nzType="edit"></span>
-                    </button>
-                  }
-                  @if (canDelete(row.status)) {
-                    <button
-                      *nzSpaceItem
-                      nz-button
-                      nzSize="small"
-                      nzDanger
-                      nz-popconfirm
-                      nzPopconfirmTitle="¿Eliminar este proyecto?"
-                      (nzOnConfirm)="deleteProject(row.id)"
-                      title="Eliminar"
-                    >
-                      <span nz-icon nzType="delete"></span>
-                    </button>
-                  }
-                </nz-space>
-              </td>
+              <th>Título</th>
+              <th nzWidth="160px">Complejidad</th>
+              <th nzWidth="220px">Estado</th>
+              <th>Etiquetas</th>
+              <th nzWidth="100px">Año cartera</th>
+              <th nzWidth="200px">Acciones</th>
             </tr>
-          }
-        </tbody>
-      </nz-table>
+          </thead>
+          <tbody>
+            @for (row of projects(); track row.id) {
+              <tr>
+                <td style="font-weight:600;font-size:14.5px">{{ row.title }}</td>
+                <td><app-complexity-indicator [complexity]="row.complexity" /></td>
+                <td>
+                  <app-project-status-badge [status]="row.status" />
+                </td>
+                <td>
+                  <nz-select
+                    [ngModel]="tagIdsMap()[row.id] ?? []"
+                    (ngModelChange)="onTagsChange(row, $event)"
+                    nzMode="multiple"
+                    nzPlaceHolder="+ Etiqueta"
+                    nzAllowClear
+                    [nzMaxTagCount]="3"
+                    style="width: 100%; min-width: 160px"
+                    nzSize="small"
+                  >
+                    @for (t of allTags(); track t.id) {
+                      <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
+                    }
+                  </nz-select>
+                </td>
+                <td style="font-variant-numeric:tabular-nums">{{ row.portfolioYear ?? '—' }}</td>
+                <td>
+                  <nz-space>
+                    <button
+                      *nzSpaceItem
+                      nz-button
+                      nzSize="small"
+                      (click)="goToDetail(row.id)"
+                      title="Ver detalle"
+                    >
+                      <span nz-icon nzType="eye"></span>
+                    </button>
+                    @if (canEdit(row.status)) {
+                      <button
+                        *nzSpaceItem
+                        nz-button
+                        nzSize="small"
+                        (click)="openEdit(row)"
+                        title="Editar"
+                      >
+                        <span nz-icon nzType="edit"></span>
+                      </button>
+                    }
+                    @if (canDelete(row.status)) {
+                      <button
+                        *nzSpaceItem
+                        nz-button
+                        nzSize="small"
+                        nzDanger
+                        nz-popconfirm
+                        nzPopconfirmTitle="¿Eliminar este proyecto?"
+                        (nzOnConfirm)="deleteProject(row.id)"
+                        title="Eliminar"
+                      >
+                        <span nz-icon nzType="delete"></span>
+                      </button>
+                    }
+                  </nz-space>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </nz-table>
+      } @else {
+        <app-kanban-by-status
+          [filterQ]="filterQ"
+          [filterComplexity]="filterComplexity"
+          [filterTagIds]="filterTagIds"
+        />
+      }
     </div>
 
     <!-- Modal de creación/edición -->
@@ -225,6 +258,7 @@ export class ProjectsListComponent {
   currentPage = signal(1);
   pageSize = signal(20);
   total = signal(0);
+  viewMode = signal<'tabla' | 'tablero'>('tabla');
 
   readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
     value: v, label: PROJECT_STATUS_LABELS[v],

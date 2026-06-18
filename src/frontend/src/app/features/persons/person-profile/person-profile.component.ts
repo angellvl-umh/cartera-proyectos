@@ -30,7 +30,6 @@ const ROLE_COLORS: Record<string, string> = { Gestor: 'purple', JefeEquipo: 'blu
 const STATUS_COLORS: Record<string, string> = { Backlog: 'default', ToDo: 'processing', InProgress: 'warning', Blocked: 'error', Done: 'success' };
 const STATUS_LABELS: Record<string, string> = { Backlog: 'Backlog', ToDo: 'Por hacer', InProgress: 'En progreso', Blocked: 'Bloqueada', Done: 'Hecho' };
 const PRIORITY_COLORS: Record<string, string> = { Low: 'default', Medium: 'processing', High: 'warning', Critical: 'error' };
-const PROJECT_STATUS_LABELS: Record<string, string> = { Proposed: 'Propuesto', Approved: 'Aprobado', InProgress: 'En ejecución', Paused: 'Pausado', Completed: 'Completado', Cancelled: 'Cancelado' };
 
 @Component({
   selector: 'app-person-profile',

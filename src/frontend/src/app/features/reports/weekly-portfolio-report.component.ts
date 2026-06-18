@@ -18,8 +18,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import {
   PROJECT_HEALTH_STATUS_COLORS,
   PROJECT_HEALTH_STATUS_LABELS,
-  PROJECT_STATUS_LABELS,
+  ProjectStatus,
 } from '../projects/project.model';
+import { ProjectStatusBadgeComponent } from '../projects/project-status-badge/project-status-badge.component';
 
 interface WeeklyPortfolioProjectDto {
   projectId: number;
@@ -40,12 +41,6 @@ interface WeeklyPortfolioReportDto {
   otherProjects: WeeklyPortfolioProjectDto[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  Stopped: 'default', PlanningWithClient: 'blue', WaitingForDevelopers: 'gold',
-  PlanningSprint: 'cyan', InSprint: 'green', DevelopmentOutsideSprint: 'geekblue',
-  InTesting: 'orange', Completed: 'purple', PostponedByClient: 'red',
-};
-
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
 
@@ -57,6 +52,7 @@ const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
     RouterLink, FormsModule,
     NzCardModule, NzButtonModule, NzTagModule, NzIconModule,
     NzSpinModule, NzSelectModule, NzDividerModule,
+    ProjectStatusBadgeComponent,
   ],
   template: `
     <div style="max-width:1100px;margin:0 auto">
@@ -123,7 +119,7 @@ const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
                   style="border:1px solid #ffccc7;background:#fff1f0">
                   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
                     <a [routerLink]="['/projects', p.projectId]" style="font-weight:600;font-size:14px">{{ p.title }}</a>
-                    <nz-tag [nzColor]="statusColor(p.status)">{{ statusLabel(p.status) }}</nz-tag>
+                    <app-project-status-badge [status]="asStatus(p.status)" />
                   </div>
                   <div style="font-size:12px;color:#595959;margin-bottom:8px">
                     <span nz-icon nzType="team" style="margin-right:4px"></span>
@@ -156,7 +152,7 @@ const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
               <nz-card [nzBodyStyle]="{ padding: '12px 16px' }">
                 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
                   <a [routerLink]="['/projects', p.projectId]" style="font-weight:600;font-size:14px">{{ p.title }}</a>
-                  <nz-tag [nzColor]="statusColor(p.status)">{{ statusLabel(p.status) }}</nz-tag>
+                  <app-project-status-badge [status]="asStatus(p.status)" />
                 </div>
                 <div style="font-size:12px;color:#595959;margin-bottom:8px">
                   <span nz-icon nzType="team" style="margin-right:4px"></span>
@@ -219,8 +215,7 @@ export class WeeklyPortfolioReportComponent {
     });
   }
 
-  statusColor(s: string): string { return STATUS_COLORS[s] ?? 'default'; }
-  statusLabel(s: string): string { return (PROJECT_STATUS_LABELS as Record<string, string>)[s] ?? s; }
+  asStatus(s: string): ProjectStatus { return s as ProjectStatus; }
   healthColor(s: string | null): string { return s ? (PROJECT_HEALTH_STATUS_COLORS as Record<string, string>)[s] ?? 'default' : 'default'; }
   healthLabel(s: string | null): string { return s ? (PROJECT_HEALTH_STATUS_LABELS as Record<string, string>)[s] ?? s : '—'; }
 

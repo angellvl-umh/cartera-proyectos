@@ -1,31 +1,27 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
-import { NzTagModule } from 'ng-zorro-antd/tag';
-import { PROJECT_STATUS_LABELS, ProjectStatus } from '../project.model';
+import { PROJECT_STATUS_LABELS, PROJECT_STATUS_PILL_COLORS, ProjectStatus } from '../project.model';
 
 interface StatusConfig {
   label: string;
-  color: string;
+  bg: string;
+  fg: string;
+  dot: string;
 }
-
-const STATUS_COLORS: Record<ProjectStatus, string> = {
-  Stopped: 'default',
-  PlanningWithClient: 'blue',
-  WaitingForDevelopers: 'gold',
-  PlanningSprint: 'cyan',
-  InSprint: 'green',
-  DevelopmentOutsideSprint: 'geekblue',
-  InTesting: 'orange',
-  Completed: 'purple',
-  PostponedByClient: 'red',
-};
 
 @Component({
   selector: 'app-project-status-badge',
   standalone: true,
-  imports: [NzTagModule],
+  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <nz-tag [nzColor]="config().color">{{ config().label }}</nz-tag>
+    <span
+      style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap"
+      [style.background]="config().bg"
+      [style.color]="config().fg"
+    >
+      <span style="width:6px;height:6px;border-radius:999px;flex:0 0 auto" [style.background]="config().dot"></span>
+      {{ config().label }}
+    </span>
   `,
 })
 export class ProjectStatusBadgeComponent {
@@ -33,9 +29,12 @@ export class ProjectStatusBadgeComponent {
 
   config(): StatusConfig {
     const s = this.status as ProjectStatus;
+    const colors = PROJECT_STATUS_PILL_COLORS[s];
     return {
       label: PROJECT_STATUS_LABELS[s] ?? this.status,
-      color: STATUS_COLORS[s] ?? 'default',
+      bg: colors?.bg ?? '#ECEAE6',
+      fg: colors?.fg ?? '#6B6661',
+      dot: colors?.dot ?? '#9A938B',
     };
   }
 }

@@ -1,10 +1,147 @@
 @import "ng-zorro-antd/ng-zorro-antd.min.css";
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --brand-primary: #A6192E;
+  --brand-primary-hover: #8E1527;
+  --brand-primary-tint: rgba(166, 25, 46, 0.16);
+  --brand-primary-shadow: 0 1px 2px rgba(166, 25, 46, .3);
+  --brand-focus-halo: 0 0 0 3px rgba(166, 25, 46, .12);
+
+  --ink: #1B1A18;
+  --ink-700: #3A352F;
+  --text-secondary: #5F594F;
+  --text-secondary-alt: #7A746C;
+  --text-muted: #8A847C;
+  --text-muted-alt: #9A938B;
+  --text-faint: #A39C92;
+  --text-faint-alt: #C7C1B8;
+
+  --bg-app: #F4F2EE;
+  --bg-surface: #FFFFFF;
+  --bg-surface-alt: #FAF8F5;
+  --bg-row-hover: #FBFAF7;
+  --bg-kanban-col: #EFECE6;
+  --bg-chip: #F0EEE9;
+  --bg-track: #F1EEE9;
+
+  --border: #E8E4DE;
+  --border-strong: #DED9D1;
+  --border-strong-alt: #E5E0D8;
+  --border-faint: #F0ECE5;
+  --border-faint-alt: #EFEBE4;
+
+  --sidebar-bg: #1B1A18;
+  --sidebar-text: #B9B4AC;
+  --sidebar-text-muted: #8C867E;
+  --sidebar-heading: #6E685F;
+  --sidebar-border: #2C2A27;
+
+  --complexity-filled: #8A837A;
+  --complexity-empty: #E6E1DA;
+
+  --radius-card: 12px;
+  --radius-input: 9px;
+  --radius-icon-btn: 8px;
+  --radius-chip: 5px;
+  --radius-pill: 999px;
+
+  --shadow-kanban-card-hover: 0 3px 10px rgba(27, 26, 24, .08);
+}
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Libre Franklin', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-app);
+  color: var(--ink);
 }
 
 nz-header {
   background: #001529;
+}
+
+/* ── Sobrescritura institucional de NG-ZORRO ───────────────────────────── */
+
+.ant-btn-primary {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  border-radius: var(--radius-input);
+  box-shadow: var(--brand-primary-shadow);
+}
+
+.ant-btn-primary:not(:disabled):hover,
+.ant-btn-primary:not(:disabled):focus {
+  background-color: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+}
+
+.ant-btn {
+  border-radius: var(--radius-input);
+}
+
+.ant-menu-dark,
+.ant-menu.ant-menu-dark {
+  background: var(--sidebar-bg);
+}
+
+.ant-menu-dark .ant-menu-item,
+.ant-menu-dark .ant-menu-submenu-title {
+  color: var(--sidebar-text);
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background: var(--brand-primary-tint) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 0 var(--brand-primary);
+}
+
+.ant-menu-dark .ant-menu-submenu-title {
+  color: var(--sidebar-heading);
+}
+
+.ant-card {
+  border-radius: var(--radius-card);
+  border-color: var(--border);
+}
+
+.ant-table {
+  border-radius: var(--radius-card);
+}
+
+.ant-table-thead > tr > th {
+  background: var(--bg-surface-alt) !important;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: var(--bg-row-hover) !important;
+}
+
+.ant-tag {
+  border-radius: var(--radius-chip);
+  font-weight: 600;
+}
+
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--radius-input) !important;
+  border-color: var(--border-strong-alt);
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  border-color: var(--brand-primary) !important;
+  box-shadow: var(--brand-focus-halo) !important;
 }

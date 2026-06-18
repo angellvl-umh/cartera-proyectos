@@ -36,7 +36,6 @@ import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority } from '..
 import { SprintService, Sprint, CreateSprintDto } from '../sprint.service';
 import { CommentsService, CommentDto } from '../comments.service';
 import {
-  PROJECT_COMPLEXITY_LABELS,
   PROJECT_HEALTH_STATUS_COLORS,
   PROJECT_HEALTH_STATUS_LABELS,
   PROJECT_STATUS_LABELS,
@@ -49,6 +48,7 @@ import {
   UpsertWeeklyUpdateDto,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
+import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
 
 const STATUS_COLORS: Record<WorkItemStatus, string> = {
@@ -91,7 +91,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
     NzSpinModule, NzTabsModule, NzTagModule, NzModalModule, NzFormModule,
     NzInputModule, NzInputNumberModule, NzSelectModule, NzDatePickerModule,
     NzListModule, NzAvatarModule,
-    RouterLink, ProjectStatusBadgeComponent, ProjectFormComponent,
+    RouterLink, ProjectStatusBadgeComponent, ComplexityIndicatorComponent, ProjectFormComponent,
   ],
   template: `
     @if (project() === undefined) {
@@ -145,7 +145,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           <nz-tab nzTitle="Información">
             <nz-card nzTitle="Datos del proyecto" style="margin-bottom:16px">
               <nz-descriptions nzBordered [nzColumn]="2">
-                <nz-descriptions-item nzTitle="Complejidad">{{ complexityLabel(project()!.complexity) }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="Complejidad"><app-complexity-indicator [complexity]="project()!.complexity" size="card" /></nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Estado"><app-project-status-badge [status]="project()!.status" /></nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Año de cartera">{{ project()!.portfolioYear ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Ref. anterior">{{ project()!.previousReferenceId ?? '—' }}</nz-descriptions-item>
@@ -798,10 +798,6 @@ export class ProjectDetailComponent {
       switchMap(() => this.workItemsService.getBacklog(this.projectId))
     )
   );
-
-  complexityLabel(c: string): string {
-    return (PROJECT_COMPLEXITY_LABELS as Record<string, string>)[c] ?? c;
-  }
 
   statusColor(s: WorkItemStatus): string { return STATUS_COLORS[s]; }
   statusLabel(s: WorkItemStatus): string { return STATUS_LABELS[s]; }
