@@ -20,7 +20,7 @@ public record MyWorkItemDto(
     int Id, int ProjectId, string ProjectTitle,
     int? EpicId, string? EpicTitle,
     int? SprintId, string? SprintName,
-    string Title, string Status, string Priority,
+    string Title, string Status, string Priority, string Type,
     int? EstimationHours, int? EstimationPoints,
     bool IsHito, string? HitoDate, string? DueDate);
 
@@ -70,7 +70,7 @@ public sealed class GetMyWorkItemsHandler(IAppDbContext db)
                 w.Epic != null ? w.Epic.Title : null,
                 w.SprintId,
                 w.Sprint != null ? w.Sprint.Name : null,
-                w.Title, w.Status.ToString(), w.Priority.ToString(),
+                w.Title, w.Status.ToString(), w.Priority.ToString(), w.Type.ToString(),
                 w.EstimationHours, w.EstimationPoints,
                 w.IsHito,
                 w.HitoDate != null ? w.HitoDate.Value.ToString() : null,

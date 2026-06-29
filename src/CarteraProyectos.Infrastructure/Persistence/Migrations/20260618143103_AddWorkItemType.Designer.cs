@@ -3,6 +3,7 @@ using System;
 using CarteraProyectos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CarteraProyectos.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618143103_AddWorkItemType")]
+    partial class AddWorkItemType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -432,39 +435,6 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.ToTable("Sprints");
                 });
 
-            modelBuilder.Entity("CarteraProyectos.Core.Domain.SprintStatusHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ChangedById")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FromStatus")
-                        .HasColumnType("text");
-
-                    b.Property<int>("SprintId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ToStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChangedById");
-
-                    b.HasIndex("SprintId");
-
-                    b.ToTable("SprintStatusHistories");
-                });
-
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -610,39 +580,6 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.HasKey("WorkItemId");
 
                     b.ToTable("WorkItemEmbeddings");
-                });
-
-            modelBuilder.Entity("CarteraProyectos.Core.Domain.WorkItemStatusHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ChangedById")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FromStatus")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ToStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("WorkItemId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChangedById");
-
-                    b.HasIndex("WorkItemId");
-
-                    b.ToTable("WorkItemStatusHistories");
                 });
 
             modelBuilder.Entity("PersonWorkItem", b =>
@@ -809,25 +746,6 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("CarteraProyectos.Core.Domain.SprintStatusHistory", b =>
-                {
-                    b.HasOne("CarteraProyectos.Core.Domain.Person", "ChangedBy")
-                        .WithMany()
-                        .HasForeignKey("ChangedById")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CarteraProyectos.Core.Domain.Sprint", "Sprint")
-                        .WithMany()
-                        .HasForeignKey("SprintId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ChangedBy");
-
-                    b.Navigation("Sprint");
-                });
-
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Team", b =>
                 {
                     b.HasOne("CarteraProyectos.Core.Domain.Person", "Lead")
@@ -861,25 +779,6 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Sprint");
-                });
-
-            modelBuilder.Entity("CarteraProyectos.Core.Domain.WorkItemStatusHistory", b =>
-                {
-                    b.HasOne("CarteraProyectos.Core.Domain.Person", "ChangedBy")
-                        .WithMany()
-                        .HasForeignKey("ChangedById")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CarteraProyectos.Core.Domain.WorkItem", "WorkItem")
-                        .WithMany()
-                        .HasForeignKey("WorkItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ChangedBy");
-
-                    b.Navigation("WorkItem");
                 });
 
             modelBuilder.Entity("PersonWorkItem", b =>

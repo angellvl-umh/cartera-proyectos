@@ -61,6 +61,36 @@ public class TransitionProjectStatusHandlerTests
     }
 
     [Fact]
+    public async Task Handle_CompletedConSprintNoCompletado_ThrowsInvalidOperationException()
+    {
+        var (db, project, gestor) = await SetupProjectWithGestor();
+        await using var _ = db;
+        db.Sprints.Add(Sprint.Create(project.Id, "Sprint 1", null, null, null, null));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(cmd, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Handle_CompletedConWorkItemNoDone_ThrowsInvalidOperationException()
+    {
+        var (db, project, gestor) = await SetupProjectWithGestor();
+        await using var _ = db;
+        db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea", null, WorkItemPriority.Medium, null, 0, null, false, null, null));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(cmd, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Handle_DesarrolladorCambiaStatus_ThrowsUnauthorizedAccessException()
     {
         await using var db = CreateInMemoryContext();

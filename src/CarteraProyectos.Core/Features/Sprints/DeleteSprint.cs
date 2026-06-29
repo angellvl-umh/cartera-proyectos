@@ -17,6 +17,10 @@ public sealed class DeleteSprintHandler(IAppDbContext db) : IRequestHandler<Dele
         if (sprint.Status != SprintStatus.Planning)
             throw new InvalidOperationException("Solo se puede eliminar un sprint en estado Planning.");
 
+        var hasWorkItems = await db.WorkItems.AnyAsync(w => w.SprintId == sprint.Id, cancellationToken);
+        if (hasWorkItems)
+            throw new InvalidOperationException("No se puede eliminar el sprint: tiene tareas asignadas. Desasígnalas o muévelas a otro sprint primero.");
+
         db.Sprints.Remove(sprint);
         await db.SaveChangesAsync(cancellationToken);
     }

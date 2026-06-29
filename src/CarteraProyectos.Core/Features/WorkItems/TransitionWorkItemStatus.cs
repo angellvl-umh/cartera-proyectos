@@ -40,7 +40,12 @@ public sealed class TransitionWorkItemStatusHandler(IAppDbContext db) : IRequest
             }
         }
 
+        var oldStatus = workItem.Status;
         workItem.TransitionStatus(request.NewStatus);
+
+        db.WorkItemStatusHistories.Add(
+            WorkItemStatusHistory.Create(workItem, oldStatus, request.NewStatus, request.RequestingPersonId));
+
         await db.SaveChangesAsync(cancellationToken);
     }
 }

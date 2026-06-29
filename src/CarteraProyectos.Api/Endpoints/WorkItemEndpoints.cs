@@ -22,37 +22,48 @@ public static class WorkItemEndpoints
         .WithName("GetWorkItems")
         .WithDescription("Lista las tareas de un proyecto. Filtros: epicId, status, sprintId, backlogOnly. Soporta paginación.");
 
-        group.MapPost("/", async (int projectId, CreateWorkItemRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/", async (int projectId, CreateWorkItemRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
             if (!Enum.TryParse<WorkItemPriority>(req.Priority, out var priority))
                 return Results.BadRequest("Prioridad no válida. Valores: Low, Medium, High, Critical.");
+
+            var type = WorkItemType.Task;
+            if (req.Type is not null && !Enum.TryParse(req.Type, out type))
+                return Results.BadRequest("Tipo no válido. Valores: Task, UserStory.");
+
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
 
             var id = await mediator.Send(new CreateWorkItemCommand(
                 projectId, req.Title, req.Description, priority,
                 req.EpicId, req.AssigneeIds ?? [], req.SortOrder,
                 req.EstimationHours, req.IsHito, req.HitoDate, req.DueDate,
-                req.SprintId, req.EstimationPoints), ct);
+                req.SprintId, req.EstimationPoints, type, requester.Id), ct);
 
             return Results.Created($"/api/projects/{projectId}/workitems/{id}", new { id });
         })
         .WithName("CreateWorkItem")
-        .WithDescription("Crea una tarea en el proyecto.");
+        .WithDescription("Crea una tarea en el proyecto. Tipo (type): Task o UserStory.");
 
         group.MapPut("/{id:int}", async (int projectId, int id, CreateWorkItemRequest req, IMediator mediator, CancellationToken ct) =>
         {
             if (!Enum.TryParse<WorkItemPriority>(req.Priority, out var priority))
                 return Results.BadRequest("Prioridad no válida.");
 
+            var type = WorkItemType.Task;
+            if (req.Type is not null && !Enum.TryParse(req.Type, out type))
+                return Results.BadRequest("Tipo no válido. Valores: Task, UserStory.");
+
             await mediator.Send(new UpdateWorkItemCommand(
                 id, req.Title, req.Description, priority,
                 req.EpicId, req.AssigneeIds ?? [], req.SortOrder,
                 req.EstimationHours, req.IsHito, req.HitoDate, req.DueDate,
-                req.SprintId, req.EstimationPoints), ct);
+                req.SprintId, req.EstimationPoints, type), ct);
 
             return Results.NoContent();
         })
         .WithName("UpdateWorkItem")
-        .WithDescription("Actualiza los datos de una tarea.");
+        .WithDescription("Actualiza los datos de una tarea. Tipo (type): Task o UserStory.");
 
         group.MapDelete("/{id:int}", async (int projectId, int id, IMediator mediator, CancellationToken ct) =>
         {
@@ -84,6 +95,14 @@ public static class WorkItemEndpoints
         .WithName("AssignWorkItemToSprint")
         .WithDescription("Asigna una tarea a un sprint, o la mueve al Product Backlog (sprintId: null).");
 
+        group.MapGet("/{id:int}/status-history", async (int projectId, int id, IMediator mediator, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await mediator.Send(new GetWorkItemStatusHistoryQuery(projectId, id), ct)); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        })
+        .WithName("GetWorkItemStatusHistory")
+        .WithDescription("Devuelve el histórico de cambios de estado de una tarea, ordenado cronológicamente.");
+
         return app;
     }
 }
@@ -92,7 +111,7 @@ record CreateWorkItemRequest(
     string Title, string? Description, string Priority,
     int? EpicId, IReadOnlyList<int>? AssigneeIds, int SortOrder,
     int? EstimationHours, bool IsHito, DateOnly? HitoDate, DateOnly? DueDate,
-    int? SprintId = null, int? EstimationPoints = null);
+    int? SprintId = null, int? EstimationPoints = null, string? Type = null);
 
 record TransitionWorkItemStatusRequest(string Status);
 record AssignSprintRequest(int? SprintId);

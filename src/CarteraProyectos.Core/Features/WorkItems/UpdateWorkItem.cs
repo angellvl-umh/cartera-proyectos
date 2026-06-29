@@ -19,7 +19,8 @@ public record UpdateWorkItemCommand(
     DateOnly? HitoDate,
     DateOnly? DueDate,
     int? SprintId = null,
-    int? EstimationPoints = null) : IRequest;
+    int? EstimationPoints = null,
+    WorkItemType Type = WorkItemType.Task) : IRequest;
 
 public sealed class UpdateWorkItemValidator : AbstractValidator<UpdateWorkItemCommand>
 {
@@ -28,6 +29,7 @@ public sealed class UpdateWorkItemValidator : AbstractValidator<UpdateWorkItemCo
         RuleFor(x => x.Title).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => x.Description is not null);
         RuleFor(x => x.Priority).IsInEnum();
+        RuleFor(x => x.Type).IsInEnum();
         RuleFor(x => x.SortOrder).GreaterThanOrEqualTo(0);
         RuleFor(x => x.EstimationHours).GreaterThan(0).When(x => x.EstimationHours.HasValue);
         RuleFor(x => x.EstimationPoints).GreaterThan(0).When(x => x.EstimationPoints.HasValue);
@@ -45,7 +47,7 @@ public sealed class UpdateWorkItemHandler(IAppDbContext db) : IRequestHandler<Up
 
         workItem.Update(request.Title, request.Description, request.Priority, request.EpicId,
             request.SortOrder, request.EstimationHours, request.IsHito, request.HitoDate, request.DueDate,
-            request.SprintId, request.EstimationPoints);
+            request.SprintId, request.EstimationPoints, request.Type);
 
         workItem.Assignees.Clear();
         if (request.AssigneeIds.Count > 0)

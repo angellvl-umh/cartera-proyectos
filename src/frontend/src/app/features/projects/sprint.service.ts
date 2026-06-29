@@ -25,6 +25,15 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+export interface SprintStatusHistoryEntry {
+  id: number;
+  fromStatus: SprintStatus | null;
+  toStatus: SprintStatus;
+  changedById: number;
+  changedByName: string;
+  changedAt: string;
+}
+
 export interface CreateSprintDto {
   name: string;
   goal?: string;
@@ -63,5 +72,9 @@ export class SprintService {
 
   assignToSprint(projectId: number, workItemId: number, sprintId: number | null): Observable<void> {
     return this.http.post<void>(`/api/projects/${projectId}/workitems/${workItemId}/sprint`, { sprintId });
+  }
+
+  getStatusHistory(projectId: number, id: number): Observable<SprintStatusHistoryEntry[]> {
+    return this.http.get<SprintStatusHistoryEntry[]>(`/api/projects/${projectId}/sprints/${id}/status-history`);
   }
 }

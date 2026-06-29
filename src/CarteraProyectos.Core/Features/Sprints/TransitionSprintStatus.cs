@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Sprints;
 
-public record TransitionSprintStatusCommand(int Id, SprintStatus NewStatus) : IRequest;
+public record TransitionSprintStatusCommand(int Id, SprintStatus NewStatus, int RequestingPersonId = 0) : IRequest;
 
 public sealed class TransitionSprintStatusHandler(IAppDbContext db) : IRequestHandler<TransitionSprintStatusCommand>
 {
@@ -23,7 +23,20 @@ public sealed class TransitionSprintStatusHandler(IAppDbContext db) : IRequestHa
                 throw new InvalidOperationException("Ya existe un sprint activo en este proyecto. Complétalo antes de iniciar uno nuevo.");
         }
 
+        if (request.NewStatus == SprintStatus.Completed)
+        {
+            var hasUnfinishedWorkItems = await db.WorkItems.AnyAsync(
+                w => w.SprintId == sprint.Id && w.Status != WorkItemStatus.Done, cancellationToken);
+            if (hasUnfinishedWorkItems)
+                throw new InvalidOperationException("No se puede completar el sprint: tiene tareas que no están en estado Done.");
+        }
+
+        var oldStatus = sprint.Status;
         sprint.TransitionStatus(request.NewStatus);
+
+        db.SprintStatusHistories.Add(
+            SprintStatusHistory.Create(sprint, oldStatus, request.NewStatus, request.RequestingPersonId));
+
         await db.SaveChangesAsync(cancellationToken);
     }
 }

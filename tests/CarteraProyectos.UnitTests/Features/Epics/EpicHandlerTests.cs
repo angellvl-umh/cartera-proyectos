@@ -109,6 +109,22 @@ public class EpicHandlerTests
             () => handler.Handle(new DeleteEpicCommand(999), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task DeleteEpic_WithWorkItems_ThrowsInvalidOperationException()
+    {
+        var (db, project) = await DbWithProject();
+        var epic = Epic.Create(project.Id, "Épica con tareas", null, 0, 0);
+        db.Epics.Add(epic);
+        await db.SaveChangesAsync();
+        db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea", null, WorkItemPriority.Medium, epic.Id, 0, null, false, null, null));
+        await db.SaveChangesAsync();
+
+        var handler = new DeleteEpicHandler(db);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new DeleteEpicCommand(epic.Id), CancellationToken.None));
+    }
+
     // --- GetEpics ---
 
     [Fact]

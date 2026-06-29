@@ -17,6 +17,12 @@ public enum WorkItemPriority
     Critical
 }
 
+public enum WorkItemType
+{
+    Task,
+    UserStory
+}
+
 public class WorkItem
 {
     public int Id { get; private set; }
@@ -27,6 +33,7 @@ public class WorkItem
     public string? Description { get; private set; }
     public WorkItemStatus Status { get; private set; } = WorkItemStatus.Backlog;
     public WorkItemPriority Priority { get; private set; } = WorkItemPriority.Medium;
+    public WorkItemType Type { get; private set; } = WorkItemType.Task;
     public int SortOrder { get; private set; }
     public int? EstimationHours { get; private set; }
     public int? EstimationPoints { get; private set; }
@@ -43,18 +50,19 @@ public class WorkItem
     public static WorkItem Create(int projectId, string title, string? description,
         WorkItemPriority priority, int? epicId, int sortOrder,
         int? estimationHours, bool isHito, DateOnly? hitoDate, DateOnly? dueDate,
-        int? sprintId = null, int? estimationPoints = null)
+        int? sprintId = null, int? estimationPoints = null, WorkItemType type = WorkItemType.Task)
         => new()
         {
             ProjectId = projectId, Title = title, Description = description,
             Priority = priority, EpicId = epicId, SortOrder = sortOrder,
             EstimationHours = estimationHours, EstimationPoints = estimationPoints,
-            IsHito = isHito, HitoDate = hitoDate, DueDate = dueDate, SprintId = sprintId
+            IsHito = isHito, HitoDate = hitoDate, DueDate = dueDate, SprintId = sprintId,
+            Type = type
         };
 
     public void Update(string title, string? description, WorkItemPriority priority,
         int? epicId, int sortOrder, int? estimationHours, bool isHito, DateOnly? hitoDate,
-        DateOnly? dueDate, int? sprintId = null, int? estimationPoints = null)
+        DateOnly? dueDate, int? sprintId = null, int? estimationPoints = null, WorkItemType type = WorkItemType.Task)
     {
         Title = title;
         Description = description;
@@ -67,6 +75,7 @@ public class WorkItem
         HitoDate = hitoDate;
         DueDate = dueDate;
         SprintId = sprintId;
+        Type = type;
     }
 
     public void AddAssignee(Person person) => ((List<Person>)Assignees).Add(person);

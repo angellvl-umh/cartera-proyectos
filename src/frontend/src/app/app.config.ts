@@ -1,9 +1,13 @@
 import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
+import { registerLocaleData } from '@angular/common';
+import localeEs from '@angular/common/locales/es';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideAuth, authInterceptor } from 'angular-auth-oidc-client';
 import { es_ES, provideNzI18n } from 'ng-zorro-antd/i18n';
+
+registerLocaleData(localeEs);
 import { provideNzIcons } from 'ng-zorro-antd/icon';
 import {
   DashboardOutline, ProjectOutline, TeamOutline, UserOutline,

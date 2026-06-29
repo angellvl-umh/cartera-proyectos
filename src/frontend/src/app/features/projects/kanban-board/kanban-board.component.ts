@@ -23,7 +23,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { WorkItemsService, WorkItem, WorkItemStatus } from '../workitems.service';
+import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemType, WORK_ITEM_TYPE_LABELS } from '../workitems.service';
 import { EpicsService } from '../epics.service';
 import { SprintService } from '../sprint.service';
 
@@ -270,6 +270,9 @@ function assigneeColor(name: string): string {
                     class="kanban-card"
                   >
                     <!-- Title -->
+                    <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+                      <span nz-icon [nzType]="wi.type === 'UserStory' ? 'read' : 'file-text'" style="font-size:11px;color:#8c8c8c" [title]="typeLabel(wi.type)"></span>
+                    </div>
                     <div class="card-title">{{ wi.title }}</div>
 
                     <!-- Epic tag -->
@@ -407,6 +410,8 @@ export class KanbanBoardComponent {
   isOverdue(dueDate: string): boolean {
     return new Date(dueDate) < new Date();
   }
+
+  typeLabel(t: WorkItemType): string { return WORK_ITEM_TYPE_LABELS[t]; }
 
   drop(event: CdkDragDrop<WorkItemStatus>): void {
     const wi = event.item.data as WorkItem;

@@ -33,6 +33,19 @@ public sealed class TransitionProjectStatusHandler(IAppDbContext db)
                 throw new UnauthorizedAccessException("El JefeEquipo debe liderar uno de los equipos asignados al proyecto.");
         }
 
+        if (request.NewStatus == ProjectStatus.Completed)
+        {
+            var hasUnfinishedSprints = await db.Sprints.AnyAsync(
+                s => s.ProjectId == project.Id && s.Status != SprintStatus.Completed, cancellationToken);
+            if (hasUnfinishedSprints)
+                throw new InvalidOperationException("No se puede finalizar el proyecto: tiene sprints que no están en estado Completed.");
+
+            var hasUnfinishedWorkItems = await db.WorkItems.AnyAsync(
+                w => w.ProjectId == project.Id && w.Status != WorkItemStatus.Done, cancellationToken);
+            if (hasUnfinishedWorkItems)
+                throw new InvalidOperationException("No se puede finalizar el proyecto: tiene tareas que no están en estado Done.");
+        }
+
         project.TransitionTo(request.NewStatus);
         await db.SaveChangesAsync(cancellationToken);
     }

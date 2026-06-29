@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 
 export type WorkItemStatus = 'Backlog' | 'ToDo' | 'InProgress' | 'Blocked' | 'Done';
 export type WorkItemPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export type WorkItemType = 'Task' | 'UserStory';
+export const WORK_ITEM_TYPE_LABELS: Record<WorkItemType, string> = { Task: 'Tarea', UserStory: 'Historia de usuario' };
 
 export interface Assignee {
   id: number;
@@ -20,6 +22,7 @@ export interface WorkItem {
   title: string;
   description?: string;
   status: WorkItemStatus;
+  type: WorkItemType;
   priority: WorkItemPriority;
   assignees: Assignee[];
   sortOrder: number;
@@ -37,9 +40,19 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+export interface WorkItemStatusHistoryEntry {
+  id: number;
+  fromStatus: WorkItemStatus | null;
+  toStatus: WorkItemStatus;
+  changedById: number;
+  changedByName: string;
+  changedAt: string;
+}
+
 export interface CreateWorkItemDto {
   title: string;
   description?: string;
+  type: WorkItemType;
   priority: WorkItemPriority;
   epicId?: number;
   assigneeIds: number[];
@@ -80,5 +93,9 @@ export class WorkItemsService {
 
   transitionStatus(projectId: number, id: number, status: WorkItemStatus): Observable<void> {
     return this.http.post<void>(`/api/projects/${projectId}/workitems/${id}/status`, { status });
+  }
+
+  getStatusHistory(projectId: number, id: number): Observable<WorkItemStatusHistoryEntry[]> {
+    return this.http.get<WorkItemStatusHistoryEntry[]>(`/api/projects/${projectId}/workitems/${id}/status-history`);
   }
 }

@@ -13,6 +13,8 @@ public interface IAppDbContext
     DbSet<Epic> Epics { get; }
     DbSet<Sprint> Sprints { get; }
     DbSet<WorkItem> WorkItems { get; }
+    DbSet<WorkItemStatusHistory> WorkItemStatusHistories { get; }
+    DbSet<SprintStatusHistory> SprintStatusHistories { get; }
     DbSet<Comment> Comments { get; }
     DbSet<WorkItemEmbedding> WorkItemEmbeddings { get; }
     DbSet<Promoter> Promoters { get; }

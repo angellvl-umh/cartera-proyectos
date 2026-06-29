@@ -1,5 +1,6 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Sprints;
+using CarteraProyectos.Core.Interfaces;
 using MediatR;
 
 namespace CarteraProyectos.Api.Endpoints;
@@ -24,10 +25,13 @@ public static class SprintEndpoints
         .WithName("GetSprintById")
         .WithDescription("Devuelve el detalle de un sprint.");
 
-        group.MapPost("/", async (int projectId, SprintRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/", async (int projectId, SprintRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+
             var id = await mediator.Send(new CreateSprintCommand(
-                projectId, req.Name, req.Goal, req.StartDate, req.EndDate, req.Capacity), ct);
+                projectId, req.Name, req.Goal, req.StartDate, req.EndDate, req.Capacity, requester.Id), ct);
             return Results.Created($"/api/projects/{projectId}/sprints/{id}", new { id });
         })
         .WithName("CreateSprint")
@@ -49,16 +53,27 @@ public static class SprintEndpoints
         .WithName("DeleteSprint")
         .WithDescription("Elimina un sprint. Solo se puede eliminar en estado Planning.");
 
-        group.MapPost("/{id:int}/status", async (int projectId, int id, TransitionSprintRequest req, IMediator mediator, CancellationToken ct) =>
+        group.MapPost("/{id:int}/status", async (int projectId, int id, TransitionSprintRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
             if (!Enum.TryParse<SprintStatus>(req.Status, out var newStatus))
                 return Results.BadRequest("Estado no válido. Valores: Planning, Active, Completed.");
 
-            await mediator.Send(new TransitionSprintStatusCommand(id, newStatus), ct);
+            var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
+            if (requester is null) return Results.Unauthorized();
+
+            await mediator.Send(new TransitionSprintStatusCommand(id, newStatus, requester.Id), ct);
             return Results.NoContent();
         })
         .WithName("TransitionSprintStatus")
         .WithDescription("Cambia el estado del sprint: Planning → Active → Completed. Solo un sprint activo por proyecto.");
+
+        group.MapGet("/{id:int}/status-history", async (int projectId, int id, IMediator mediator, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await mediator.Send(new GetSprintStatusHistoryQuery(projectId, id), ct)); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        })
+        .WithName("GetSprintStatusHistory")
+        .WithDescription("Devuelve el histórico de cambios de estado de un sprint, ordenado cronológicamente.");
 
         return app;
     }

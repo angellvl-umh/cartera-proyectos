@@ -14,6 +14,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Epic> Epics => Set<Epic>();
     public DbSet<Sprint> Sprints => Set<Sprint>();
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
+    public DbSet<WorkItemStatusHistory> WorkItemStatusHistories => Set<WorkItemStatusHistory>();
+    public DbSet<SprintStatusHistory> SprintStatusHistories => Set<SprintStatusHistory>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<WorkItemEmbedding> WorkItemEmbeddings => Set<WorkItemEmbedding>();
     public DbSet<Promoter> Promoters => Set<Promoter>();
@@ -107,11 +109,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(w => w.Description).HasMaxLength(2000);
             e.Property(w => w.Status).HasConversion<string>();
             e.Property(w => w.Priority).HasConversion<string>();
+            e.Property(w => w.Type).HasConversion<string>();
             e.HasOne(w => w.Project).WithMany().HasForeignKey(w => w.ProjectId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(w => w.Epic).WithMany(ep => ep.WorkItems).HasForeignKey(w => w.EpicId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(w => w.Sprint).WithMany(s => s.WorkItems).HasForeignKey(w => w.SprintId).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(w => w.Assignees).WithMany()
                 .UsingEntity(j => j.ToTable("WorkItemAssignments"));
+        });
+
+        modelBuilder.Entity<WorkItemStatusHistory>(e =>
+        {
+            e.HasKey(h => h.Id);
+            e.Property(h => h.FromStatus).HasConversion<string>();
+            e.Property(h => h.ToStatus).HasConversion<string>().IsRequired();
+            e.HasOne(h => h.WorkItem).WithMany().HasForeignKey(h => h.WorkItemId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(h => h.ChangedBy).WithMany().HasForeignKey(h => h.ChangedById).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(h => h.WorkItemId);
+        });
+
+        modelBuilder.Entity<SprintStatusHistory>(e =>
+        {
+            e.HasKey(h => h.Id);
+            e.Property(h => h.FromStatus).HasConversion<string>();
+            e.Property(h => h.ToStatus).HasConversion<string>().IsRequired();
+            e.HasOne(h => h.Sprint).WithMany().HasForeignKey(h => h.SprintId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(h => h.ChangedBy).WithMany().HasForeignKey(h => h.ChangedById).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(h => h.SprintId);
         });
 
         modelBuilder.Entity<Comment>(e =>

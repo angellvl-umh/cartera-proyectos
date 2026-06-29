@@ -145,6 +145,22 @@ public class SprintHandlerTests
             () => handler.Handle(new DeleteSprintCommand(999), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task DeleteSprint_WithWorkItems_ThrowsInvalidOperationException()
+    {
+        var (db, project) = await DbWithProject();
+        var sprint = MakeSprint(project.Id);
+        db.Sprints.Add(sprint);
+        await db.SaveChangesAsync();
+        db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea", null, WorkItemPriority.Medium, null, 0, null, false, null, null, sprint.Id));
+        await db.SaveChangesAsync();
+
+        var handler = new DeleteSprintHandler(db);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new DeleteSprintCommand(sprint.Id), CancellationToken.None));
+    }
+
     // --- TransitionSprintStatus ---
 
     [Fact]
@@ -192,6 +208,22 @@ public class SprintHandlerTests
     }
 
     [Fact]
+    public async Task TransitionStatus_ActiveToCompleted_WithUnfinishedWorkItems_ThrowsInvalidOperationException()
+    {
+        var (db, project) = await DbWithProject();
+        var sprint = MakeSprint(project.Id, status: SprintStatus.Active);
+        db.Sprints.Add(sprint);
+        await db.SaveChangesAsync();
+        db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea pendiente", null, WorkItemPriority.Medium, null, 0, null, false, null, null, sprint.Id));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionSprintStatusHandler(db);
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed), CancellationToken.None));
+    }
+
+    [Fact]
     public async Task TransitionStatus_CompletedToAny_ThrowsInvalidOperationException()
     {
         var (db, project) = await DbWithProject();
@@ -220,5 +252,98 @@ public class SprintHandlerTests
         result.Total.ShouldBe(2);
         result.Items.Count.ShouldBe(2);
         result.Items[0].Name.ShouldBe("Sprint 2"); // ordered by StartDate desc
+    }
+
+    // --- SprintStatusHistory ---
+
+    [Fact]
+    public async Task CreateSprint_RecordsInitialStatusHistory()
+    {
+        var (db, project) = await DbWithProject();
+        var creator = Person.CreateFromClaims("sub-creator", "Creador", "creador-sprint@test.com", PersonRole.Gestor);
+        db.Persons.Add(creator);
+        await db.SaveChangesAsync();
+
+        var handler = new CreateSprintHandler(db);
+        var id = await handler.Handle(
+            new CreateSprintCommand(project.Id, "Sprint 1", null, null, null, null, RequestingPersonId: creator.Id),
+            CancellationToken.None);
+
+        var history = await db.SprintStatusHistories.Where(h => h.SprintId == id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBeNull();
+        history[0].ToStatus.ShouldBe(SprintStatus.Planning);
+        history[0].ChangedById.ShouldBe(creator.Id);
+    }
+
+    [Fact]
+    public async Task TransitionSprintStatus_RecordsHistoryEntry()
+    {
+        var (db, project) = await DbWithProject();
+        var lead = Person.CreateFromClaims("sub-lead", "Lider", "lider@test.com", PersonRole.JefeEquipo);
+        db.Persons.Add(lead);
+        var sprint = MakeSprint(project.Id);
+        db.Sprints.Add(sprint);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionSprintStatusHandler(db);
+        await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active, lead.Id), CancellationToken.None);
+
+        var history = await db.SprintStatusHistories.Where(h => h.SprintId == sprint.Id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBe(SprintStatus.Planning);
+        history[0].ToStatus.ShouldBe(SprintStatus.Active);
+        history[0].ChangedById.ShouldBe(lead.Id);
+    }
+
+    [Fact]
+    public async Task TransitionSprintStatus_InvalidTransition_DoesNotRecordHistory()
+    {
+        var (db, project) = await DbWithProject();
+        var sprint = MakeSprint(project.Id, status: SprintStatus.Completed);
+        db.Sprints.Add(sprint);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionSprintStatusHandler(db);
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active), CancellationToken.None));
+
+        var history = await db.SprintStatusHistories.Where(h => h.SprintId == sprint.Id).ToListAsync();
+        history.ShouldBeEmpty();
+    }
+
+    // --- GetSprintStatusHistory ---
+
+    [Fact]
+    public async Task GetSprintStatusHistory_ReturnsEntriesOrderedByDate()
+    {
+        var (db, project) = await DbWithProject();
+        var person = Person.CreateFromClaims("sub-h2", "Historiador", "hist-sprint@test.com", PersonRole.Gestor);
+        db.Persons.Add(person);
+        var sprint = MakeSprint(project.Id);
+        db.Sprints.Add(sprint);
+        await db.SaveChangesAsync();
+
+        var transitionHandler = new TransitionSprintStatusHandler(db);
+        await transitionHandler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active, person.Id), CancellationToken.None);
+        await transitionHandler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed, person.Id), CancellationToken.None);
+
+        var handler = new GetSprintStatusHistoryHandler(db);
+        var result = await handler.Handle(new GetSprintStatusHistoryQuery(project.Id, sprint.Id), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+        result[0].ToStatus.ShouldBe("Active");
+        result[1].ToStatus.ShouldBe("Completed");
+        result[1].ChangedByName.ShouldBe("Historiador");
+    }
+
+    [Fact]
+    public async Task GetSprintStatusHistory_SprintNotFound_ThrowsKeyNotFoundException()
+    {
+        await using var db = CreateDb();
+        var handler = new GetSprintStatusHistoryHandler(db);
+
+        await Should.ThrowAsync<KeyNotFoundException>(
+            () => handler.Handle(new GetSprintStatusHistoryQuery(1, 999), CancellationToken.None));
     }
 }

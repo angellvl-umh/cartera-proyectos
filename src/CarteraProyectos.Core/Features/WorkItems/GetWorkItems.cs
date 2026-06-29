@@ -20,7 +20,7 @@ public record AssigneeDto(int Id, string Name);
 public record WorkItemDto(
     int Id, int ProjectId, int? EpicId, string? EpicTitle,
     int? SprintId, string? SprintName,
-    string Title, string? Description, string Status, string Priority,
+    string Title, string? Description, string Status, string Priority, string Type,
     List<AssigneeDto> Assignees,
     int SortOrder, int? EstimationHours, int? EstimationPoints,
     bool IsHito, DateOnly? HitoDate, DateOnly? DueDate);
@@ -58,7 +58,7 @@ public sealed class GetWorkItemsHandler(IAppDbContext db) : IRequestHandler<GetW
                 w.SprintId,
                 w.Sprint != null ? w.Sprint.Name : null,
                 w.Title, w.Description,
-                w.Status.ToString(), w.Priority.ToString(),
+                w.Status.ToString(), w.Priority.ToString(), w.Type.ToString(),
                 w.Assignees.Select(a => new AssigneeDto(a.Id, a.Name)).ToList(),
                 w.SortOrder, w.EstimationHours, w.EstimationPoints,
                 w.IsHito, w.HitoDate, w.DueDate))

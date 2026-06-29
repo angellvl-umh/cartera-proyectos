@@ -266,4 +266,129 @@ public class WorkItemHandlerTests
         result.Total.ShouldBe(1);
         result.Items[0].Title.ShouldBe("Con épica");
     }
+
+    // --- WorkItemType ---
+
+    [Fact]
+    public async Task CreateWorkItem_WithUserStoryType_PersistsType()
+    {
+        var (db, project) = await DbWithProject();
+        var handler = new CreateWorkItemHandler(db);
+
+        var id = await handler.Handle(
+            new CreateWorkItemCommand(project.Id, "Historia de usuario", null, WorkItemPriority.Medium, null, [], 0, null, false, null, null, Type: WorkItemType.UserStory),
+            CancellationToken.None);
+
+        var wi = await db.WorkItems.FindAsync(id);
+        wi!.Type.ShouldBe(WorkItemType.UserStory);
+    }
+
+    [Fact]
+    public async Task CreateWorkItem_DefaultType_IsTask()
+    {
+        var (db, project) = await DbWithProject();
+        var handler = new CreateWorkItemHandler(db);
+
+        var id = await handler.Handle(
+            new CreateWorkItemCommand(project.Id, "Tarea por defecto", null, WorkItemPriority.Medium, null, [], 0, null, false, null, null),
+            CancellationToken.None);
+
+        var wi = await db.WorkItems.FindAsync(id);
+        wi!.Type.ShouldBe(WorkItemType.Task);
+    }
+
+    // --- WorkItemStatusHistory ---
+
+    [Fact]
+    public async Task CreateWorkItem_RecordsInitialStatusHistory()
+    {
+        var (db, project) = await DbWithProject();
+        var creator = Person.CreateFromClaims("sub-creator", "Creador", "creador@test.com", PersonRole.Gestor);
+        db.Persons.Add(creator);
+        await db.SaveChangesAsync();
+
+        var handler = new CreateWorkItemHandler(db);
+        var id = await handler.Handle(
+            new CreateWorkItemCommand(project.Id, "Tarea", null, WorkItemPriority.Medium, null, [], 0, null, false, null, null,
+                RequestingPersonId: creator.Id),
+            CancellationToken.None);
+
+        var history = await db.WorkItemStatusHistories.Where(h => h.WorkItemId == id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBeNull();
+        history[0].ToStatus.ShouldBe(WorkItemStatus.Backlog);
+        history[0].ChangedById.ShouldBe(creator.Id);
+    }
+
+    [Fact]
+    public async Task TransitionStatus_RecordsHistoryEntry()
+    {
+        var (db, project) = await DbWithProject();
+        var gestor = Person.CreateFromClaims("sub-gestor", "Gestor", "gestor2@test.com", PersonRole.Gestor);
+        db.Persons.Add(gestor);
+        var wi = MakeWorkItem(project.Id);
+        db.WorkItems.Add(wi);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionWorkItemStatusHandler(db);
+        await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, gestor.Id), CancellationToken.None);
+
+        var history = await db.WorkItemStatusHistories.Where(h => h.WorkItemId == wi.Id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBe(WorkItemStatus.Backlog);
+        history[0].ToStatus.ShouldBe(WorkItemStatus.InProgress);
+        history[0].ChangedById.ShouldBe(gestor.Id);
+    }
+
+    [Fact]
+    public async Task TransitionStatus_FromDone_DoesNotRecordHistory()
+    {
+        var (db, project) = await DbWithProject();
+        var wi = MakeWorkItem(project.Id);
+        wi.TransitionStatus(WorkItemStatus.Done);
+        db.WorkItems.Add(wi);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionWorkItemStatusHandler(db);
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress), CancellationToken.None));
+
+        var history = await db.WorkItemStatusHistories.Where(h => h.WorkItemId == wi.Id).ToListAsync();
+        history.ShouldBeEmpty();
+    }
+
+    // --- GetWorkItemStatusHistory ---
+
+    [Fact]
+    public async Task GetWorkItemStatusHistory_ReturnsEntriesOrderedByDate()
+    {
+        var (db, project) = await DbWithProject();
+        var person = Person.CreateFromClaims("sub-h1", "Historiador", "hist@test.com", PersonRole.Gestor);
+        db.Persons.Add(person);
+        var wi = MakeWorkItem(project.Id);
+        db.WorkItems.Add(wi);
+        await db.SaveChangesAsync();
+
+        var transitionHandler = new TransitionWorkItemStatusHandler(db);
+        await transitionHandler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.ToDo, person.Id), CancellationToken.None);
+        await transitionHandler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, person.Id), CancellationToken.None);
+
+        var handler = new GetWorkItemStatusHistoryHandler(db);
+        var result = await handler.Handle(new GetWorkItemStatusHistoryQuery(project.Id, wi.Id), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+        result[0].ToStatus.ShouldBe("ToDo");
+        result[1].ToStatus.ShouldBe("InProgress");
+        result[1].ChangedByName.ShouldBe("Historiador");
+    }
+
+    [Fact]
+    public async Task GetWorkItemStatusHistory_WorkItemNotFound_ThrowsKeyNotFoundException()
+    {
+        await using var db = CreateDb();
+        var handler = new GetWorkItemStatusHistoryHandler(db);
+
+        await Should.ThrowAsync<KeyNotFoundException>(
+            () => handler.Handle(new GetWorkItemStatusHistoryQuery(1, 999), CancellationToken.None));
+    }
 }

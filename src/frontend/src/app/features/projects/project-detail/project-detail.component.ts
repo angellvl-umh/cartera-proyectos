@@ -32,8 +32,8 @@ import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { HttpClient } from '@angular/common/http';
 import { ProjectsService } from '../projects.service';
 import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
-import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority } from '../workitems.service';
-import { SprintService, Sprint, CreateSprintDto } from '../sprint.service';
+import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority, WorkItemType, WORK_ITEM_TYPE_LABELS, WorkItemStatusHistoryEntry } from '../workitems.service';
+import { SprintService, Sprint, CreateSprintDto, SprintStatusHistoryEntry } from '../sprint.service';
 import { CommentsService, CommentDto } from '../comments.service';
 import {
   PROJECT_HEALTH_STATUS_COLORS,
@@ -290,6 +290,9 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                           nz-button nzSize="small">
                           <span nz-icon nzType="eye"></span> Kanban
                         </a>
+                        <button *nzSpaceItem nz-button nzSize="small" (click)="openSprintHistory(sprint)">
+                          <span nz-icon nzType="clock-circle"></span> Histórico
+                        </button>
                       </nz-space>
                     </td>
                   </tr>
@@ -393,6 +396,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                 <tr>
                   <th>Título</th>
                   <th>Épica</th>
+                  <th>Tipo</th>
                   <th>Estado</th>
                   <th>Prioridad</th>
                   <th>Asignado a</th>
@@ -406,6 +410,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                   <tr>
                     <td>{{ wi.title }}</td>
                     <td>{{ wi.epicTitle ?? '—' }}</td>
+                    <td>{{ workItemTypeLabel(wi.type) }}</td>
                     <td><nz-tag [nzColor]="statusColor(wi.status)">{{ statusLabel(wi.status) }}</nz-tag></td>
                     <td><nz-tag [nzColor]="priorityColor(wi.priority)">{{ wi.priority }}</nz-tag></td>
                     <td>{{ wi.assignees.length > 0 ? wi.assignees.map(a => a.name).join(', ') : '—' }}</td>
@@ -430,7 +435,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="8" style="text-align:center;color:#999">Sin tareas en backlog</td></tr>
+                  <tr><td colspan="9" style="text-align:center;color:#999">Sin tareas en backlog</td></tr>
                 }
               </tbody>
             </nz-table>
@@ -576,6 +581,15 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           </nz-form-control>
         </nz-form-item>
         <nz-form-item>
+          <nz-form-label [nzSpan]="6">Tipo</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <nz-select [(ngModel)]="workItemForm.type" style="width:100%">
+              <nz-option nzValue="Task" nzLabel="Tarea"></nz-option>
+              <nz-option nzValue="UserStory" nzLabel="Historia de usuario"></nz-option>
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
           <nz-form-label [nzSpan]="6">Prioridad</nz-form-label>
           <nz-form-control [nzSpan]="18">
             <nz-select [(ngModel)]="workItemForm.priority" style="width:100%">
@@ -586,6 +600,26 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </nz-select>
           </nz-form-control>
         </nz-form-item>
+        @if (editingWorkItem()) {
+          <nz-form-item>
+            <nz-form-label [nzSpan]="6">Estado</nz-form-label>
+            <nz-form-control [nzSpan]="18">
+              <div style="display:flex;gap:8px;align-items:center">
+                <nz-select [(ngModel)]="workItemForm.status"
+                  [nzDisabled]="editingWorkItem()!.status === 'Done'" style="flex:1">
+                  <nz-option nzValue="Backlog" nzLabel="Backlog"></nz-option>
+                  <nz-option nzValue="ToDo" nzLabel="Por hacer"></nz-option>
+                  <nz-option nzValue="InProgress" nzLabel="En curso"></nz-option>
+                  <nz-option nzValue="Blocked" nzLabel="Bloqueada"></nz-option>
+                  <nz-option nzValue="Done" nzLabel="Hecho"></nz-option>
+                </nz-select>
+                <button nz-button nzSize="small" (click)="openWorkItemHistory(editingWorkItem()!)">
+                  <span nz-icon nzType="clock-circle"></span>
+                </button>
+              </div>
+            </nz-form-control>
+          </nz-form-item>
+        }
         <nz-form-item>
           <nz-form-label [nzSpan]="6">Fecha fin</nz-form-label>
           <nz-form-control [nzSpan]="18">
@@ -674,6 +708,66 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
         </div>
       </ng-container>
     </nz-modal>
+
+    <!-- Modal histórico de estado de tarea -->
+    <nz-modal
+      [nzVisible]="workItemHistoryModalVisible()"
+      nzTitle="Histórico de estados"
+      [nzFooter]="null"
+      (nzOnCancel)="workItemHistoryModalVisible.set(false)"
+    >
+      <ng-container *nzModalContent>
+        @if (workItemHistoryLoading()) {
+          <div style="text-align:center;padding:24px"><nz-spin /></div>
+        } @else if (workItemHistory().length === 0) {
+          <p style="color:#999;text-align:center">Sin histórico.</p>
+        } @else {
+          <nz-table [nzData]="workItemHistory()" nzSize="small" [nzShowPagination]="false">
+            <thead><tr><th>De</th><th>A</th><th>Quién</th><th>Cuándo</th></tr></thead>
+            <tbody>
+              @for (h of workItemHistory(); track h.id) {
+                <tr>
+                  <td>{{ h.fromStatus ? statusLabel(h.fromStatus) : '—' }}</td>
+                  <td><nz-tag [nzColor]="statusColor(h.toStatus)">{{ statusLabel(h.toStatus) }}</nz-tag></td>
+                  <td>{{ h.changedByName }}</td>
+                  <td>{{ formatCommentDate(h.changedAt) }}</td>
+                </tr>
+              }
+            </tbody>
+          </nz-table>
+        }
+      </ng-container>
+    </nz-modal>
+
+    <!-- Modal histórico de estado de sprint -->
+    <nz-modal
+      [nzVisible]="sprintHistoryModalVisible()"
+      nzTitle="Histórico de estados del sprint"
+      [nzFooter]="null"
+      (nzOnCancel)="sprintHistoryModalVisible.set(false)"
+    >
+      <ng-container *nzModalContent>
+        @if (sprintHistoryLoading()) {
+          <div style="text-align:center;padding:24px"><nz-spin /></div>
+        } @else if (sprintHistory().length === 0) {
+          <p style="color:#999;text-align:center">Sin histórico.</p>
+        } @else {
+          <nz-table [nzData]="sprintHistory()" nzSize="small" [nzShowPagination]="false">
+            <thead><tr><th>De</th><th>A</th><th>Quién</th><th>Cuándo</th></tr></thead>
+            <tbody>
+              @for (h of sprintHistory(); track h.id) {
+                <tr>
+                  <td>{{ h.fromStatus ?? '—' }}</td>
+                  <td><nz-tag [nzColor]="SPRINT_STATUS_COLORS[h.toStatus]">{{ h.toStatus }}</nz-tag></td>
+                  <td>{{ h.changedByName }}</td>
+                  <td>{{ formatCommentDate(h.changedAt) }}</td>
+                </tr>
+              }
+            </tbody>
+          </nz-table>
+        }
+      </ng-container>
+    </nz-modal>
   `,
 })
 export class ProjectDetailComponent {
@@ -701,6 +795,8 @@ export class ProjectDetailComponent {
   workItemModalVisible = signal(false);
   assignSprintModalVisible = signal(false);
   commentsModalVisible = signal(false);
+  workItemHistoryModalVisible = signal(false);
+  sprintHistoryModalVisible = signal(false);
 
   editingEpic = signal<Epic | null>(null);
   editingSprint = signal<Sprint | null>(null);
@@ -720,6 +816,12 @@ export class ProjectDetailComponent {
   addingNote = signal(false);
   newNoteText = '';
 
+  workItemHistory = signal<WorkItemStatusHistoryEntry[]>([]);
+  workItemHistoryLoading = signal(false);
+
+  sprintHistory = signal<SprintStatusHistoryEntry[]>([]);
+  sprintHistoryLoading = signal(false);
+
   weeklyUpdates = signal<ProjectWeeklyUpdateDto[]>([]);
   weeklyUpdatesLoading = signal(false);
   savingWeeklyUpdate = signal(false);
@@ -738,7 +840,9 @@ export class ProjectDetailComponent {
   workItemForm: {
     title: string;
     description?: string;
+    type: WorkItemType;
     priority: WorkItemPriority;
+    status?: WorkItemStatus;
     epicId?: number;
     sprintId?: number;
     assigneeIds: number[];
@@ -750,6 +854,7 @@ export class ProjectDetailComponent {
     dueDate?: string;
   } = {
     title: '',
+    type: 'Task',
     priority: 'Medium',
     sortOrder: 0,
     isHito: false,
@@ -802,6 +907,7 @@ export class ProjectDetailComponent {
   statusColor(s: WorkItemStatus): string { return STATUS_COLORS[s]; }
   statusLabel(s: WorkItemStatus): string { return STATUS_LABELS[s]; }
   priorityColor(p: WorkItemPriority): string { return PRIORITY_COLORS[p]; }
+  workItemTypeLabel(t: WorkItemType): string { return WORK_ITEM_TYPE_LABELS[t]; }
 
   goBack(): void { this.router.navigate(['/projects']); }
 
@@ -968,30 +1074,64 @@ export class ProjectDetailComponent {
   openWorkItemForm(wi?: WorkItem): void {
     this.editingWorkItem.set(wi ?? null);
     this.workItemForm = wi
-      ? { title: wi.title, description: wi.description, priority: wi.priority, epicId: wi.epicId, sprintId: wi.sprintId, assigneeIds: wi.assignees.map(a => a.id), estimationHours: wi.estimationHours, estimationPoints: wi.estimationPoints, sortOrder: wi.sortOrder, isHito: wi.isHito, hitoDate: wi.hitoDate, dueDate: wi.dueDate }
-      : { title: '', priority: 'Medium', sortOrder: 0, isHito: false, assigneeIds: [] };
+      ? { title: wi.title, description: wi.description, type: wi.type, priority: wi.priority, status: wi.status, epicId: wi.epicId, sprintId: wi.sprintId, assigneeIds: wi.assignees.map(a => a.id), estimationHours: wi.estimationHours, estimationPoints: wi.estimationPoints, sortOrder: wi.sortOrder, isHito: wi.isHito, hitoDate: wi.hitoDate, dueDate: wi.dueDate }
+      : { title: '', type: 'Task', priority: 'Medium', sortOrder: 0, isHito: false, assigneeIds: [] };
     this.workItemModalVisible.set(true);
   }
 
   saveWorkItem(): void {
     const editing = this.editingWorkItem();
+    const { status: newStatus, ...rest } = this.workItemForm;
     const dto = {
-      ...this.workItemForm,
+      ...rest,
       dueDate: this.formatDate(this.workItemForm.dueDate),
       hitoDate: this.formatDate(this.workItemForm.hitoDate),
     };
-    const onSuccess = () => {
-      this.workItemModalVisible.set(false);
-      this.message.success(editing ? 'Tarea actualizada' : 'Tarea creada');
-      this.backlogRefresh$.next();
-    };
     const onError = () => this.message.error('Error al guardar la tarea');
 
+    const afterSave = (id: number) => {
+      if (editing && newStatus && newStatus !== editing.status) {
+        this.workItemsService.transitionStatus(this.projectId, id, newStatus).subscribe({
+          next: () => {
+            this.workItemModalVisible.set(false);
+            this.message.success('Tarea actualizada');
+            this.backlogRefresh$.next();
+          },
+          error: () => {
+            this.message.error('Tarea guardada, pero no se pudo cambiar el estado');
+            this.backlogRefresh$.next();
+          },
+        });
+      } else {
+        this.workItemModalVisible.set(false);
+        this.message.success(editing ? 'Tarea actualizada' : 'Tarea creada');
+        this.backlogRefresh$.next();
+      }
+    };
+
     if (editing) {
-      this.workItemsService.updateWorkItem(this.projectId, editing.id, dto).subscribe({ next: onSuccess, error: onError });
+      this.workItemsService.updateWorkItem(this.projectId, editing.id, dto).subscribe({ next: () => afterSave(editing.id), error: onError });
     } else {
-      this.workItemsService.createWorkItem(this.projectId, dto).subscribe({ next: onSuccess, error: onError });
+      this.workItemsService.createWorkItem(this.projectId, dto).subscribe({ next: (r) => afterSave(r.id), error: onError });
     }
+  }
+
+  openWorkItemHistory(wi: WorkItem): void {
+    this.workItemHistoryModalVisible.set(true);
+    this.workItemHistoryLoading.set(true);
+    this.workItemsService.getStatusHistory(this.projectId, wi.id).subscribe({
+      next: (h) => { this.workItemHistory.set(h); this.workItemHistoryLoading.set(false); },
+      error: () => { this.workItemHistoryLoading.set(false); this.message.error('Error al cargar el histórico'); },
+    });
+  }
+
+  openSprintHistory(sprint: Sprint): void {
+    this.sprintHistoryModalVisible.set(true);
+    this.sprintHistoryLoading.set(true);
+    this.sprintService.getStatusHistory(this.projectId, sprint.id).subscribe({
+      next: (h) => { this.sprintHistory.set(h); this.sprintHistoryLoading.set(false); },
+      error: () => { this.sprintHistoryLoading.set(false); this.message.error('Error al cargar el histórico'); },
+    });
   }
 
   deleteWorkItem(wi: WorkItem): void {

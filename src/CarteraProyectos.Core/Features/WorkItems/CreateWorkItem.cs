@@ -19,7 +19,9 @@ public record CreateWorkItemCommand(
     DateOnly? HitoDate,
     DateOnly? DueDate,
     int? SprintId = null,
-    int? EstimationPoints = null) : IRequest<int>;
+    int? EstimationPoints = null,
+    WorkItemType Type = WorkItemType.Task,
+    int RequestingPersonId = 0) : IRequest<int>;
 
 public sealed class CreateWorkItemValidator : AbstractValidator<CreateWorkItemCommand>
 {
@@ -28,6 +30,7 @@ public sealed class CreateWorkItemValidator : AbstractValidator<CreateWorkItemCo
         RuleFor(x => x.Title).NotEmpty().MaximumLength(300);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => x.Description is not null);
         RuleFor(x => x.Priority).IsInEnum();
+        RuleFor(x => x.Type).IsInEnum();
         RuleFor(x => x.SortOrder).GreaterThanOrEqualTo(0);
         RuleFor(x => x.EstimationHours).GreaterThan(0).When(x => x.EstimationHours.HasValue);
         RuleFor(x => x.EstimationPoints).GreaterThan(0).When(x => x.EstimationPoints.HasValue);
@@ -58,7 +61,7 @@ public sealed class CreateWorkItemHandler(IAppDbContext db) : IRequestHandler<Cr
         var workItem = WorkItem.Create(request.ProjectId, request.Title, request.Description,
             request.Priority, request.EpicId, request.SortOrder,
             request.EstimationHours, request.IsHito, request.HitoDate, request.DueDate,
-            request.SprintId, request.EstimationPoints);
+            request.SprintId, request.EstimationPoints, request.Type);
 
         db.WorkItems.Add(workItem);
 
@@ -70,6 +73,9 @@ public sealed class CreateWorkItemHandler(IAppDbContext db) : IRequestHandler<Cr
             foreach (var person in persons)
                 workItem.Assignees.Add(person);
         }
+
+        db.WorkItemStatusHistories.Add(
+            WorkItemStatusHistory.Create(workItem, null, workItem.Status, request.RequestingPersonId));
 
         await db.SaveChangesAsync(cancellationToken);
         return workItem.Id;
