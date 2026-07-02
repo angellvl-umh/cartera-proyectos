@@ -29,3 +29,9 @@ Thumbs.db
 
 #.playwright
 .playwright-mcp
+
+# Playwright E2E - auth state (tokens sensibles)
+src/frontend/e2e/.auth/
+# Playwright reports y resultados
+src/frontend/playwright-report/
+src/frontend/playwright-results/

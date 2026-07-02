@@ -32,12 +32,14 @@ tests/
 docs/                                # Specs funcionales por módulo
 ```
 
-## Estado actual (2026-06-14)
+## Estado actual (2026-07-02)
 
 **Implementado:**
 - Infraestructura: Docker Compose (db + keycloak + backend + frontend + litellm + open-webui)
 - Backend CRUD completo: Teams, Projects (+ máquina de estados), Persons, Epics, WorkItems, Sprints (+ máquina de estados), Comments
-- WorkItems: múltiples asignados, estimación horas + story points, IsHito, DueDate, SprintId
+- WorkItems: múltiples asignados, tipo (Task/UserStory), estimación horas + story points, IsHito, DueDate, SprintId, histórico de estados
+- Cartera ampliada: Promoter, OrganicUnit, Tags, ProjectNote, ProjectWeeklyUpdate (semáforo semanal) + informe semanal de cartera
+- Auditoría del agente IA (`AgentActionLog` via `AgentAuditBehavior`)
 - Frontend Angular 21 con OIDC: Teams, Projects, Kanban por sprint, Kanban global por proyecto, Epics, WorkItems
 - Dashboard: panel de control con info usuario, stat cards, gráficos nz-progress, proyectos y sprints activos del usuario
 - Informe de proyecto (`/projects/:id/report`): stats, épicas, hitos (timeline), sprints
@@ -50,9 +52,11 @@ docs/                                # Specs funcionales por módulo
 - **Embeddings semánticos:** `IEmbeddingService` → `BedrockEmbeddingService` (amazon.titan-embed-text-v2:0), `WorkItemEmbedding` entity + migración `AddWorkItemEmbeddings`
 - **LiteLLM:** proxy OpenAI-compatible → AWS Bedrock; config en `infra/litellm/config.yaml`
 - **Open WebUI:** conectado a LiteLLM; Tool Server apunta a `http://backend:8080/api/agent` con API key
-- 69 tests unitarios
-
-**Pendiente:** tests E2E Playwright.
+- **Métricas ágiles:** snapshot de puntos comprometidos (al activar) y entregados (al completar) por sprint (migración `AddSprintPointsSnapshot`); cierre de sprint con carry-over obligatorio si hay tareas sin terminar (a backlog o a otro sprint en Planning); endpoints `GET /api/projects/{id}/velocity`, `GET /api/projects/{projectId}/sprints/{id}/burndown`, `GET /api/projects/{id}/cycle-time` (calculados desde `WorkItemStatusHistory`)
+- Gráficos SVG propios (sin librería de charts): `shared/charts/bar-chart` y `line-chart`; velocity, burndown y cycle/lead time en el informe de proyecto; modal de carry-over y comprometido-vs-capacidad en el detalle de proyecto
+- **Gobernanza de cartera:** `Project.BusinessValue` (1-5, nz-rate en formulario) + matriz valor/esfuerzo 5×5 en `/portfolio`; entidades `ProjectRisk` (probabilidad × impacto = severidad, estados Open/Mitigated/Closed) y `ProjectDependency` (sin auto/duplicados/ciclos directos) con CRUD y pestañas en detalle (migración `AddRisksDependenciesAndBusinessValue`); `GET /api/portfolio/roadmap` + vista `/roadmap` (timeline anual CSS grid por equipo con hitos); `GET /api/capacity/forecast` + vista `/capacity/forecast` (demanda vs capacidad por trimestre, heurística persona-mes por complejidad en `methodologyNote`)
+- **Tests E2E Playwright** en `src/frontend/e2e/` (20 tests: auth OIDC con storageState por rol, proyectos, workitems + descartar, kanban, permisos); requieren stack Docker + `infra/seed.sql` (ver `e2e/README.md`); comandos `pnpm e2e` / `pnpm e2e:ui`
+- 301 tests unitarios
 
 ---
 
@@ -64,30 +68,50 @@ docs/                                # Specs funcionales por módulo
 |---------|-------------|
 | **Person** | Id, SubjectId (SSO sub, unique), Name, Email, Role (Desarrollador/JefeEquipo/Gestor) |
 | **Team** | Id, Name, Description?, LeadPersonId? (FK→Person) |
-| **Project** | Id, Title, RequestingUnit, Complexity (Low/Medium/High/VeryHigh), Status, PortfolioYear?, StartDate?, EndDate? |
+| **Project** | Id, Title, Description?, RequestingUnit?, Complexity (VerySmall/Small/Medium/Large/VeryLarge), Status, PortfolioYear?, StartDate?, EndDate?, PreviousReferenceId?, BeneficiaryCount?, PromoterId?, OrganicUnitId?, UorOrder?, GroupPriority?, SiptGroup?, DesiredDeploymentDate?, SpecificationsUrl?, EpicUrl?, EstimatedBudget? |
 | **Epic** | Id, ProjectId, Title, Priority, SortOrder |
-| **WorkItem** | Id, EpicId?, ProjectId?, Title, Status (Backlog/ToDo/InProgress/Blocked/Done), Priority, AssignedToId?, SortOrder, Estimation?, IsHito (bool, default false), HitoDate (DateOnly?) |
+| **WorkItem** | Id, ProjectId, EpicId?, SprintId?, Title, Description?, Status (Backlog/ToDo/InProgress/Blocked/Done/Discarded), Priority, Type (Task/UserStory), SortOrder, EstimationHours?, EstimationPoints?, IsHito (bool, default false), HitoDate?, DueDate?, Assignees (N:M con Person) |
+| **Sprint** | Id, ProjectId, Name, Goal?, StartDate?, EndDate?, Status (Planning/Active/Completed), Capacity? |
 | **Comment** | Id, WorkItemId, AuthorId, Text, CreatedAt |
+| **Promoter** / **OrganicUnit** / **Tag** | Catálogos administrables (`/api/promoters`, `/api/organic-units`, `/api/tags`); Tag N:M con Project |
+| **ProjectNote** | Id, ProjectId, AuthorId, Text, CreatedAt |
+| **ProjectWeeklyUpdate** | Id, ProjectId, AuthorId, WeekOf, Summary, HealthStatus (OnTrack/AtRisk/Blocked) — semáforo semanal por proyecto |
+| **WorkItemStatusHistory** / **SprintStatusHistory** | Histórico de transiciones (From, To, ChangedBy, ChangedAt) |
+| **AgentActionLog** | Auditoría de acciones del agente IA |
 
 Join tables: `PersonTeamMembership` (PersonId, TeamId, JoinedAt), `ProjectTeamAssignment` (ProjectId, TeamId, IsPrimary).
 
 ### Máquinas de estado
 
-**Project:**
+**Project** (9 estados operativos; validado en `Project.TransitionTo`, grafo expuesto via `AllowedNextStatuses` en el detalle):
 ```
-[*] → Proposed
-Proposed → Approved | Cancelled          (solo Gestor)
-Approved → InProgress | Cancelled        (Gestor / JefeEquipo del proyecto)
-InProgress → Paused | Completed | Cancelled
-Paused → InProgress | Cancelled
+Stopped                  → PlanningWithClient | PostponedByClient
+PlanningWithClient       → WaitingForDevelopers | PlanningSprint | DevelopmentOutsideSprint
+WaitingForDevelopers     → PlanningSprint | DevelopmentOutsideSprint | PlanningWithClient
+PlanningSprint           → InSprint | WaitingForDevelopers
+InSprint                 → InTesting | PlanningSprint | DevelopmentOutsideSprint
+DevelopmentOutsideSprint → InTesting | PlanningSprint
+InTesting                → Completed | InSprint | DevelopmentOutsideSprint
+PostponedByClient        → PlanningWithClient | PlanningSprint | DevelopmentOutsideSprint
+(+ desde cualquier estado no terminal → Stopped | PostponedByClient)
+Completed es terminal. Para pasar a Completed: todos los sprints Completed
+y todas las tareas Done o Discarded.
 ```
 
 **WorkItem:**
 ```
 Backlog → ToDo → InProgress → Blocked | Done
-(cualquier estado no-Done puede retroceder a cualquier estado anterior)
-Done es terminal — no puede retroceder. Para reabrir, crear una nueva tarea.
+(cualquier estado no terminal puede transicionar a cualquier otro)
+Done y Discarded son terminales — no pueden retroceder. Para reabrir, crear una nueva tarea.
+Discarded = tarea descartada; se excluye de listados de pendientes y NO cuenta como Done en métricas.
 Blocked indica bloqueo temporal; puede avanzar a InProgress o Done.
+```
+
+**Sprint:**
+```
+Planning → Active → Completed (terminal)
+Solo se puede editar un sprint en Planning.
+Para completar un sprint: todas sus tareas Done o Discarded.
 ```
 
 ### Permisos por rol
@@ -113,9 +137,11 @@ Blocked indica bloqueo temporal; puede avanzar a InProgress o Done.
 |----------------|---------------|
 | Gestor de cartera | `PersonRole.Gestor` |
 | Jefe de equipo | `PersonRole.JefeEquipo` |
-| En ejecución | `ProjectStatus.InProgress` |
-| Tareas | `WorkItem` |
+| En sprint / En pruebas | `ProjectStatus.InSprint` / `ProjectStatus.InTesting` |
+| Proyecto activo | Status ∉ {Stopped, Completed, PostponedByClient} |
+| Tareas | `WorkItem` (Type: Task o UserStory) |
 | Hito | `WorkItem` con `IsHito = true` |
+| Descartada | `WorkItemStatus.Discarded` (terminal) |
 
 ### Reglas de negocio
 
