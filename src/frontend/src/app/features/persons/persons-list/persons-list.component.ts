@@ -127,22 +127,24 @@ const ROLE_LABELS: Record<string, string> = {
               <td>
                 <nz-space nzSize="small">
                   <button *nzSpaceItem nz-button nzSize="small" (click)="openEditModal(p)"
-                    title="Editar">
+                    nz-tooltip nzTooltipTitle="Editar">
                     <span nz-icon nzType="edit"></span>
                   </button>
                   @if (p.isActive) {
                     <button *nzSpaceItem nz-button nzSize="small" nzDanger
+                      nz-tooltip nzTooltipTitle="Desactivar"
                       nz-popconfirm
                       [nzPopconfirmTitle]="'¿Desactivar a ' + p.name + '? No aparecerá en listados ni podrá recibir tareas.'"
                       (nzOnConfirm)="toggleActive(p)">
-                      <span nz-icon nzType="stop"></span>
+                      <span nz-icon nzType="user-delete"></span>
                     </button>
                   } @else {
                     <button *nzSpaceItem nz-button nzSize="small"
+                      nz-tooltip nzTooltipTitle="Reactivar"
                       nz-popconfirm
                       [nzPopconfirmTitle]="'¿Reactivar a ' + p.name + '?'"
                       (nzOnConfirm)="toggleActive(p)">
-                      <span nz-icon nzType="check-circle"></span>
+                      <span nz-icon nzType="user-add"></span>
                     </button>
                   }
                 </nz-space>

@@ -156,7 +156,7 @@ Para completar un sprint: todas sus tareas Done o Discarded.
 
 1. Una persona puede pertenecer a múltiples equipos simultáneamente
 2. Un proyecto puede tener múltiples equipos (uno es primario)
-3. Solo personas del equipo del proyecto pueden ser asignadas a sus tareas
+3. Cualquier persona activa puede ser asignada a una tarea (incluidos Gestores, aunque no pertenezcan al equipo); las personas inactivas no pueden recibir asignaciones
 4. Provisión automática de usuario desde JWT claims (rol inicial: Desarrollador)
 5. Agente IA: permisos del usuario via `X-Open-WebUI-User-Email` header
 6. Equipo no puede eliminarse si tiene proyectos activos

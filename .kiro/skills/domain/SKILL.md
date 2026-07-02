@@ -227,7 +227,7 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 2. A project can be assigned to multiple teams (one is primary)
 3. Team cannot be deleted if it has active projects
 4. WorkItems always belong to a Project; `EpicId` is nullable (project backlog without epic) and `SprintId` is nullable (not yet planned into a sprint)
-5. Only persons in a project's team can be assigned tasks of that project; a task can have multiple assignees
+5. Any active person can be assigned to a task (including Gestores who don't belong to the project's teams); inactive persons cannot receive assignments. A task can have multiple assignees
 6. User provisioning is automatic from SSO JWT claims (sub, name, email)
 7. Default role on first login: Desarrollador
 8. AI agent actions respect user permissions via X-Open-WebUI-User-Email header
