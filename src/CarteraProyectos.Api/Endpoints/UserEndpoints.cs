@@ -50,6 +50,7 @@ public static class UserEndpoints
                 person.SubjectId,
                 person.Name,
                 person.Email,
+                person.IsActive,
                 Role = person.Role.ToString()
             });
         })

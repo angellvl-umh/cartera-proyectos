@@ -14,8 +14,4 @@ export class PersonsService {
       .set('pageSize', pageSize.toString());
     return this.api.http.get<PagedResult<Person>>(`${this.api.baseUrl}/persons`, { params });
   }
-
-  updatePersonRole(id: string, role: PersonRole): Observable<void> {
-    return this.api.http.put<void>(`${this.api.baseUrl}/persons/${id}/role`, { role });
-  }
 }

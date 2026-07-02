@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
@@ -39,7 +40,7 @@ public sealed class UpdateProjectRiskHandler(IAppDbContext db) : IRequestHandler
         var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
             ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
 
-        await CreateProjectRiskHandler.AuthorizeRiskWriteAsync(db, request.ProjectId, requester, cancellationToken);
+        await ProjectAuthorization.EnsureCanManageProjectAsync(db, request.ProjectId, requester, cancellationToken);
 
         risk.Update(request.Description, request.Probability, request.Impact,
             request.MitigationPlan, request.Status);

@@ -36,8 +36,7 @@ Low, Medium, High, Critical
 
 ### Roles
 - **Gestor**: acceso total (CRUD proyectos, equipos, personas, asignaciones, informes)
-- **JefeEquipo**: gestiona tareas de los proyectos de sus equipos, crea épicas, ve capacidad e informes
-- **Desarrollador**: crea tareas, se autoasigna, cambia estado de sus propias tareas
+- **Desarrollador**: gestiona los proyectos de sus equipos — crea tareas, cambia el estado de cualquier tarea de esos proyectos, actualiza el estado del proyecto, gestiona riesgos, notas y semáforo semanal. Los equipos se autogestionan: no hay rol de jefe de equipo (el valor `JefeEquipo` solo existe en datos históricos y no otorga permisos especiales)
 
 ## Reglas de comportamiento
 

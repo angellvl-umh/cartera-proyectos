@@ -114,8 +114,98 @@ public class TransitionProjectStatusHandlerTests
             () => handler.Handle(cmd, CancellationToken.None));
     }
 
+    // ── Nueva regla: miembro de equipo asignado al proyecto PUEDE transicionar ──
+
     [Fact]
-    public async Task Handle_DesarrolladorCambiaStatus_ThrowsUnauthorizedAccessException()
+    public async Task Handle_MiembroEquipoAsignado_Succeeds()
+    {
+        await using var db = CreateInMemoryContext();
+
+        // Persona con rol Desarrollador (no Gestor)
+        var dev = Person.CreateFromClaims("sub-dev", "Dev User", "dev@test.com", PersonRole.Desarrollador);
+        db.Persons.Add(dev);
+
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
+        db.Projects.Add(project);
+
+        var team = Team.Create("Equipo Asignado", null, null);
+        db.Teams.Add(team);
+
+        await db.SaveChangesAsync();
+
+        // El dev es miembro del equipo y el equipo está asignado al proyecto
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(dev.Id, team.Id));
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, dev.Id);
+
+        await handler.Handle(cmd, CancellationToken.None);
+
+        var updated = await db.Projects.FindAsync(project.Id);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningWithClient);
+    }
+
+    [Fact]
+    public async Task Handle_PersonaAjenaAlProyecto_ThrowsUnauthorizedAccessException()
+    {
+        await using var db = CreateInMemoryContext();
+
+        // JefeEquipo que NO pertenece a ningún equipo del proyecto
+        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
+        db.Persons.Add(jefe);
+
+        var otherTeam = Team.Create("Otro Equipo", null, null);
+        db.Teams.Add(otherTeam);
+
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
+        db.Projects.Add(project);
+
+        await db.SaveChangesAsync();
+
+        // El jefe pertenece a un equipo que NO está asignado al proyecto
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, otherTeam.Id));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
+
+        await Should.ThrowAsync<UnauthorizedAccessException>(
+            () => handler.Handle(cmd, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Handle_JefeEquipoMiembroEquipoAsignado_Succeeds()
+    {
+        await using var db = CreateInMemoryContext();
+
+        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
+        db.Persons.Add(jefe);
+
+        var team = Team.Create("Equipo Asignado", null, null); // no es líder, solo miembro
+        db.Teams.Add(team);
+
+        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
+        db.Projects.Add(project);
+
+        await db.SaveChangesAsync();
+
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
+
+        await handler.Handle(cmd, CancellationToken.None);
+
+        var updated = await db.Projects.FindAsync(project.Id);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningWithClient);
+    }
+
+    [Fact]
+    public async Task Handle_DesarrolladorSinEquipo_ThrowsUnauthorizedAccessException()
     {
         await using var db = CreateInMemoryContext();
 
@@ -128,98 +218,7 @@ public class TransitionProjectStatusHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, dev.Id);
-
-        await Should.ThrowAsync<UnauthorizedAccessException>(
-            () => handler.Handle(cmd, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Handle_JefeEquipoNoAsignado_ThrowsUnauthorizedAccessException()
-    {
-        await using var db = CreateInMemoryContext();
-
-        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
-        db.Persons.Add(jefe);
-
-        var otherTeam = Team.Create("Otro Equipo", null, null);
-        db.Teams.Add(otherTeam);
-
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
-        db.Projects.Add(project);
-
-        await db.SaveChangesAsync();
-
-        var membership = PersonTeamMembership.Create(jefe.Id, otherTeam.Id);
-        db.PersonTeamMemberships.Add(membership);
-        await db.SaveChangesAsync();
-
-        var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, jefe.Id);
-
-        await Should.ThrowAsync<UnauthorizedAccessException>(
-            () => handler.Handle(cmd, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Handle_JefeEquipoLiderDelEquipoAsignado_Succeeds()
-    {
-        await using var db = CreateInMemoryContext();
-
-        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
-        db.Persons.Add(jefe);
-        await db.SaveChangesAsync();
-
-        var team = Team.Create("Equipo Asignado", null, jefe.Id);
-        db.Teams.Add(team);
-
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
-        db.Projects.Add(project);
-
-        await db.SaveChangesAsync();
-
-        var assignment = ProjectTeamAssignment.Create(project.Id, team.Id, true);
-        db.ProjectTeamAssignments.Add(assignment);
-
-        await db.SaveChangesAsync();
-
-        var handler = new TransitionProjectStatusHandler(db);
-        // Stopped → PlanningWithClient es una transición válida
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
-
-        await handler.Handle(cmd, CancellationToken.None);
-
-        var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.PlanningWithClient);
-    }
-
-    [Fact]
-    public async Task Handle_JefeEquipoMiembroPeroNoLider_ThrowsUnauthorizedAccessException()
-    {
-        await using var db = CreateInMemoryContext();
-
-        var jefe = Person.CreateFromClaims("sub-jefe", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
-        db.Persons.Add(jefe);
-
-        var team = Team.Create("Equipo Asignado", null, null);
-        db.Teams.Add(team);
-
-        var project = Project.Create("Proyecto Test", null, "Unidad TIC", ProjectComplexity.VerySmall, null, null, null);
-        db.Projects.Add(project);
-
-        await db.SaveChangesAsync();
-
-        var assignment = ProjectTeamAssignment.Create(project.Id, team.Id, true);
-        db.ProjectTeamAssignments.Add(assignment);
-
-        var membership = PersonTeamMembership.Create(jefe.Id, team.Id);
-        db.PersonTeamMemberships.Add(membership);
-
-        await db.SaveChangesAsync();
-
-        var handler = new TransitionProjectStatusHandler(db);
-        // Stopped → PlanningWithClient es una transición válida (el JefeEquipo no lider no puede hacerla)
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, dev.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(cmd, CancellationToken.None));

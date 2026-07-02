@@ -34,8 +34,6 @@ public sealed class CreateTeamHandler(IAppDbContext db) : IRequestHandler<Create
             var lead = await db.Persons.FindAsync([request.LeadPersonId.Value], cancellationToken);
             if (lead is null)
                 throw new KeyNotFoundException($"Persona con Id {request.LeadPersonId} no encontrada.");
-            if (lead.Role == PersonRole.Desarrollador)
-                throw new InvalidOperationException("Un Desarrollador no puede ser líder de equipo.");
         }
 
         var team = Team.Create(request.Name, request.Description, request.LeadPersonId);

@@ -6,7 +6,7 @@ namespace CarteraProyectos.Core.Features.Teams;
 
 public record GetTeamQuery(int Id) : IRequest<TeamDetailDto?>;
 
-public record TeamMemberDto(int Id, string Name, string Email, string Role, DateOnly JoinedAt);
+public record TeamMemberDto(int Id, string Name, string Email, string Role, DateOnly JoinedAt, bool IsActive);
 
 public record TeamDetailDto(
     int Id,
@@ -38,6 +38,7 @@ public sealed class GetTeamHandler(IAppDbContext db) : IRequestHandler<GetTeamQu
                 m.Person!.Name,
                 m.Person!.Email,
                 m.Person!.Role.ToString(),
-                m.JoinedAt)).ToList());
+                m.JoinedAt,
+                m.Person!.IsActive)).ToList());
     }
 }

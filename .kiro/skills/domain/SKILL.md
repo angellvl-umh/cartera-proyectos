@@ -14,10 +14,13 @@ University IT project portfolio management platform. Manages projects, teams, pe
 | Field | Type | Notes |
 |-------|------|-------|
 | Id | int | PK |
-| SubjectId | string | SSO claim `sub`, unique |
+| SubjectId | string? | SSO claim `sub`, unique. Null for pre-registered persons who have never logged in; linked by email on first login |
 | Name | string | Required |
-| Email | string | Unique, from SSO |
-| Role | enum | Gestor / JefeEquipo / Desarrollador |
+| Email | string | Unique |
+| Role | enum | Gestor / JefeEquipo / Desarrollador. **JefeEquipo is legacy**: kept for historical data but no longer assigned from the UI and grants no special permissions |
+| IsActive | bool | Default true. Inactive persons are excluded from listings, capacity and task assignment (soft delete) |
+
+Persons are created two ways: auto-provisioned from SSO claims on first login, or pre-registered by a Gestor (CRUD at `/api/persons`) and linked to their SSO account by email on first login.
 
 ### Team
 | Field | Type | Notes |
@@ -25,7 +28,7 @@ University IT project portfolio management platform. Manages projects, teams, pe
 | Id | int | PK |
 | Name | string | Required, unique |
 | Description | string? | |
-| LeadPersonId | int? | FK → Person (must have Role ≥ JefeEquipo) |
+| LeadPersonId | int? | FK → Person (any person; informational/contact only, grants no permissions) |
 
 ### PersonTeamMembership
 | Field | Type | Notes |
@@ -161,11 +164,10 @@ Sprint **does** have a strict finite state machine (see below) — unlike Projec
 ### Project Status — free-form, role-gated only
 Project status has **no** finite state machine: any status can transition to any other status. `Project.TransitionTo(next)` performs no validation on the value itself. Authorization is the only gate:
 
-| Role | Allowed |
-|------|---------|
-| Desarrollador | Never allowed — always rejected |
-| JefeEquipo | Allowed only if they belong to a team assigned to the project (any assigned team, not just the primary one) |
+| Who | Allowed |
+|-----|---------|
 | Gestor | Always allowed |
+| Anyone else | Allowed only if they belong (PersonTeamMembership) to a team assigned to the project |
 
 ### Sprint Status — genuine FSM
 ```
@@ -183,25 +185,21 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 
 ## Roles & Permissions
 
-> **"JefeEquipo of a project"** means any JefeEquipo who belongs to any team assigned to that project (not just the primary team). Each JefeEquipo manages all tasks of the project's teams, not only those of their own team.
+> **Self-managed teams**: there is no team-lead role in practice. The single authorization rule for project management actions is: *Gestor always passes; anyone else must belong to a team assigned to the project* (`ProjectAuthorization.EnsureCanManageProjectAsync`). `PersonRole.JefeEquipo` still exists in the enum for historical data but grants nothing special.
 
-| Action | Gestor | JefeEquipo | Desarrollador |
-|--------|--------|------------|---------------|
+| Action | Gestor | Project team member | Non-member |
+|--------|--------|---------------------|------------|
 | CRUD Projects | ✅ | ❌ | ❌ |
-| Change project status | ✅ | ✅ (project's teams) | ❌ |
+| Change project status | ✅ | ✅ | ❌ |
 | Assign projects to teams | ✅ | ❌ | ❌ |
 | CRUD Teams/Persons | ✅ | ❌ | ❌ |
 | CRUD Promoters/OrganicUnits/Tags | ✅ | ❌ | ❌ |
-| Assign roles | ✅ | ❌ | ❌ |
-| Add project notes | ✅ | ✅ (own projects) | ❌ |
-| Create epics | ✅ | ✅ (projects where they are JefeEquipo) | ❌ |
+| Assign roles / activate-deactivate persons | ✅ | ❌ | ❌ |
+| Add project notes / weekly health updates | ✅ | ✅ | ❌ |
+| Manage risks & dependencies | ✅ | ✅ | ❌ |
 | Create tasks | ✅ | ✅ | ✅ |
-| Assign tasks | ✅ | ✅ (project's teams) | Self-assign only |
-| Change task status | ✅ | ✅ (project's teams) | ✅ (own tasks) |
-| View Kanban (full board) | ✅ | ✅ | ✅ (can view all, drag only own) |
-| Drag tasks in Kanban | ✅ | ✅ (project's teams) | Own tasks only |
-| View capacity | ✅ | ✅ (own teams) | ❌ |
-| Generate reports | ✅ | ✅ (own projects) | ❌ |
+| Change task status / drag in Kanban (any task of the project) | ✅ | ✅ | ❌ |
+| View capacity / reports | ✅ | ✅ | ✅ |
 
 ## Terminology (docs ↔ code)
 

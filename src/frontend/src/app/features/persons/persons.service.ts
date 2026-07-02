@@ -7,6 +7,8 @@ export interface Person {
   name: string;
   email: string;
   role: 'Desarrollador' | 'JefeEquipo' | 'Gestor';
+  isActive: boolean;
+  hasLoggedIn: boolean;
 }
 
 export interface PagedResult<T> {
@@ -16,15 +18,31 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+export interface PersonUpsertDto {
+  name: string;
+  email: string;
+  role: 'Desarrollador' | 'Gestor';
+}
+
 @Injectable({ providedIn: 'root' })
 export class PersonsService {
   private readonly http = inject(HttpClient);
 
-  getPersons(page = 1, pageSize = 20): Observable<PagedResult<Person>> {
-    return this.http.get<PagedResult<Person>>(`/api/persons?page=${page}&pageSize=${pageSize}`);
+  getPersons(page = 1, pageSize = 20, includeInactive = false): Observable<PagedResult<Person>> {
+    return this.http.get<PagedResult<Person>>(
+      `/api/persons?page=${page}&pageSize=${pageSize}&includeInactive=${includeInactive}`
+    );
   }
 
-  updateRole(id: number, role: string): Observable<void> {
-    return this.http.put<void>(`/api/persons/${id}/role`, { role });
+  createPerson(data: PersonUpsertDto): Observable<{ id: number }> {
+    return this.http.post<{ id: number }>('/api/persons', data);
+  }
+
+  updatePerson(id: number, data: PersonUpsertDto): Observable<void> {
+    return this.http.put<void>(`/api/persons/${id}`, data);
+  }
+
+  setActive(id: number, isActive: boolean): Observable<void> {
+    return this.http.put<void>(`/api/persons/${id}/active`, { isActive });
   }
 }

@@ -106,34 +106,36 @@ public class ProjectWeeklyUpdatesHandlerTests
     }
 
     [Fact]
-    public async Task Upsert_JefeEquipoLiderDelEquipoAsignado_CreatesUpdate()
+    public async Task Upsert_MiembroEquipoAsignado_CreatesUpdate()
     {
         var (db, project) = await DbWithProject();
         var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
 
-        var team = Team.Create("Equipo Asignado", null, jefe.Id);
+        var team = Team.Create("Equipo Asignado", null, null); // miembro, no líder
         db.Teams.Add(team);
         await db.SaveChangesAsync();
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
         db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
         await db.SaveChangesAsync();
 
         var id = await new UpsertProjectWeeklyUpdateHandler(db).Handle(
-            new UpsertProjectWeeklyUpdateCommand(project.Id, jefe.Id, "Nota del jefe", ProjectHealthStatus.OnTrack),
+            new UpsertProjectWeeklyUpdateCommand(project.Id, jefe.Id, "Nota del miembro", ProjectHealthStatus.OnTrack),
             CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
     }
 
     [Fact]
-    public async Task Upsert_JefeEquipoNoLiderDelEquipoAsignado_ThrowsUnauthorizedAccessException()
+    public async Task Upsert_PersonaAjenaAlProyecto_ThrowsUnauthorizedAccessException()
     {
         var (db, project) = await DbWithProject();
         var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
 
-        var team = Team.Create("Equipo Asignado", null, null);
+        // El jefe pertenece a un equipo que NO está asignado al proyecto
+        var team = Team.Create("Equipo No Asignado", null, null);
         db.Teams.Add(team);
         await db.SaveChangesAsync();
-        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
         await db.SaveChangesAsync();
 
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>

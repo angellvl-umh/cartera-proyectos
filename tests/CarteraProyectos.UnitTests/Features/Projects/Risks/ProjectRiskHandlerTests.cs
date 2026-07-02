@@ -101,19 +101,43 @@ public class ProjectRiskHandlerTests
     }
 
     [Fact]
-    public async Task CreateRisk_Desarrollador_ThrowsUnauthorized()
+    public async Task CreateRisk_DevMiembroEquipoProyecto_CreatesSuccessfully()
     {
         await using var db = CreateDb();
         var dev = Person.CreateFromClaims("sub-dev", "Dev", "dev@test.com", PersonRole.Desarrollador);
         var project = Project.Create("P", null, null, ProjectComplexity.VerySmall, null, null, null);
+        var team = Team.Create("Equipo", null, null);
         db.Persons.Add(dev);
+        db.Projects.Add(project);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(dev.Id, team.Id));
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        await db.SaveChangesAsync();
+
+        var handler = new CreateProjectRiskHandler(db);
+        var id = await handler.Handle(
+            new CreateProjectRiskCommand(project.Id, dev.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
+            CancellationToken.None);
+
+        id.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task CreateRisk_PersonaAjenaAlProyecto_ThrowsUnauthorized()
+    {
+        await using var db = CreateDb();
+        var outsider = Person.CreateFromClaims("sub-out", "Outsider", "out@test.com", PersonRole.Desarrollador);
+        var project = Project.Create("P", null, null, ProjectComplexity.VerySmall, null, null, null);
+        db.Persons.Add(outsider);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
         var handler = new CreateProjectRiskHandler(db);
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(
-                new CreateProjectRiskCommand(project.Id, dev.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
+                new CreateProjectRiskCommand(project.Id, outsider.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
                 CancellationToken.None));
     }
 

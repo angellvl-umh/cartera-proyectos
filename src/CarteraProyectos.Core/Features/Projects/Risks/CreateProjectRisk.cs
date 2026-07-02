@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
@@ -35,7 +36,7 @@ public sealed class CreateProjectRiskHandler(IAppDbContext db) : IRequestHandler
         var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
             ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
 
-        await AuthorizeRiskWriteAsync(db, request.ProjectId, requester, cancellationToken);
+        await ProjectAuthorization.EnsureCanManageProjectAsync(db, request.ProjectId, requester, cancellationToken);
 
         var risk = ProjectRisk.Create(
             request.ProjectId, request.Description,
@@ -45,25 +46,5 @@ public sealed class CreateProjectRiskHandler(IAppDbContext db) : IRequestHandler
         db.ProjectRisks.Add(risk);
         await db.SaveChangesAsync(cancellationToken);
         return risk.Id;
-    }
-
-    internal static async Task AuthorizeRiskWriteAsync(
-        IAppDbContext db, int projectId, Person requester, CancellationToken ct)
-    {
-        if (requester.Role == PersonRole.Gestor) return;
-
-        if (requester.Role == PersonRole.JefeEquipo)
-        {
-            var teamIds = await db.ProjectTeamAssignments
-                .Where(a => a.ProjectId == projectId)
-                .Select(a => a.TeamId)
-                .ToListAsync(ct);
-            var isLead = await db.Teams
-                .AnyAsync(t => teamIds.Contains(t.Id) && t.LeadPersonId == requester.Id, ct);
-            if (isLead) return;
-        }
-
-        throw new UnauthorizedAccessException(
-            "Solo el Gestor o el Jefe de equipo del proyecto puede gestionar riesgos.");
     }
 }

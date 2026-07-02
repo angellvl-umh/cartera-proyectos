@@ -59,7 +59,7 @@ public class CreateTeamHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DesarrolladorAsLead_ThrowsInvalidOperationException()
+    public async Task Handle_DesarrolladorAsLead_CreatesTeamSuccessfully()
     {
         var (db, gestor) = await DbWithGestor();
         await using var _ = db;
@@ -69,10 +69,13 @@ public class CreateTeamHandlerTests
 
         var handler = new CreateTeamHandler(db);
 
-        await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(
-                new CreateTeamCommand("Nuevo Equipo", null, dev.Id, gestor.Id),
-                CancellationToken.None));
+        var id = await handler.Handle(
+            new CreateTeamCommand("Nuevo Equipo", null, dev.Id, gestor.Id),
+            CancellationToken.None);
+
+        id.ShouldBeGreaterThan(0);
+        var team = await db.Teams.FindAsync(id);
+        team!.LeadPersonId.ShouldBe(dev.Id);
     }
 
     [Fact]

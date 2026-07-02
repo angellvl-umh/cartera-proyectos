@@ -37,8 +37,6 @@ public sealed class UpdateTeamHandler(IAppDbContext db) : IRequestHandler<Update
             var lead = await db.Persons.FindAsync([request.LeadPersonId.Value], cancellationToken);
             if (lead is null)
                 throw new KeyNotFoundException($"Persona con Id {request.LeadPersonId} no encontrada.");
-            if (lead.Role == PersonRole.Desarrollador)
-                throw new InvalidOperationException("Un Desarrollador no puede ser líder de equipo.");
         }
 
         team.Update(request.Name, request.Description, request.LeadPersonId);

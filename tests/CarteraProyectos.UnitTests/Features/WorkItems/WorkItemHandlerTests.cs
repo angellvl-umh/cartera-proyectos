@@ -235,6 +235,57 @@ public class WorkItemHandlerTests
             () => handler.Handle(new TransitionWorkItemStatusCommand(999, WorkItemStatus.ToDo), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task TransitionStatus_MiembroEquipoProyecto_PuedeCambiarTareaDeOtroAsignado()
+    {
+        var (db, project) = await DbWithProject();
+
+        // Otro usuario al que pertenece la tarea
+        var otherDev = Person.CreateFromClaims("sub-other", "Other Dev", "other@test.com", PersonRole.Desarrollador);
+        db.Persons.Add(otherDev);
+
+        // Dev miembro del equipo asignado al proyecto
+        var dev = Person.CreateFromClaims("sub-dev", "Dev User", "dev@test.com", PersonRole.Desarrollador);
+        db.Persons.Add(dev);
+
+        var team = Team.Create("Equipo", null, null);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(dev.Id, team.Id));
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+
+        var wi = MakeWorkItem(project.Id);
+        wi.AddAssignee(otherDev); // tarea asignada a otra persona
+        db.WorkItems.Add(wi);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionWorkItemStatusHandler(db);
+        await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, dev.Id), CancellationToken.None);
+
+        var updated = await db.WorkItems.FindAsync(wi.Id);
+        updated!.Status.ShouldBe(WorkItemStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task TransitionStatus_PersonaAjenaAlProyecto_ThrowsUnauthorizedAccessException()
+    {
+        var (db, project) = await DbWithProject();
+
+        // Persona que no pertenece a ningún equipo del proyecto
+        var outsider = Person.CreateFromClaims("sub-out", "Outsider", "out@test.com", PersonRole.Desarrollador);
+        db.Persons.Add(outsider);
+
+        var wi = MakeWorkItem(project.Id);
+        db.WorkItems.Add(wi);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionWorkItemStatusHandler(db);
+
+        await Should.ThrowAsync<UnauthorizedAccessException>(
+            () => handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, outsider.Id), CancellationToken.None));
+    }
+
     // --- GetWorkItems ---
 
     [Fact]

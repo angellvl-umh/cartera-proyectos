@@ -95,7 +95,7 @@ public sealed class GetTeamActivityHandler(IAppDbContext db)
         foreach (var team in teams)
         {
             var memberDtos = team.Members
-                .Where(m => m.Person is not null)
+                .Where(m => m.Person is not null && m.Person.IsActive)
                 .Select(m =>
                 {
                     var personTasks = tasksByPerson.TryGetValue(m.PersonId, out var tasks)

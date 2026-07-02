@@ -442,11 +442,9 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           <!-- TAB: Riesgos -->
           <nz-tab nzTitle="Riesgos" (nzSelect)="loadRisks()">
             <div style="margin-bottom:12px;text-align:right">
-              @if (!isDeveloper()) {
-                <button nz-button nzType="primary" (click)="openRiskForm()">
-                  <span nz-icon nzType="plus"></span> Añadir riesgo
-                </button>
-              }
+              <button nz-button nzType="primary" (click)="openRiskForm()">
+                <span nz-icon nzType="plus"></span> Añadir riesgo
+              </button>
             </div>
             @if (risksLoading()) {
               <div style="text-align:center;padding:32px"><nz-spin /></div>
@@ -461,7 +459,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                     <th>Estado</th>
                     <th>Plan de mitigación</th>
                     <th>Autor</th>
-                    @if (!isDeveloper()) { <th>Acciones</th> }
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -480,23 +478,21 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                         {{ risk.mitigationPlan ?? '—' }}
                       </td>
                       <td style="font-size:12px">{{ risk.createdByName }}</td>
-                      @if (!isDeveloper()) {
-                        <td>
-                          <nz-space nzSize="small">
-                            <button *nzSpaceItem nz-button nzSize="small" (click)="openRiskForm(risk)">
-                              <span nz-icon nzType="edit"></span>
-                            </button>
-                            <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
-                              nzPopconfirmTitle="¿Eliminar este riesgo?" (nzOnConfirm)="deleteRisk(risk)">
-                              <span nz-icon nzType="delete"></span>
-                            </button>
-                          </nz-space>
-                        </td>
-                      }
+                      <td>
+                        <nz-space nzSize="small">
+                          <button *nzSpaceItem nz-button nzSize="small" (click)="openRiskForm(risk)">
+                            <span nz-icon nzType="edit"></span>
+                          </button>
+                          <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
+                            nzPopconfirmTitle="¿Eliminar este riesgo?" (nzOnConfirm)="deleteRisk(risk)">
+                            <span nz-icon nzType="delete"></span>
+                          </button>
+                        </nz-space>
+                      </td>
                     </tr>
                   } @empty {
                     <tr>
-                      <td [attr.colspan]="isDeveloper() ? 7 : 8" style="text-align:center;padding:24px">
+                      <td colspan="8" style="text-align:center;padding:24px">
                         <nz-empty nzNotFoundContent="Sin riesgos registrados" />
                       </td>
                     </tr>
@@ -514,11 +510,9 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
               <div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
                   <span style="font-weight:600;font-size:14px">Este proyecto depende de:</span>
-                  @if (!isDeveloper()) {
-                    <button nz-button nzSize="small" nzType="primary" (click)="openAddDependencyModal()">
-                      <span nz-icon nzType="plus"></span> Añadir
-                    </button>
-                  }
+                  <button nz-button nzSize="small" nzType="primary" (click)="openAddDependencyModal()">
+                    <span nz-icon nzType="plus"></span> Añadir
+                  </button>
                 </div>
                 @if (dependenciesLoading()) {
                   <div style="text-align:center;padding:16px"><nz-spin /></div>
@@ -534,13 +528,11 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                           <p style="font-size:12px;color:#8c8c8c;margin:4px 0 0">{{ dep.description }}</p>
                         }
                       </div>
-                      @if (!isDeveloper()) {
-                        <button nz-button nzSize="small" nzDanger nz-popconfirm
-                          nzPopconfirmTitle="¿Eliminar esta dependencia?" (nzOnConfirm)="deleteDependency(dep)"
-                          style="margin-left:8px;flex-shrink:0">
-                          <span nz-icon nzType="delete"></span>
-                        </button>
-                      }
+                      <button nz-button nzSize="small" nzDanger nz-popconfirm
+                        nzPopconfirmTitle="¿Eliminar esta dependencia?" (nzOnConfirm)="deleteDependency(dep)"
+                        style="margin-left:8px;flex-shrink:0">
+                        <span nz-icon nzType="delete"></span>
+                      </button>
                     </div>
                   }
                 }
@@ -1156,10 +1148,6 @@ export class ProjectDetailComponent {
   readonly RISK_LEVEL_LABELS = RISK_LEVEL_LABELS;
   readonly RISK_STATUS_LABELS = RISK_STATUS_LABELS;
   readonly RISK_STATUS_COLORS = RISK_STATUS_COLORS;
-
-  isDeveloper(): boolean {
-    return this.currentPerson()?.role === 'Desarrollador';
-  }
 
   severityColor(severity: number): string {
     if (severity <= 2) return 'success';

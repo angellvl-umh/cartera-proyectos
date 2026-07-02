@@ -1,6 +1,6 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Interfaces;
-using CarteraProyectos.Core.Features.Projects.Risks;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +39,7 @@ public sealed class CreateProjectDependencyHandler(IAppDbContext db) : IRequestH
         var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
             ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
 
-        await CreateProjectRiskHandler.AuthorizeRiskWriteAsync(db, request.ProjectId, requester, cancellationToken);
+        await ProjectAuthorization.EnsureCanManageProjectAsync(db, request.ProjectId, requester, cancellationToken);
 
         // Validar que no exista duplicado
         var duplicate = await db.ProjectDependencies.AnyAsync(

@@ -67,7 +67,7 @@ public sealed class GetCapacityHandler(IAppDbContext db)
             foreach (var membership in team.Members)
             {
                 var person = membership.Person;
-                if (person is null) continue;
+                if (person is null || !person.IsActive) continue;
 
                 // Obtener conteos del diccionario; por defecto 0 si no hay tareas
                 var statusCounts = countsDict.TryGetValue(person.Id, out var counts) ? counts : new Dictionary<WorkItemStatus, int>();

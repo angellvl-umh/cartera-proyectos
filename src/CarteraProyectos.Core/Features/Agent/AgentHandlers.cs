@@ -252,7 +252,7 @@ public sealed class AgentGetCapacityHandler(IAppDbContext db)
 
             foreach (var m in team.Members)
             {
-                if (m.Person is null) continue;
+                if (m.Person is null || !m.Person.IsActive) continue;
                 var activeTasks = await db.WorkItems.CountAsync(
                     w => w.Assignees.Any(a => a.Id == m.Person.Id) &&
                          (w.Status == WorkItemStatus.InProgress || w.Status == WorkItemStatus.Blocked), ct);

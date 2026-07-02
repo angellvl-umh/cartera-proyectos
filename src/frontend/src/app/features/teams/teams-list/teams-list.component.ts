@@ -138,7 +138,7 @@ export class TeamsListComponent {
   private loadLeads(): void {
     this.personsService.getPersons().subscribe({
       next: (result) => {
-        this.leads.set(result.items.filter(p => p.role === 'JefeEquipo' || p.role === 'Gestor'));
+        this.leads.set(result.items);
       },
       error: () => {
         this.message.error('Error al cargar las personas');

@@ -1,5 +1,6 @@
 using CarteraProyectos.Core.Common;
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
@@ -25,35 +26,15 @@ public sealed class UpsertProjectWeeklyUpdateHandler(IAppDbContext db) : IReques
 {
     public async Task<int> Handle(UpsertProjectWeeklyUpdateCommand request, CancellationToken cancellationToken)
     {
-        var project = await db.Projects
-            .Include(p => p.Teams)
+        _ = await db.Projects
             .FirstOrDefaultAsync(p => p.Id == request.ProjectId, cancellationToken)
             ?? throw new KeyNotFoundException($"Proyecto {request.ProjectId} no encontrado.");
 
         var author = await db.Persons.FindAsync([request.AuthorId], cancellationToken)
             ?? throw new KeyNotFoundException($"Persona con Id {request.AuthorId} no encontrada.");
 
-        // Autorización: igual que CreateProjectNote
-        if (author.Role == PersonRole.Desarrollador)
-        {
-            var isInProjectTeam = await db.ProjectTeamAssignments
-                .AnyAsync(a => a.ProjectId == request.ProjectId &&
-                    db.PersonTeamMemberships.Any(m => m.PersonId == request.AuthorId && m.TeamId == a.TeamId),
-                    cancellationToken);
-            if (!isInProjectTeam)
-                throw new UnauthorizedAccessException("Sin permisos para añadir actualizaciones a este proyecto.");
-        }
-        else if (author.Role == PersonRole.JefeEquipo)
-        {
-            var teamIds = await db.ProjectTeamAssignments
-                .Where(a => a.ProjectId == request.ProjectId)
-                .Select(a => a.TeamId)
-                .ToListAsync(cancellationToken);
-            var isLeadOfProjectTeam = await db.Teams
-                .AnyAsync(t => teamIds.Contains(t.Id) && t.LeadPersonId == request.AuthorId, cancellationToken);
-            if (!isLeadOfProjectTeam)
-                throw new UnauthorizedAccessException("El Jefe de equipo debe liderar uno de los equipos asignados al proyecto.");
-        }
+        // Gestor: siempre autorizado. Resto: debe pertenecer a un equipo asignado al proyecto.
+        await ProjectAuthorization.EnsureCanManageProjectAsync(db, request.ProjectId, author, cancellationToken);
 
         // Calcular WeekOf: lunes de la semana ISO actual
         var now = DateTime.UtcNow;

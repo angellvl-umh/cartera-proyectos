@@ -57,7 +57,9 @@ docs/                                # Specs funcionales por módulo
 - **Gobernanza de cartera:** `Project.BusinessValue` (1-5, nz-rate en formulario) + matriz valor/esfuerzo 5×5 en `/portfolio`; entidades `ProjectRisk` (probabilidad × impacto = severidad, estados Open/Mitigated/Closed) y `ProjectDependency` (sin auto/duplicados/ciclos directos) con CRUD y pestañas en detalle (migración `AddRisksDependenciesAndBusinessValue`); `GET /api/portfolio/roadmap` + vista `/roadmap` (timeline anual CSS grid por equipo con hitos); `GET /api/capacity/forecast` + vista `/capacity/forecast` (demanda vs capacidad por trimestre, heurística persona-mes por complejidad en `methodologyNote`)
 - **Tests E2E Playwright** en `src/frontend/e2e/` (20 tests: auth OIDC con storageState por rol, proyectos, workitems + descartar, kanban, permisos); requieren stack Docker + `infra/seed.sql` (ver `e2e/README.md`); comandos `pnpm e2e` / `pnpm e2e:ui`
 - **Gestión operativa de tareas de alto nivel:** backlog en componente `product-backlog` (drag&drop para priorizar via `POST .../workitems/reorder`, filtros server-side `q`/épica/prioridad/tipo/asignado, alta rápida inline, selección múltiple → `POST .../workitems/bulk-sprint`, paginación real); drawer compartido `work-item-drawer` (detalle + cambio de estado + comentarios + histórico) abierto desde Kanban y backlog; Kanban con filtro por asignado y "Solo mis tareas" + puntos por columna; Mis tareas con cambio de estado inline; progreso por épica; vista `/team-activity` (`GET /api/teams/activity`): en qué tareas está cada persona de cada equipo, con disponibles
-- 321 tests unitarios
+- **CRUD de personas:** alta pre-registrada (se vincula por email en el primer login SSO), edición (nombre/email/rol) y activar/desactivar (`IsActive`, baja lógica; los inactivos se excluyen de listados, capacidad y asignaciones) — `POST|PUT /api/persons`, `PUT /api/persons/{id}/active` (migración `AddPersonCrudFields`: SubjectId nullable)
+- **Equipos autogestionados:** regla única de autorización `ProjectAuthorization.EnsureCanManageProjectAsync` (Gestor siempre; resto, pertenencia a equipo del proyecto) para transiciones de proyecto/tareas, riesgos, dependencias, notas y semáforo; `PersonRole.JefeEquipo` queda como legacy sin permisos especiales y `Team.LeadPersonId` como dato informativo
+- 321+ tests unitarios
 
 ### Convención de uso: tareas de ALTO NIVEL
 
@@ -75,7 +77,7 @@ El equipo de desarrollo gestiona el detalle diario en su propia herramienta exte
 
 | Entidad | Campos clave |
 |---------|-------------|
-| **Person** | Id, SubjectId (SSO sub, unique), Name, Email, Role (Desarrollador/JefeEquipo/Gestor) |
+| **Person** | Id, SubjectId? (SSO sub, unique; null hasta el primer login si fue pre-registrada), Name, Email (unique), Role (Desarrollador/Gestor; JefeEquipo legacy), IsActive (baja lógica) |
 | **Team** | Id, Name, Description?, LeadPersonId? (FK→Person) |
 | **Project** | Id, Title, Description?, RequestingUnit?, Complexity (VerySmall/Small/Medium/Large/VeryLarge), Status, PortfolioYear?, StartDate?, EndDate?, PreviousReferenceId?, BeneficiaryCount?, PromoterId?, OrganicUnitId?, UorOrder?, GroupPriority?, SiptGroup?, DesiredDeploymentDate?, SpecificationsUrl?, EpicUrl?, EstimatedBudget? |
 | **Epic** | Id, ProjectId, Title, Priority, SortOrder |
@@ -123,29 +125,27 @@ Solo se puede editar un sprint en Planning.
 Para completar un sprint: todas sus tareas Done o Discarded.
 ```
 
-### Permisos por rol
+### Permisos (equipos autogestionados)
 
-| Acción | Gestor | JefeEquipo | Desarrollador |
-|--------|--------|------------|---------------|
-| CRUD Projects | ✅ | ❌ | ❌ |
-| Aprobar proyectos | ✅ | ❌ | ❌ |
-| CRUD Teams/Persons | ✅ | ❌ | ❌ |
+**Regla única de autorización** (`ProjectAuthorization.EnsureCanManageProjectAsync`): *el Gestor pasa siempre; cualquier otra persona debe pertenecer (`PersonTeamMembership`) a un equipo asignado al proyecto*. No hay rol de jefe de equipo en la práctica: `PersonRole.JefeEquipo` se conserva en el enum por datos históricos pero no se asigna desde la UI ni otorga permisos especiales. `Team.LeadPersonId` es informativo (contacto), no un permiso.
+
+| Acción | Gestor | Miembro de equipo del proyecto | Ajeno |
+|--------|--------|-------------------------------|-------|
+| CRUD Projects / aprobar proyectos | ✅ | ❌ | ❌ |
+| CRUD Teams/Persons (alta, edición, activar/desactivar, roles) | ✅ | ❌ | ❌ |
 | Asignar proyectos a equipos | ✅ | ❌ | ❌ |
-| Crear épicas | ✅ | ✅ (sus proyectos) | ❌ |
+| Cambiar estado del proyecto | ✅ | ✅ | ❌ |
+| Riesgos y dependencias | ✅ | ✅ | ❌ |
+| Notas y semáforo semanal | ✅ | ✅ | ❌ |
 | Crear tareas | ✅ | ✅ | ✅ |
-| Asignar tareas | ✅ | ✅ (equipos del proyecto) | Solo autoasignación |
-| Cambiar estado tarea | ✅ | ✅ (equipos del proyecto) | ✅ (propias) |
-| Ver tablero Kanban completo | ✅ | ✅ | ✅ (ve todo, arrastra solo las propias) |
-| Arrastrar tareas en Kanban | ✅ | ✅ (equipos del proyecto) | Solo propias |
-| Ver capacidad | ✅ | ✅ (propios equipos) | ❌ |
-| Ver informes | ✅ | ✅ (propios proyectos) | ❌ |
+| Cambiar estado / arrastrar en Kanban (cualquier tarea del proyecto) | ✅ | ✅ | ❌ |
 
 ### Terminología (docs ↔ código)
 
 | Término en docs | Código / enum |
 |----------------|---------------|
 | Gestor de cartera | `PersonRole.Gestor` |
-| Jefe de equipo | `PersonRole.JefeEquipo` |
+| Jefe de equipo (legacy, ya no se asigna) | `PersonRole.JefeEquipo` |
 | En sprint / En pruebas | `ProjectStatus.InSprint` / `ProjectStatus.InTesting` |
 | Proyecto activo | Status ∉ {Stopped, Completed, PostponedByClient} |
 | Tareas | `WorkItem` (Type: Task o UserStory) |
@@ -160,7 +160,7 @@ Para completar un sprint: todas sus tareas Done o Discarded.
 4. Provisión automática de usuario desde JWT claims (rol inicial: Desarrollador)
 5. Agente IA: permisos del usuario via `X-Open-WebUI-User-Email` header
 6. Equipo no puede eliminarse si tiene proyectos activos
-7. "JefeEquipo del proyecto" = cualquier JefeEquipo de cualquier equipo asignado al proyecto (no solo el equipo primario)
+7. Equipos autogestionados: cualquier miembro de un equipo asignado al proyecto puede gestionarlo (regla única de `ProjectAuthorization`); no existe jefe de equipo en la práctica
 8. Hitos = WorkItems con `IsHito = true` y `HitoDate` opcional; aparecen en informes agrupados en alcanzados (Done) y próximos (no Done)
 
 ---

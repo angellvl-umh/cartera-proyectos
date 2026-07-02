@@ -55,6 +55,11 @@ public sealed class UpdateWorkItemHandler(IAppDbContext db) : IRequestHandler<Up
             var persons = await db.Persons
                 .Where(p => request.AssigneeIds.Contains(p.Id))
                 .ToListAsync(cancellationToken);
+            
+            var inactiveAssignees = persons.Where(p => !p.IsActive).ToList();
+            if (inactiveAssignees.Any())
+                throw new InvalidOperationException($"No se puede asignar una tarea a una persona inactiva.");
+            
             foreach (var person in persons)
                 workItem.Assignees.Add(person);
         }

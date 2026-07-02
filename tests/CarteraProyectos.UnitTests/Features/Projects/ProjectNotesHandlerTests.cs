@@ -78,33 +78,35 @@ public class ProjectNotesHandlerTests
     }
 
     [Fact]
-    public async Task CreateProjectNote_JefeEquipoLiderDelEquipoAsignado_CreatesNote()
+    public async Task CreateProjectNote_MiembroEquipoAsignado_CreatesNote()
     {
         var (db, project) = await DbWithProject();
         var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
 
-        var team = Team.Create("Equipo Asignado", null, jefe.Id);
+        var team = Team.Create("Equipo Asignado", null, null); // no es líder, solo miembro
         db.Teams.Add(team);
         await db.SaveChangesAsync();
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
         db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
         await db.SaveChangesAsync();
 
         var id = await new CreateProjectNoteHandler(db).Handle(
-            new CreateProjectNoteCommand(project.Id, jefe.Id, "Nota del jefe"), CancellationToken.None);
+            new CreateProjectNoteCommand(project.Id, jefe.Id, "Nota del miembro"), CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
     }
 
     [Fact]
-    public async Task CreateProjectNote_JefeEquipoNoLiderDeNingunEquipoAsignado_ThrowsUnauthorizedAccessException()
+    public async Task CreateProjectNote_PersonaAjenaAlProyecto_ThrowsUnauthorizedAccessException()
     {
         var (db, project) = await DbWithProject();
         var jefe = await AddPersonAsync(db, PersonRole.JefeEquipo);
 
-        var team = Team.Create("Equipo Asignado", null, null);
+        // El jefe pertenece a un equipo pero ese equipo NO está asignado al proyecto
+        var team = Team.Create("Equipo No Asignado", null, null);
         db.Teams.Add(team);
         await db.SaveChangesAsync();
-        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
         await db.SaveChangesAsync();
 
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>
@@ -124,7 +126,7 @@ public class ProjectNotesHandlerTests
     }
 
     [Fact]
-    public async Task CreateProjectNote_DevWithoutTeam_ThrowsUnauthorizedAccessException()
+    public async Task CreateProjectNote_DevSinEquipoAsignado_ThrowsUnauthorizedAccessException()
     {
         var (db, project) = await DbWithProject();
         var dev = await AddPersonAsync(db, PersonRole.Desarrollador);
