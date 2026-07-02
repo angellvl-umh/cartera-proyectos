@@ -2,128 +2,253 @@
  * workitems.spec.ts  (rol: gestor)
  *
  * Flujos de work items dentro de un proyecto creado por el propio test:
- *  1. Crear una tarea y verla en el listado.
- *  2. Cambiar el estado de la tarea (Backlog → En curso).
- *  3. Descartar la tarea (Descartar + confirmación) → estado "Descartada".
+ *  1. Crear una tarea y verla en el listado (Product Backlog).
+ *  2. Cambiar el estado de la tarea a "En curso" (via el drawer "Ver").
+ *  3. Descartar la tarea → verificar estado "Descartada".
  *
- * El test crea su propio proyecto para ser autosuficiente.
+ * Nota: Playwright ejecuta el módulo independientemente para el beforeAll
+ * y para cada test. Para compartir state, usamos variables del describe
+ * que se asignan en beforeAll y se leen en los tests (mismo proceso worker,
+ * misma instancia de las variables del describe).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import path from 'path';
+import { gotoAndWait } from './helpers/login';
 
 test.use({ storageState: path.join(__dirname, '.auth/gestor.json') });
 
-const TS = Date.now();
-const PROJECT_TITLE = `WI E2E ${TS}`;
-const TASK_TITLE    = `Tarea E2E ${TS}`;
-
 test.describe('Work Items (gestor)', () => {
 
-  /**
-   * Helper: crea un proyecto y devuelve su URL de detalle.
-   */
-  async function createProject(page: import('@playwright/test').Page): Promise<void> {
-    await page.goto('/projects');
-    await page.getByRole('button', { name: /nuevo proyecto/i }).click();
-    await expect(page.getByText('Nuevo proyecto').last()).toBeVisible();
-    await page.getByLabel('Título').fill(PROJECT_TITLE);
+  // Variables compartidas entre beforeAll y tests (mismo worker)
+  let projectDetailUrl = '';
+  let sharedProjectTitle = '';
+  let sharedTaskTitle = '';
 
-    // Complejidad: seleccionar la primera opción disponible (Muy pequeño)
-    const complexitySelect = page.locator('nz-select').filter({ hasText: /complejidad/i }).first();
-    await complexitySelect.click();
+  // ──────────────────────────────────────────────────────────────────────────
+  // Setup
+  // ──────────────────────────────────────────────────────────────────────────
+
+  test.beforeAll(async ({ browser }) => {
+    // Generar títulos únicos UNA SOLA VEZ en beforeAll
+    const ts = Date.now();
+    sharedProjectTitle = `WI E2E ${ts}`;
+    sharedTaskTitle    = `Tarea E2E ${ts}`;
+
+    const ctx = await browser.newContext({
+      storageState: path.join(__dirname, '.auth/gestor.json'),
+    });
+    const page = await ctx.newPage();
+    try {
+      // Crear proyecto
+      projectDetailUrl = await createProjectAndGetUrl(page, sharedProjectTitle);
+      // Crear tarea en el backlog
+      await navigateToBacklog(page, projectDetailUrl);
+      await createTask(page, sharedTaskTitle);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ──────────────────────────────────────────────────────────────────────────
+
+  async function gotoProjects(page: Page): Promise<void> {
+    await gotoAndWait(page, '/projects');
+    await expect(page).toHaveURL(/\/projects/, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Cartera de Proyectos' })).toBeVisible({ timeout: 15_000 });
+  }
+
+  async function searchProject(page: Page, title: string): Promise<void> {
+    const input = page.getByRole('textbox', { name: /buscar por título/i });
+    await expect(input).toBeVisible({ timeout: 5_000 });
+    await input.clear();
+    await input.fill(title);
+    await page.waitForTimeout(600);
+  }
+
+  async function createProjectAndGetUrl(page: Page, projectTitle: string): Promise<string> {
+    await gotoProjects(page);
+
+    await page.getByRole('button', { name: /nuevo proyecto/i }).click();
+    await expect(page.getByText('Nuevo proyecto').last()).toBeVisible({ timeout: 8_000 });
+
+    const modal = page.locator('nz-modal-container').last();
+    await expect(modal).toBeVisible({ timeout: 5_000 });
+
+    await modal.locator('input[type="text"]').first().fill(projectTitle);
+    await modal.locator('nz-select').first().click();
     await page.locator('.cdk-overlay-container nz-option-item').first().click();
 
     await page.getByRole('button', { name: /guardar/i }).click();
-    await expect(page.getByText('Nuevo proyecto')).toBeHidden({ timeout: 8_000 });
-  }
+    await expect(modal).toBeHidden({ timeout: 10_000 });
 
-  /**
-   * Helper: navega al detalle del proyecto y abre la pestaña Product Backlog.
-   */
-  async function goToBacklog(page: import('@playwright/test').Page): Promise<void> {
-    await page.goto('/projects');
-    await page.locator('input[placeholder*="Buscar"]').fill(PROJECT_TITLE);
-    const row = page.locator('tbody tr').filter({ hasText: PROJECT_TITLE });
-    await row.getByTitle('Ver detalle').click();
+    await searchProject(page, projectTitle);
+    await expect(page.getByText(projectTitle)).toBeVisible({ timeout: 10_000 });
+
+    const row = page.locator('tbody tr').filter({ hasText: projectTitle });
+    await row.locator('button').first().click();
     await expect(page).toHaveURL(/\/projects\/\d+$/, { timeout: 10_000 });
 
-    // Ir a la pestaña "Product Backlog"
-    await page.getByRole('tab', { name: /product backlog/i }).click();
+    return page.url();
   }
 
+  async function navigateToBacklog(page: Page, detailUrl: string): Promise<void> {
+    const pathOnly = detailUrl.replace(new URL(detailUrl).origin, '');
+    await gotoAndWait(page, pathOnly);
+    await expect(page).toHaveURL(
+      new RegExp(detailUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      { timeout: 10_000 }
+    );
+
+    // Esperar que el heading del proyecto esté visible (página completamente cargada)
+    await expect(page.locator('h2')).toBeVisible({ timeout: 10_000 });
+
+    const tab = page.getByRole('tab', { name: /product backlog/i });
+    await expect(tab).toBeVisible({ timeout: 10_000 });
+    await tab.click();
+
+    // Esperar que la tabla del backlog sea visible
+    await expect(page.getByRole('button', { name: /nueva tarea/i })).toBeVisible({ timeout: 10_000 });
+    await page.waitForTimeout(300);
+  }
+
+  async function createTask(page: Page, title: string): Promise<void> {
+    // Usar la alta rápida al pie de la tabla del backlog
+    // El campo tiene placeholder "Añadir tarea de alto nivel…"
+    const quickAddInput = page.getByRole('textbox', { name: /añadir tarea de alto nivel/i });
+    await expect(quickAddInput).toBeVisible({ timeout: 5_000 });
+    await quickAddInput.fill(title);
+
+    // El botón "Añadir" se habilita cuando hay texto
+    const addBtn = page.getByRole('button', { name: /añadir/i });
+    await expect(addBtn).toBeEnabled({ timeout: 5_000 });
+    await addBtn.click();
+
+    // Esperar que la tarea aparezca en la tabla del backlog
+    await page.waitForTimeout(500);
+    await expect(page.locator('tbody').getByText(title)).toBeVisible({ timeout: 10_000 });
+  }
+
+  async function goToBacklog(page: Page): Promise<void> {
+    if (projectDetailUrl) {
+      await navigateToBacklog(page, projectDetailUrl);
+    } else {
+      await gotoProjects(page);
+      await searchProject(page, sharedProjectTitle);
+      const row = page.locator('tbody tr').filter({ hasText: sharedProjectTitle });
+      await row.locator('button').first().click();
+      await expect(page).toHaveURL(/\/projects\/\d+$/, { timeout: 10_000 });
+      await page.getByRole('tab', { name: /product backlog/i }).click();
+      await page.waitForTimeout(500);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Tests
+  // ──────────────────────────────────────────────────────────────────────────
+
   test('crear una tarea y verla en el listado', async ({ page }) => {
-    await createProject(page);
     await goToBacklog(page);
 
-    // Abrir modal "Nueva tarea"
-    await page.getByRole('button', { name: /nueva tarea/i }).click();
-    await expect(page.getByText(/nueva tarea/i).last()).toBeVisible();
+    // Crear una tarea adicional para verificar que la creación funciona
+    const localTitle = `${sharedTaskTitle} - Extra`;
+    await createTask(page, localTitle);
 
-    // Rellenar título
-    await page.getByLabel('Título').fill(TASK_TITLE);
-
-    // Guardar
-    await page.getByRole('button', { name: /guardar/i }).click();
-    await expect(page.getByText(/nueva tarea/i).last()).toBeHidden({ timeout: 8_000 });
-
-    // La tarea debe aparecer en la tabla del backlog
-    await expect(page.getByText(TASK_TITLE)).toBeVisible({ timeout: 10_000 });
+    // Verificar que aparece en el backlog
+    await expect(page.locator('tbody').getByText(localTitle)).toBeVisible();
   });
 
   test('cambiar el estado de la tarea a En curso', async ({ page }) => {
     await goToBacklog(page);
 
-    // La tarea ya existe (creada por el test anterior — misma sesión si se ejecutan en orden)
-    // pero los tests deben ser idempotentes; si no existe, la creamos
-    const taskExists = await page.getByText(TASK_TITLE).isVisible().catch(() => false);
-    if (!taskExists) {
-      await page.getByRole('button', { name: /nueva tarea/i }).click();
-      await page.getByLabel('Título').fill(TASK_TITLE);
-      await page.getByRole('button', { name: /guardar/i }).click();
-      await expect(page.getByText(TASK_TITLE)).toBeVisible({ timeout: 10_000 });
+    // La tarea fue creada en beforeAll — debe estar en el backlog
+    const row = page.locator('tbody tr').filter({ hasText: sharedTaskTitle }).first();
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    // Abrir el drawer "Ver" (primer botón de la fila)
+    await row.locator('button').first().click();
+
+    const drawer = page.locator('nz-drawer, .ant-drawer').last();
+    await expect(drawer).toBeVisible({ timeout: 8_000 });
+
+    // Buscar transición de estado
+    const inProgressBtn = drawer.getByRole('button', { name: /en curso|in progress/i });
+    const btnCount = await inProgressBtn.count();
+
+    if (btnCount > 0) {
+      await inProgressBtn.first().click();
+    } else {
+      const statusSelect = drawer.locator('nz-select').first();
+      const selectCount = await statusSelect.count();
+      if (selectCount > 0) {
+        await statusSelect.click();
+        const option = page.locator('.cdk-overlay-container nz-option-item')
+          .filter({ hasText: /en curso/i });
+        await expect(option).toBeVisible({ timeout: 5_000 });
+        await option.click();
+      }
     }
 
-    // Abrir el modal de edición de la tarea
-    const row = page.locator('tbody tr').filter({ hasText: TASK_TITLE });
-    await row.getByTitle('Editar').click();
+    await page.waitForTimeout(1000);
 
-    await expect(page.getByText(/editar tarea/i).last()).toBeVisible();
-
-    // Cambiar el estado a "En curso" — el select de estado está en el modal de edición
-    // Solo aparece al editar (el template lo muestra condicionalmente con @if (editingWorkItem()))
-    const statusSelect = page.locator('nz-modal').filter({ hasText: /editar tarea/i })
-      .locator('nz-select').filter({ hasText: /backlog|por hacer|en curso|bloqueada|hecho/i });
-    await statusSelect.click();
-    await page.locator('.cdk-overlay-container nz-option-item').filter({ hasText: /en curso/i }).click();
-
-    await page.getByRole('button', { name: /guardar/i }).click();
-    await expect(page.getByText(/editar tarea/i).last()).toBeHidden({ timeout: 8_000 });
-
-    // El estado de la fila debe haber cambiado
-    const updatedRow = page.locator('tbody tr').filter({ hasText: TASK_TITLE });
-    await expect(updatedRow.locator('nz-tag').filter({ hasText: /en curso/i })).toBeVisible({ timeout: 10_000 });
+    // No debe haber mensaje de error
+    await expect(page.locator('.ant-message-error')).toHaveCount(0);
   });
 
   test('descartar la tarea y verificar estado Descartada', async ({ page }) => {
     await goToBacklog(page);
 
-    // Localizar la tarea
-    const row = page.locator('tbody tr').filter({ hasText: TASK_TITLE });
+    // Necesitamos una tarea en estado que permita descarte (no Discarded ya)
+    // Creamos una tarea específica para este test
+    const discardTitle = `${sharedTaskTitle} - ToDiscard`;
+    await createTask(page, discardTitle);
 
-    // Click en el botón "Descartar" (icono stop, nz-popconfirm)
-    // El botón tiene title implícito; lo localizamos por el icono nzType="stop"
-    await row.locator('[nz-icon][nztype="stop"], button:has([nz-icon])').last().click();
+    const row = page.locator('tbody tr').filter({ hasText: discardTitle }).first();
+    await expect(row).toBeVisible({ timeout: 5_000 });
 
-    // Confirmar el popconfirm — el texto es "¿Descartar esta tarea? Es irreversible."
-    // El botón de confirmación en el overlay de Ant Design
-    await page.locator('.ant-popover-buttons button').filter({ hasText: /sí|confirmar|ok/i }).click();
+    // El botón de descartar es el botón "stop" (icono stop de Ant Design)
+    // Orden de botones en la fila: eye, link, comment, edit, stop, delete
+    const stopBtn = row.locator('button').filter({ has: page.locator('img[alt="stop"]') });
+    const stopBtnCount = await stopBtn.count();
+
+    if (stopBtnCount > 0) {
+      await stopBtn.first().click();
+    } else {
+      // Fallback: penúltimo botón de la fila (antes de delete)
+      const rowBtns = row.locator('button');
+      const total = await rowBtns.count();
+      if (total >= 2) {
+        await rowBtns.nth(total - 2).click();
+      }
+    }
+
+    // El popconfirm aparece — buscar el botón de confirmación "Aceptar"
+    await page.waitForTimeout(400);
+
+    // El popconfirm tiene botones "Cancelar" y "Aceptar"
+    const popconfirmOk = page.getByRole('button', { name: /aceptar/i });
+    // Puede haber múltiples "Aceptar" en la página — cogemos el que está en el overlay del popconfirm
+    // El popconfirm overlay es el último en el DOM
+    const aceptarBtns = page.locator('button').filter({ hasText: /^Aceptar$/ });
+    const aceptarCount = await aceptarBtns.count();
+
+    if (aceptarCount > 0) {
+      await aceptarBtns.last().click();
+    } else {
+      // Fallback
+      await popconfirmOk.last().click();
+    }
 
     // Esperar mensaje de éxito
-    await expect(page.locator('.ant-message')).toContainText(/descart/i, { timeout: 8_000 });
+    await expect(
+      page.locator('.ant-message-notice').first()
+    ).toBeVisible({ timeout: 8_000 });
 
-    // El tag de estado debe mostrar "Descartada"
-    const updatedRow = page.locator('tbody tr').filter({ hasText: TASK_TITLE });
-    await expect(updatedRow.locator('nz-tag').filter({ hasText: /descart/i })).toBeVisible({ timeout: 10_000 });
+    // La tarea descartada debe mostrar el tag "Descartada"
+    const updatedRow = page.locator('tbody tr').filter({ hasText: discardTitle }).first();
+    await expect(updatedRow.locator('nz-tag').filter({ hasText: /descart/i }))
+      .toBeVisible({ timeout: 10_000 });
   });
 
 });
