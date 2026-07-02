@@ -1,5 +1,6 @@
 using CarteraProyectos.Core.Common;
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.WorkItems;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -404,19 +405,16 @@ public sealed class AgentCreateTaskHandler(IAppDbContext db)
     }
 }
 
-public sealed class AgentUpdateTaskStatusHandler(IAppDbContext db)
+public sealed class AgentUpdateTaskStatusHandler(ISender sender)
     : IRequestHandler<AgentUpdateTaskStatusCommand>
 {
     public async Task Handle(AgentUpdateTaskStatusCommand request, CancellationToken ct)
     {
-        var wi = await db.WorkItems.FindAsync([request.WorkItemId], ct)
-            ?? throw new KeyNotFoundException($"Tarea {request.WorkItemId} no encontrada.");
-
         if (!Enum.TryParse<WorkItemStatus>(request.NewStatus, out var status))
-            throw new InvalidOperationException($"Estado '{request.NewStatus}' no válido.");
+            throw new InvalidOperationException(
+                $"Estado '{request.NewStatus}' no válido. Valores: Backlog, ToDo, InProgress, Blocked, Done, Discarded.");
 
-        wi.TransitionStatus(status);
-        await db.SaveChangesAsync(ct);
+        await sender.Send(new TransitionWorkItemStatusCommand(request.WorkItemId, status, request.PersonId), ct);
     }
 }
 

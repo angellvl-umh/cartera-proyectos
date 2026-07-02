@@ -22,8 +22,9 @@ public static class AgentEndpoints
         group.MapGet("/me", async (HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado. Regístrate en la plataforma primero.", statusCode: 404);
-            var result = await sender.Send(new AgentGetMyTasksQuery(person.Id));
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var result = await sender.Send(new AgentGetMyTasksQuery(person!.Id));
             return Results.Ok(result);
         })
         .WithName("get_my_tasks")
@@ -35,8 +36,9 @@ public static class AgentEndpoints
             string? siptGroup, string? status) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
-            var result = await sender.Send(new AgentGetProjectsQuery(person.Id, siptGroup, status));
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var result = await sender.Send(new AgentGetProjectsQuery(person!.Id, siptGroup, status));
             return Results.Ok(result);
         })
         .WithName("get_projects")
@@ -80,21 +82,23 @@ public static class AgentEndpoints
         group.MapPost("/tasks/{id:int}/status", async (int id, AgentStatusRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
-            await sender.Send(new AgentUpdateTaskStatusCommand(person.Id, id, req.Status));
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentUpdateTaskStatusCommand(person!.Id, id, req.Status));
             return Results.Ok(new { message = $"Estado de la tarea {id} actualizado a '{req.Status}'." });
         })
         .WithName("update_task_status")
         .WithSummary("Cambiar el estado de una tarea")
-        .WithDescription("Actualiza el estado de una tarea. Estados válidos: Backlog, ToDo, InProgress, Blocked, Done. Una tarea Done es terminal y no puede cambiar. Úsalo cuando el usuario diga que ha terminado una tarea, que está bloqueado, o que empieza a trabajar en algo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+        .WithDescription("Actualiza el estado de una tarea. Estados válidos: Backlog, ToDo, InProgress, Blocked, Done, Discarded. Done y Discarded son terminales y no pueden retroceder. Pueden hacerlo el Gestor y cualquier miembro de un equipo asignado al proyecto de la tarea (no solo los asignados). Úsalo cuando el usuario diga que ha terminado una tarea, que está bloqueado, que empieza a trabajar en algo o que quiere descartar una tarea. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
         // ── HU-IA-04: Crear tarea ─────────────────────────────────────────────
         group.MapPost("/tasks", async (AgentCreateTaskRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
             var id = await sender.Send(new AgentCreateTaskCommand(
-                person.Id, req.ProjectId, req.Title, req.Description,
+                person!.Id, req.ProjectId, req.Title, req.Description,
                 req.Priority ?? "Medium", req.EpicId, req.SprintId, req.AssignToSelf ?? true));
             return Results.Created($"/api/projects/{req.ProjectId}/workitems/{id}", new { id, message = $"Tarea '{req.Title}' creada con ID {id}." });
         })
@@ -106,8 +110,9 @@ public static class AgentEndpoints
         group.MapPost("/tasks/{id:int}/comment", async (int id, AgentCommentRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
-            await sender.Send(new AgentAddCommentCommand(person.Id, id, req.Text));
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentAddCommentCommand(person!.Id, id, req.Text));
             return Results.Ok(new { message = $"Comentario añadido a la tarea {id}." });
         })
         .WithName("add_task_comment")
@@ -118,8 +123,9 @@ public static class AgentEndpoints
         group.MapPost("/projects/{id:int}/notes", async (int id, AgentNoteRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
-            var noteId = await sender.Send(new AgentAddProjectNoteCommand(person.Id, id, req.Text));
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var noteId = await sender.Send(new AgentAddProjectNoteCommand(person!.Id, id, req.Text));
             return Results.Created($"/api/projects/{id}/notes/{noteId}", new { id = noteId, message = $"Nota añadida al proyecto {id}." });
         })
         .WithName("add_project_note")
@@ -130,10 +136,11 @@ public static class AgentEndpoints
         group.MapPost("/projects/{id:int}/weekly-updates", async (int id, AgentWeeklyUpdateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
         {
             var person = await ResolvePersonAsync(http, db);
-            if (person is null) return Results.Problem("Usuario no encontrado.", statusCode: 404);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
             if (!Enum.TryParse<ProjectHealthStatus>(req.HealthStatus, out var health))
                 return Results.BadRequest("healthStatus debe ser OnTrack, AtRisk o Blocked.");
-            var updateId = await sender.Send(new UpsertProjectWeeklyUpdateCommand(id, person.Id, req.Summary, health));
+            var updateId = await sender.Send(new UpsertProjectWeeklyUpdateCommand(id, person!.Id, req.Summary, health));
             return Results.Ok(new { id = updateId, message = $"Avance semanal registrado para el proyecto {id}." });
         })
         .WithName("add_weekly_update")
@@ -149,6 +156,138 @@ public static class AgentEndpoints
         .WithName("get_weekly_portfolio_report")
         .WithSummary("Informe semanal de seguimiento de cartera")
         .WithDescription("Devuelve proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT. Usa este endpoint cuando necesites un resumen del estado de la cartera esta semana.");
+
+        // ── Gestión de Personas ───────────────────────────────────────────────
+
+        // ── 1. GET /persons ──────────────────────────────────────────────────
+        group.MapGet("/persons", async (HttpContext http, IAppDbContext db, ISender sender, bool includeInactive = false) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var result = await sender.Send(new AgentGetPersonsQuery(includeInactive));
+            return Results.Ok(result);
+        })
+        .WithName("get_persons")
+        .WithSummary("Listar personas registradas")
+        .WithDescription("Lista las personas registradas con su rol (Desarrollador/Gestor), si están activas y si ya han iniciado sesión alguna vez. Úsalo para buscar a una persona por nombre o email antes de editarla o asignarle trabajo.");
+
+        // ── 2. POST /persons (crear) ─────────────────────────────────────────
+        group.MapPost("/persons", async (AgentPersonRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var id = await sender.Send(new AgentCreatePersonCommand(person!.Id, req.Name, req.Email, req.Role));
+            return Results.Created($"/api/persons/{id}", new { id, message = $"Persona '{req.Name}' pre-registrada con ID {id}." });
+        })
+        .WithName("create_person")
+        .WithSummary("Pre-registrar una nueva persona")
+        .WithDescription("Pre-registra una persona que se vinculará con su cuenta SSO en su primer inicio de sesión. role: Desarrollador o Gestor. Solo el Gestor puede hacerlo.");
+
+        // ── 3. POST /persons/{id:int} (actualizar) ──────────────────────────
+        group.MapPost("/persons/{id:int}", async (int id, AgentPersonRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentUpdatePersonCommand(person!.Id, id, req.Name, req.Email, req.Role));
+            return Results.Ok(new { message = $"Persona {id} actualizada." });
+        })
+        .WithName("update_person")
+        .WithSummary("Actualizar datos de una persona")
+        .WithDescription("Actualiza nombre, email y rol de una persona. Solo Gestor.");
+
+        // ── 4. POST /persons/{id:int}/active (activar/desactivar) ───────────
+        group.MapPost("/persons/{id:int}/active", async (int id, AgentPersonActiveRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentSetPersonActiveCommand(person!.Id, id, req.IsActive));
+            var action = req.IsActive ? "activada" : "desactivada";
+            return Results.Ok(new { message = $"Persona {id} {action}." });
+        })
+        .WithName("set_person_active")
+        .WithSummary("Activar o desactivar una persona")
+        .WithDescription("Activa o desactiva una persona. Las personas inactivas no aparecen en listados ni pueden recibir tareas. Solo Gestor. Un Gestor no puede desactivarse a sí mismo.");
+
+        // ── Gestión de Proyectos ──────────────────────────────────────────────
+
+        // ── 5. POST /projects/{id:int}/status (cambiar estado) ─────────────
+        group.MapPost("/projects/{id:int}/status", async (int id, AgentProjectStatusRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentTransitionProjectStatusCommand(person!.Id, id, req.Status));
+            return Results.Ok(new { message = $"Proyecto {id} transicionado a estado '{req.Status}'." });
+        })
+        .WithName("update_project_status")
+        .WithSummary("Cambiar el estado de un proyecto")
+        .WithDescription("Cambia el estado de un proyecto. Estados: Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient. El grafo de transiciones se valida en el servidor (para Completed todos los sprints deben estar completados y las tareas Done o Discarded). Pueden hacerlo el Gestor y cualquier miembro de un equipo asignado al proyecto. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+
+        // ── 6. GET /projects/{id:int}/risks (listar riesgos) ────────────────
+        group.MapGet("/projects/{id:int}/risks", async (int id, ISender sender) =>
+        {
+            var result = await sender.Send(new AgentGetProjectRisksQuery(id));
+            return Results.Ok(result);
+        })
+        .WithName("get_project_risks")
+        .WithSummary("Listar riesgos del proyecto")
+        .WithDescription("Riesgos del proyecto con probabilidad × impacto = severidad (1-9) y estado (Open/Mitigated/Closed).");
+
+        // ── 7. POST /projects/{id:int}/risks (crear riesgo) ────────────────
+        group.MapPost("/projects/{id:int}/risks", async (int id, AgentRiskRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var riskId = await sender.Send(new AgentAddProjectRiskCommand(
+                person!.Id, id, req.Description, req.Probability, req.Impact, req.MitigationPlan));
+            return Results.Created($"/api/projects/{id}/risks/{riskId}", new { id = riskId, message = $"Riesgo creado en el proyecto {id}." });
+        })
+        .WithName("add_project_risk")
+        .WithSummary("Registrar un riesgo del proyecto")
+        .WithDescription("Registra un riesgo. probability e impact: Low, Medium o High. Gestor o miembro del equipo del proyecto.");
+
+        // ── 8. POST /projects/{id:int}/risks/{riskId:int} (actualizar riesgo) ─
+        group.MapPost("/projects/{id:int}/risks/{riskId:int}", async (int id, int riskId, AgentRiskUpdateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentUpdateProjectRiskCommand(
+                person!.Id, id, riskId, req.Description, req.Probability, req.Impact, req.MitigationPlan, req.Status));
+            return Results.Ok(new { message = $"Riesgo {riskId} del proyecto {id} actualizado." });
+        })
+        .WithName("update_project_risk")
+        .WithSummary("Actualizar un riesgo del proyecto")
+        .WithDescription("Actualiza un riesgo: descripción, niveles, plan de mitigación y estado (Open, Mitigated, Closed).");
+
+        // ── 9. GET /projects/{id:int}/dependencies (listar dependencias) ──
+        group.MapGet("/projects/{id:int}/dependencies", async (int id, ISender sender) =>
+        {
+            var result = await sender.Send(new AgentGetProjectDependenciesQuery(id));
+            return Results.Ok(result);
+        })
+        .WithName("get_project_dependencies")
+        .WithSummary("Listar dependencias del proyecto")
+        .WithDescription("Dependencias del proyecto: de qué proyectos depende y qué proyectos dependen de él.");
+
+        // ── 10. POST /projects/{id:int}/dependencies (crear dependencia) ──
+        group.MapPost("/projects/{id:int}/dependencies", async (int id, AgentDependencyRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var depId = await sender.Send(new AgentAddProjectDependencyCommand(
+                person!.Id, id, req.DependsOnProjectId, req.Description));
+            return Results.Created($"/api/projects/{id}/dependencies/{depId}", new { id = depId, message = $"Dependencia creada en el proyecto {id}." });
+        })
+        .WithName("add_project_dependency")
+        .WithSummary("Registrar una dependencia entre proyectos")
+        .WithDescription("Registra que este proyecto depende de otro. El servidor rechaza autodependencias, duplicados y ciclos directos.");
 
         // ── Admin: Reindexar embeddings ───────────────────────────────────────
         group.MapPost("/reindex", async (ISender sender) =>
@@ -232,6 +371,19 @@ public static class AgentEndpoints
         if (string.IsNullOrWhiteSpace(email)) return null;
         return await db.Persons.FirstOrDefaultAsync(p => p.Email == email);
     }
+
+    /// <summary>
+    /// Valida que la persona exista y esté activa.
+    /// Retorna null si todo está bien, o el resultado de error (404/403) si algo falta.
+    /// </summary>
+    private static IResult? Guard(Person? person)
+    {
+        if (person is null) 
+            return Results.Problem("Usuario no encontrado.", statusCode: 404);
+        if (!person.IsActive)
+            return Results.Problem("Usuario inactivo.", statusCode: 403);
+        return null;
+    }
 }
 
 // ── Blob store (in-memory, TTL no necesario — los ficheros son efímeros) ────────
@@ -265,3 +417,15 @@ public record AgentCommentRequest(string Text);
 public record AgentNoteRequest(string Text);
 
 public record AgentWeeklyUpdateRequest(string Summary, string HealthStatus);
+
+public record AgentPersonRequest(string Name, string Email, string Role);
+
+public record AgentPersonActiveRequest(bool IsActive);
+
+public record AgentProjectStatusRequest(string Status);
+
+public record AgentRiskRequest(string Description, string Probability, string Impact, string? MitigationPlan);
+
+public record AgentRiskUpdateRequest(string Description, string Probability, string Impact, string? MitigationPlan, string Status);
+
+public record AgentDependencyRequest(int DependsOnProjectId, string? Description);
