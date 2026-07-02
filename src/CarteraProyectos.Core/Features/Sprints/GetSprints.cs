@@ -11,7 +11,8 @@ public record SprintDto(
     int Id, int ProjectId, string Name, string? Goal,
     DateOnly? StartDate, DateOnly? EndDate,
     string Status, int? Capacity,
-    int WorkItemCount, int TotalEstimationHours, int TotalEstimationPoints);
+    int WorkItemCount, int TotalEstimationHours, int TotalEstimationPoints,
+    int? CommittedPoints, int? DeliveredPoints);
 
 public sealed class GetSprintsHandler(IAppDbContext db) : IRequestHandler<GetSprintsQuery, PagedResult<SprintDto>>
 {
@@ -33,7 +34,8 @@ public sealed class GetSprintsHandler(IAppDbContext db) : IRequestHandler<GetSpr
                 s.Status.ToString(), s.Capacity,
                 s.WorkItems.Count,
                 s.WorkItems.Sum(w => w.EstimationHours ?? 0),
-                s.WorkItems.Sum(w => w.EstimationPoints ?? 0)))
+                s.WorkItems.Sum(w => w.EstimationPoints ?? 0),
+                s.CommittedPoints, s.DeliveredPoints))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<SprintDto>(items, total, page, pageSize);

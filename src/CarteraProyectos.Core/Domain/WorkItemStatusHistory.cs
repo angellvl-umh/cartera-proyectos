@@ -13,13 +13,13 @@ public class WorkItemStatusHistory
     public Person? ChangedBy { get; private set; }
 
     public static WorkItemStatusHistory Create(WorkItem workItem, WorkItemStatus? fromStatus,
-        WorkItemStatus toStatus, int changedById)
+        WorkItemStatus toStatus, int changedById, DateTime? changedAt = null)
         => new()
         {
             WorkItem = workItem,
             FromStatus = fromStatus,
             ToStatus = toStatus,
             ChangedById = changedById,
-            ChangedAt = DateTime.UtcNow
+            ChangedAt = changedAt ?? DateTime.UtcNow
         };
 }

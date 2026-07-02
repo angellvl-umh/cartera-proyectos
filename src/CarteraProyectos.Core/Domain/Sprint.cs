@@ -19,6 +19,8 @@ public class Sprint
     public DateOnly? EndDate { get; private set; }
     public SprintStatus Status { get; private set; } = SprintStatus.Planning;
     public int? Capacity { get; private set; }
+    public int? CommittedPoints { get; private set; }
+    public int? DeliveredPoints { get; private set; }
 
     public Project? Project { get; private set; }
     public ICollection<WorkItem> WorkItems { get; private set; } = new List<WorkItem>();
@@ -50,4 +52,10 @@ public class Sprint
             throw new InvalidOperationException($"No se puede transicionar de {Status} a {newStatus}.");
         Status = newStatus;
     }
+
+    /// <summary>Guarda el snapshot de puntos comprometidos al activar el sprint.</summary>
+    public void SnapshotCommitted(int points) => CommittedPoints = points;
+
+    /// <summary>Guarda el snapshot de puntos entregados al completar el sprint.</summary>
+    public void SnapshotDelivered(int points) => DeliveredPoints = points;
 }

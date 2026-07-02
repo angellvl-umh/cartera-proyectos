@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Reports;
 using CarteraProyectos.Core.Features.Sprints;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
@@ -58,14 +59,24 @@ public static class SprintEndpoints
             if (!Enum.TryParse<SprintStatus>(req.Status, out var newStatus))
                 return Results.BadRequest("Estado no válido. Valores: Planning, Active, Completed.");
 
+            CarryOverTarget? carryOver = null;
+            if (req.CarryOver is not null)
+            {
+                if (!Enum.TryParse<CarryOverTarget>(req.CarryOver, out var parsed))
+                    return Results.BadRequest("CarryOver no válido. Valores: Backlog, Sprint.");
+                carryOver = parsed;
+            }
+
             var requester = await CurrentUser.ResolveAsync(ctx, db, ct);
             if (requester is null) return Results.Unauthorized();
 
-            await mediator.Send(new TransitionSprintStatusCommand(id, newStatus, requester.Id), ct);
+            await mediator.Send(new TransitionSprintStatusCommand(id, newStatus, requester.Id, carryOver, req.TargetSprintId), ct);
             return Results.NoContent();
         })
         .WithName("TransitionSprintStatus")
-        .WithDescription("Cambia el estado del sprint: Planning → Active → Completed. Solo un sprint activo por proyecto.");
+        .WithDescription("Cambia el estado del sprint: Planning → Active → Completed. Solo un sprint activo por proyecto. " +
+            "Al completar un sprint con tareas sin terminar, indica carryOver=Backlog (mueve las tareas al backlog) o " +
+            "carryOver=Sprint con targetSprintId (mueve las tareas a otro sprint en estado Planning del mismo proyecto).");
 
         group.MapGet("/{id:int}/status-history", async (int projectId, int id, IMediator mediator, CancellationToken ct) =>
         {
@@ -75,9 +86,18 @@ public static class SprintEndpoints
         .WithName("GetSprintStatusHistory")
         .WithDescription("Devuelve el histórico de cambios de estado de un sprint, ordenado cronológicamente.");
 
+        group.MapGet("/{id:int}/burndown", async (int projectId, int id, IMediator mediator, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await mediator.Send(new GetSprintBurndownQuery(projectId, id), ct)); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+            catch (InvalidOperationException ex) { return Results.BadRequest(ex.Message); }
+        })
+        .WithName("GetSprintBurndown")
+        .WithDescription("Burndown chart del sprint: puntos ideales y reales restantes por día. Requiere fechas de inicio y fin definidas en el sprint. Los días futuros tienen RemainingPoints null.");
+
         return app;
     }
 }
 
 record SprintRequest(string Name, string? Goal, DateOnly? StartDate, DateOnly? EndDate, int? Capacity);
-record TransitionSprintRequest(string Status);
+record TransitionSprintRequest(string Status, string? CarryOver = null, int? TargetSprintId = null);

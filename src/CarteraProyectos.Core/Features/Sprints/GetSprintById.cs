@@ -18,7 +18,8 @@ public sealed class GetSprintByIdHandler(IAppDbContext db) : IRequestHandler<Get
                 s.Status.ToString(), s.Capacity,
                 s.WorkItems.Count,
                 s.WorkItems.Sum(w => w.EstimationHours ?? 0),
-                s.WorkItems.Sum(w => w.EstimationPoints ?? 0)))
+                s.WorkItems.Sum(w => w.EstimationPoints ?? 0),
+                s.CommittedPoints, s.DeliveredPoints))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException($"Sprint {request.SprintId} not found in project {request.ProjectId}.");
 
