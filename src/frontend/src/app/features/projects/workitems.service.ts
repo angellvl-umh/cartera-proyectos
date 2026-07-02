@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export type WorkItemStatus = 'Backlog' | 'ToDo' | 'InProgress' | 'Blocked' | 'Done' | 'Discarded';
@@ -65,6 +65,18 @@ export interface CreateWorkItemDto {
   sprintId?: number;
 }
 
+export interface WorkItemSearchOpts {
+  q?: string;
+  epicId?: number | null;
+  priority?: WorkItemPriority | null;
+  type?: WorkItemType | null;
+  assigneeId?: number | null;
+  page?: number;
+  pageSize?: number;
+  backlogOnly?: boolean;
+  sprintId?: number | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class WorkItemsService {
   private readonly http = inject(HttpClient);
@@ -73,6 +85,22 @@ export class WorkItemsService {
     let url = `/api/projects/${projectId}/workitems?pageSize=100`;
     if (sprintId) url += `&sprintId=${sprintId}`;
     return this.http.get<PagedResult<WorkItem>>(url);
+  }
+
+  searchWorkItems(projectId: number, opts: WorkItemSearchOpts = {}): Observable<PagedResult<WorkItem>> {
+    let params = new HttpParams()
+      .set('page', (opts.page ?? 1).toString())
+      .set('pageSize', (opts.pageSize ?? 25).toString());
+
+    if (opts.backlogOnly) params = params.set('backlogOnly', 'true');
+    if (opts.q?.trim()) params = params.set('q', opts.q.trim());
+    if (opts.epicId != null) params = params.set('epicId', opts.epicId.toString());
+    if (opts.priority != null) params = params.set('priority', opts.priority);
+    if (opts.type != null) params = params.set('type', opts.type);
+    if (opts.assigneeId != null) params = params.set('assigneeId', opts.assigneeId.toString());
+    if (opts.sprintId != null) params = params.set('sprintId', opts.sprintId.toString());
+
+    return this.http.get<PagedResult<WorkItem>>(`/api/projects/${projectId}/workitems`, { params });
   }
 
   getBacklog(projectId: number): Observable<PagedResult<WorkItem>> {
@@ -97,5 +125,13 @@ export class WorkItemsService {
 
   getStatusHistory(projectId: number, id: number): Observable<WorkItemStatusHistoryEntry[]> {
     return this.http.get<WorkItemStatusHistoryEntry[]>(`/api/projects/${projectId}/workitems/${id}/status-history`);
+  }
+
+  reorder(projectId: number, orderedIds: number[]): Observable<void> {
+    return this.http.post<void>(`/api/projects/${projectId}/workitems/reorder`, { orderedIds });
+  }
+
+  bulkAssignSprint(projectId: number, workItemIds: number[], sprintId: number | null): Observable<void> {
+    return this.http.post<void>(`/api/projects/${projectId}/workitems/bulk-sprint`, { workItemIds, sprintId });
   }
 }

@@ -56,7 +56,16 @@ docs/                                # Specs funcionales por módulo
 - Gráficos SVG propios (sin librería de charts): `shared/charts/bar-chart` y `line-chart`; velocity, burndown y cycle/lead time en el informe de proyecto; modal de carry-over y comprometido-vs-capacidad en el detalle de proyecto
 - **Gobernanza de cartera:** `Project.BusinessValue` (1-5, nz-rate en formulario) + matriz valor/esfuerzo 5×5 en `/portfolio`; entidades `ProjectRisk` (probabilidad × impacto = severidad, estados Open/Mitigated/Closed) y `ProjectDependency` (sin auto/duplicados/ciclos directos) con CRUD y pestañas en detalle (migración `AddRisksDependenciesAndBusinessValue`); `GET /api/portfolio/roadmap` + vista `/roadmap` (timeline anual CSS grid por equipo con hitos); `GET /api/capacity/forecast` + vista `/capacity/forecast` (demanda vs capacidad por trimestre, heurística persona-mes por complejidad en `methodologyNote`)
 - **Tests E2E Playwright** en `src/frontend/e2e/` (20 tests: auth OIDC con storageState por rol, proyectos, workitems + descartar, kanban, permisos); requieren stack Docker + `infra/seed.sql` (ver `e2e/README.md`); comandos `pnpm e2e` / `pnpm e2e:ui`
-- 301 tests unitarios
+- **Gestión operativa de tareas de alto nivel:** backlog en componente `product-backlog` (drag&drop para priorizar via `POST .../workitems/reorder`, filtros server-side `q`/épica/prioridad/tipo/asignado, alta rápida inline, selección múltiple → `POST .../workitems/bulk-sprint`, paginación real); drawer compartido `work-item-drawer` (detalle + cambio de estado + comentarios + histórico) abierto desde Kanban y backlog; Kanban con filtro por asignado y "Solo mis tareas" + puntos por columna; Mis tareas con cambio de estado inline; progreso por épica; vista `/team-activity` (`GET /api/teams/activity`): en qué tareas está cada persona de cada equipo, con disponibles
+- 321 tests unitarios
+
+### Convención de uso: tareas de ALTO NIVEL
+
+El equipo de desarrollo gestiona el detalle diario en su propia herramienta externa. En esta plataforma los `WorkItem` son **tareas de alto nivel** (entregable o actividad de 1-2 semanas), pensadas para que gestores y jefes de equipo sepan *en qué está cada persona* sin duplicar la gestión fina:
+
+- Granularidad orientativa: si una tarea dura menos de ~3 días, probablemente pertenece a la herramienta del equipo, no a esta cartera
+- El enlace al detalle externo se hace a nivel de proyecto (`EpicUrl`, `SpecificationsUrl`)
+- Las métricas (velocity, burndown, cycle time, capacidad) se calculan sobre estas tareas gruesas: solo son fiables si el equipo mantiene el estado al día — por eso la UX prioriza el cambio de estado en ≤2 clics (drawer, Mis tareas, Kanban)
 
 ---
 

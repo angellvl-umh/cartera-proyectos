@@ -10,6 +10,7 @@ export interface Epic {
   priority: number;
   sortOrder: number;
   workItemCount: number;
+  doneWorkItemCount: number;
 }
 
 export interface PagedResult<T> {

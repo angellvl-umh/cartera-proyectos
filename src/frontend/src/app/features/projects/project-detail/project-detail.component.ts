@@ -33,6 +33,7 @@ import { NzListModule } from 'ng-zorro-antd/list';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
+import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { HttpClient } from '@angular/common/http';
 import { ProjectsService } from '../projects.service';
 import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
@@ -65,6 +66,8 @@ import {
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
+import { ProductBacklogComponent } from './product-backlog.component';
+import { WorkItemDrawerComponent } from '../work-item-drawer/work-item-drawer.component';
 
 const STATUS_COLORS: Record<WorkItemStatus, string> = {
   Backlog: 'default',
@@ -107,8 +110,9 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
     NzPopconfirmModule, NzSpaceModule, NzDividerModule, NzIconModule,
     NzSpinModule, NzTabsModule, NzTagModule, NzModalModule, NzFormModule,
     NzInputModule, NzInputNumberModule, NzSelectModule, NzDatePickerModule,
-    NzListModule, NzAvatarModule, NzRadioModule, NzEmptyModule,
+    NzListModule, NzAvatarModule, NzRadioModule, NzEmptyModule, NzProgressModule,
     RouterLink, ProjectStatusBadgeComponent, ComplexityIndicatorComponent, ProjectFormComponent,
+    ProductBacklogComponent, WorkItemDrawerComponent,
   ],
   template: `
     @if (project() === undefined) {
@@ -235,13 +239,31 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </div>
             <nz-table [nzData]="epics()?.items ?? []" nzBordered nzSize="small"
               [nzLoading]="!epics()" [nzShowPagination]="false">
-              <thead><tr><th>Título</th><th>Prioridad</th><th>Tareas</th><th>Orden</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Título</th><th>Prioridad</th><th>Tareas</th><th>Progreso</th><th>Orden</th><th>Acciones</th></tr></thead>
               <tbody>
                 @for (epic of epics()?.items ?? []; track epic.id) {
                   <tr>
                     <td>{{ epic.title }}</td>
                     <td>{{ epic.priority }}</td>
                     <td>{{ epic.workItemCount }}</td>
+                    <td style="min-width:120px">
+                      @if (epic.workItemCount > 0) {
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <nz-progress
+                            style="flex:1"
+                            [nzPercent]="epicProgress(epic)"
+                            nzSize="small"
+                            [nzShowInfo]="false"
+                            nzStrokeColor="#1C7A4B">
+                          </nz-progress>
+                          <span style="font-size:12px;color:#8c8c8c;white-space:nowrap">
+                            {{ epic.doneWorkItemCount }}/{{ epic.workItemCount }}
+                          </span>
+                        </div>
+                      } @else {
+                        <span style="color:#bfbfbf;font-size:12px">—</span>
+                      }
+                    </td>
                     <td>{{ epic.sortOrder }}</td>
                     <td>
                       <nz-space nzSize="small">
@@ -256,7 +278,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="5" style="text-align:center;color:#999">Sin épicas</td></tr>
+                  <tr><td colspan="6" style="text-align:center;color:#999">Sin épicas</td></tr>
                 }
               </tbody>
             </nz-table>
@@ -553,67 +575,29 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                 <span nz-icon nzType="plus"></span> Nueva tarea
               </button>
             </div>
-            <nz-table [nzData]="backlog()?.items ?? []" nzBordered nzSize="small"
-              [nzLoading]="!backlog()" [nzShowPagination]="false">
-              <thead>
-                <tr>
-                  <th>Título</th>
-                  <th>Épica</th>
-                  <th>Tipo</th>
-                  <th>Estado</th>
-                  <th>Prioridad</th>
-                  <th>Asignado a</th>
-                  <th>Est. h</th>
-                  <th>Est. pts</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (wi of backlog()?.items ?? []; track wi.id) {
-                  <tr>
-                    <td>{{ wi.title }}</td>
-                    <td>{{ wi.epicTitle ?? '—' }}</td>
-                    <td>{{ workItemTypeLabel(wi.type) }}</td>
-                    <td><nz-tag [nzColor]="statusColor(wi.status)">{{ statusLabel(wi.status) }}</nz-tag></td>
-                    <td><nz-tag [nzColor]="priorityColor(wi.priority)">{{ wi.priority }}</nz-tag></td>
-                    <td>{{ wi.assignees.length > 0 ? wi.assignees.map(a => a.name).join(', ') : '—' }}</td>
-                    <td>{{ wi.estimationHours ?? '—' }}</td>
-                    <td>{{ wi.estimationPoints ?? '—' }}</td>
-                    <td>
-                      <nz-space nzSize="small">
-                        <button *nzSpaceItem nz-button nzSize="small" (click)="openAssignSprintModal(wi)">
-                          <span nz-icon nzType="link"></span> Sprint
-                        </button>
-                        <button *nzSpaceItem nz-button nzSize="small" (click)="openComments(wi)">
-                          <span nz-icon nzType="comment"></span>
-                        </button>
-                        <button *nzSpaceItem nz-button nzSize="small" (click)="openWorkItemForm(wi)">
-                          <span nz-icon nzType="edit"></span>
-                        </button>
-                        @if (wi.status !== 'Done' && wi.status !== 'Discarded') {
-                          <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
-                            nzPopconfirmTitle="¿Descartar esta tarea? Es irreversible."
-                            (nzOnConfirm)="discardWorkItem(wi)">
-                            <span nz-icon nzType="stop"></span>
-                          </button>
-                        }
-                        <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
-                          nzPopconfirmTitle="¿Eliminar tarea?" (nzOnConfirm)="deleteWorkItem(wi)">
-                          <span nz-icon nzType="delete"></span>
-                        </button>
-                      </nz-space>
-                    </td>
-                  </tr>
-                } @empty {
-                  <tr><td colspan="9" style="text-align:center;color:#999">Sin tareas en backlog</td></tr>
-                }
-              </tbody>
-            </nz-table>
+            <app-product-backlog
+              [projectId]="projectId"
+              [epics]="epics()?.items ?? []"
+              [sprints]="sprints()?.items ?? []"
+              [persons]="persons()?.items ?? []"
+              (openForm)="openWorkItemForm($event)"
+              (openComments)="openComments($event)"
+              (openAssignSprint)="openAssignSprintModal($event)"
+              (openDrawer)="openDrawerItem($event)"
+              (refreshRequested)="backlogRefresh$.next()"
+            />
           </nz-tab>
 
         </nz-tabs>
       </div>
     }
+
+    <!-- Work-item drawer -->
+    <app-work-item-drawer
+      [workItem]="drawerWorkItem()"
+      (closed)="drawerWorkItem.set(null)"
+      (changed)="onDrawerChanged()"
+    />
 
     <!-- Modal editar proyecto -->
     <app-project-form
@@ -1097,6 +1081,18 @@ export class ProjectDetailComponent {
   workItemHistoryModalVisible = signal(false);
   sprintHistoryModalVisible = signal(false);
 
+  // ── Work-item drawer ──────────────────────────────────────────────────────
+  drawerWorkItem = signal<WorkItem | null>(null);
+
+  openDrawerItem(wi: WorkItem): void {
+    this.drawerWorkItem.set(wi);
+  }
+
+  onDrawerChanged(): void {
+    this.backlogRefresh$.next();
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   editingEpic = signal<Epic | null>(null);
   editingSprint = signal<Sprint | null>(null);
   editingWorkItem = signal<WorkItem | null>(null);
@@ -1310,7 +1306,7 @@ export class ProjectDetailComponent {
   private readonly refresh$ = new Subject<void>();
   private readonly epicsRefresh$ = new Subject<void>();
   private readonly sprintsRefresh$ = new Subject<void>();
-  private readonly backlogRefresh$ = new Subject<void>();
+  readonly backlogRefresh$ = new Subject<void>();
 
   readonly SPRINT_STATUS_COLORS = SPRINT_STATUS_COLORS;
 
@@ -1354,6 +1350,11 @@ export class ProjectDetailComponent {
   statusLabel(s: WorkItemStatus): string { return STATUS_LABELS[s]; }
   priorityColor(p: WorkItemPriority): string { return PRIORITY_COLORS[p]; }
   workItemTypeLabel(t: WorkItemType): string { return WORK_ITEM_TYPE_LABELS[t]; }
+
+  epicProgress(epic: Epic): number {
+    if (!epic.workItemCount) return 0;
+    return Math.round((epic.doneWorkItemCount / epic.workItemCount) * 100);
+  }
 
   goBack(): void { this.router.navigate(['/projects']); }
 

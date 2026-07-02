@@ -63,6 +63,11 @@ public static class TeamEndpoints
         .WithName("AssignPersonToTeam")
         .WithDescription("Asigna una persona a un equipo. Solo Gestor.");
 
+        group.MapGet("/activity", async (IMediator mediator, CancellationToken ct) =>
+            Results.Ok(await mediator.Send(new GetTeamActivityQuery(), ct)))
+            .WithName("GetTeamActivity")
+            .WithDescription("Actividad actual de todos los equipos: muestra en qué está trabajando cada persona (tareas InProgress o Blocked). Las personas sin tareas aparecen como disponibles.");
+
         group.MapDelete("/{id:int}/members/{personId:int}", async (int id, int personId, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
             var requester = await CurrentUser.ResolveAsync(ctx, db, ct);

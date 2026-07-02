@@ -77,9 +77,14 @@ const ROLE_LABELS: Record<string, string> = {
         <h2><span nz-icon nzType="team" style="color:#1890ff;margin-right:8px"></span>Capacidad de equipos</h2>
         <p>Carga de trabajo actual por equipo y persona</p>
       </div>
-      <a routerLink="/capacity/forecast" nz-button nzType="primary">
-        <span nz-icon nzType="line-chart"></span> Previsión anual →
-      </a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a routerLink="/team-activity" nz-button>
+          <span nz-icon nzType="eye"></span> Trabajo en curso →
+        </a>
+        <a routerLink="/capacity/forecast" nz-button nzType="primary">
+          <span nz-icon nzType="line-chart"></span> Previsión anual →
+        </a>
+      </div>
     </div>
 
     <!-- Leyenda -->

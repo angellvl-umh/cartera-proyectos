@@ -13,7 +13,11 @@ public record GetWorkItemsQuery(
     int Page = 1,
     int PageSize = 50,
     int? SprintId = null,
-    bool BacklogOnly = false) : IRequest<PagedResult<WorkItemDto>>;
+    bool BacklogOnly = false,
+    string? Q = null,
+    int? AssigneeId = null,
+    WorkItemPriority? Priority = null,
+    WorkItemType? Type = null) : IRequest<PagedResult<WorkItemDto>>;
 
 public record AssigneeDto(int Id, string Name);
 
@@ -45,6 +49,21 @@ public sealed class GetWorkItemsHandler(IAppDbContext db) : IRequestHandler<GetW
             query = query.Where(w => w.SprintId == request.SprintId.Value);
         else if (request.BacklogOnly)
             query = query.Where(w => w.SprintId == null);
+
+        if (!string.IsNullOrWhiteSpace(request.Q))
+        {
+            var q = request.Q.ToLower();
+            query = query.Where(w => w.Title.ToLower().Contains(q));
+        }
+
+        if (request.AssigneeId.HasValue)
+            query = query.Where(w => w.Assignees.Any(a => a.Id == request.AssigneeId.Value));
+
+        if (request.Priority.HasValue)
+            query = query.Where(w => w.Priority == request.Priority.Value);
+
+        if (request.Type.HasValue)
+            query = query.Where(w => w.Type == request.Type.Value);
 
         var total = await query.CountAsync(cancellationToken);
 

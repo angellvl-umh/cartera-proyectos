@@ -21,6 +21,7 @@ const ROUTE_LABELS: Record<string, string> = {
   reports: 'Informe semanal',
   'my-tasks': 'Mis tareas',
   capacity: 'Capacidad',
+  'team-activity': 'Actividad',
   admin: 'Administración',
   promoters: 'Promotores',
   'organic-units': 'Unidades Orgánicas',
@@ -72,6 +73,9 @@ const ROUTE_LABELS: Record<string, string> = {
           </a>
           <a routerLink="/capacity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
             <span nz-icon nzType="team"></span><span>Capacidad</span>
+          </a>
+          <a routerLink="/team-activity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+            <span nz-icon nzType="eye"></span><span>Actividad</span>
           </a>
 
           @if (isGestor()) {

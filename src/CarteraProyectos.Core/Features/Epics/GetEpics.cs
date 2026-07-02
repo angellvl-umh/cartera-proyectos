@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Common;
+using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ public record GetEpicsQuery(int ProjectId, int Page = 1, int PageSize = 20) : IR
 
 public record EpicDto(
     int Id, int ProjectId, string Title, string? Description,
-    int Priority, int SortOrder, int WorkItemCount,
+    int Priority, int SortOrder, int WorkItemCount, int DoneWorkItemCount,
     int? EstimationHours, int? EstimationPoints);
 
 public sealed class GetEpicsHandler(IAppDbContext db) : IRequestHandler<GetEpicsQuery, PagedResult<EpicDto>>
@@ -27,7 +28,9 @@ public sealed class GetEpicsHandler(IAppDbContext db) : IRequestHandler<GetEpics
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(e => new EpicDto(e.Id, e.ProjectId, e.Title, e.Description, e.Priority, e.SortOrder,
-                e.WorkItems.Count, e.EstimationHours, e.EstimationPoints))
+                e.WorkItems.Count,
+                e.WorkItems.Count(w => w.Status == WorkItemStatus.Done),
+                e.EstimationHours, e.EstimationPoints))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<EpicDto>(items, total, page, pageSize);

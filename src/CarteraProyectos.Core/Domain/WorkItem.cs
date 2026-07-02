@@ -83,6 +83,8 @@ public class WorkItem
 
     public void AssignToSprint(int? sprintId) => SprintId = sprintId;
 
+    public void SetSortOrder(int sortOrder) => SortOrder = sortOrder;
+
     public void TransitionStatus(WorkItemStatus newStatus)
     {
         if (Status == WorkItemStatus.Done || Status == WorkItemStatus.Discarded)

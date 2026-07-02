@@ -13,14 +13,17 @@ public static class WorkItemEndpoints
 
         group.MapGet("/", async (int projectId, IMediator mediator, CancellationToken ct,
             int? epicId, string? status, int? sprintId, bool backlogOnly = false,
+            string? q = null, int? assigneeId = null, string? priority = null, string? type = null,
             int page = 1, int pageSize = 50) =>
         {
             WorkItemStatus? st = status is not null && Enum.TryParse<WorkItemStatus>(status, out var s) ? s : null;
+            WorkItemPriority? pr = priority is not null && Enum.TryParse<WorkItemPriority>(priority, out var pv) ? pv : null;
+            WorkItemType? ty = type is not null && Enum.TryParse<WorkItemType>(type, out var tv) ? tv : null;
             return Results.Ok(await mediator.Send(
-                new GetWorkItemsQuery(projectId, epicId, st, page, pageSize, sprintId, backlogOnly), ct));
+                new GetWorkItemsQuery(projectId, epicId, st, page, pageSize, sprintId, backlogOnly, q, assigneeId, pr, ty), ct));
         })
         .WithName("GetWorkItems")
-        .WithDescription("Lista las tareas de un proyecto. Filtros: epicId, status, sprintId, backlogOnly. Soporta paginación.");
+        .WithDescription("Lista las tareas de un proyecto. Filtros: epicId, status (Backlog/ToDo/InProgress/Blocked/Done/Discarded), sprintId, backlogOnly, q (búsqueda en título), assigneeId, priority (Low/Medium/High/Critical), type (Task/UserStory). Soporta paginación.");
 
         group.MapPost("/", async (int projectId, CreateWorkItemRequest req, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
@@ -103,6 +106,30 @@ public static class WorkItemEndpoints
         .WithName("GetWorkItemStatusHistory")
         .WithDescription("Devuelve el histórico de cambios de estado de una tarea, ordenado cronológicamente.");
 
+        group.MapPost("/reorder", async (int projectId, ReorderWorkItemsRequest req, IMediator mediator, CancellationToken ct) =>
+        {
+            try
+            {
+                await mediator.Send(new ReorderWorkItemsCommand(projectId, req.OrderedIds), ct);
+                return Results.NoContent();
+            }
+            catch (KeyNotFoundException ex) { return Results.Problem(ex.Message, statusCode: 404); }
+        })
+        .WithName("ReorderWorkItems")
+        .WithDescription("Reordena las tareas de un proyecto. Recibe una lista ordenada de ids y reasigna SortOrder en múltiplos de 10.");
+
+        group.MapPost("/bulk-sprint", async (int projectId, BulkAssignToSprintRequest req, IMediator mediator, CancellationToken ct) =>
+        {
+            try
+            {
+                await mediator.Send(new BulkAssignWorkItemsToSprintCommand(projectId, req.WorkItemIds, req.SprintId), ct);
+                return Results.NoContent();
+            }
+            catch (KeyNotFoundException ex) { return Results.Problem(ex.Message, statusCode: 404); }
+        })
+        .WithName("BulkAssignWorkItemsToSprint")
+        .WithDescription("Asigna masivamente tareas a un sprint (o al backlog si sprintId es null). Todos los ids deben pertenecer al proyecto.");
+
         return app;
     }
 }
@@ -115,3 +142,5 @@ record CreateWorkItemRequest(
 
 record TransitionWorkItemStatusRequest(string Status);
 record AssignSprintRequest(int? SprintId);
+record ReorderWorkItemsRequest(IReadOnlyList<int> OrderedIds);
+record BulkAssignToSprintRequest(IReadOnlyList<int> WorkItemIds, int? SprintId);

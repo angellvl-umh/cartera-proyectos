@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { HttpClient } from '@angular/common/http';
 import { Subject, startWith, switchMap, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import {
@@ -22,15 +23,18 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemType, WORK_ITEM_TYPE_LABELS } from '../workitems.service';
 import { EpicsService } from '../epics.service';
 import { SprintService } from '../sprint.service';
+import { WorkItemDrawerComponent } from '../work-item-drawer/work-item-drawer.component';
 
 interface KanbanColumn {
   status: WorkItemStatus;
   label: string;
   items: WorkItem[];
+  totalPoints: number;
 }
 
 const COLUMNS_DEF: { status: WorkItemStatus; label: string }[] = [
@@ -66,7 +70,8 @@ function assigneeColor(name: string): string {
     FormsModule, RouterLink,
     CdkDropListGroup, CdkDropList, CdkDrag, CdkDragPlaceholder,
     NzInputModule, NzSelectModule, NzButtonModule, NzTagModule,
-    NzIconModule, NzSpinModule,
+    NzIconModule, NzSpinModule, NzCheckboxModule,
+    WorkItemDrawerComponent,
   ],
   styles: [`
     .kanban-wrapper {
@@ -108,6 +113,11 @@ function assigneeColor(name: string): string {
       font-size: 12px;
       color: #595959;
       font-weight: 500;
+    }
+    .col-pts {
+      font-size: 11px;
+      color: #8c8c8c;
+      margin-left: 2px;
     }
     .drop-zone {
       min-height: 80px;
@@ -184,6 +194,9 @@ function assigneeColor(name: string): string {
     .drop-zone.cdk-drop-list-dragging .kanban-card:not(.cdk-drag-placeholder) {
       transition: transform 200ms cubic-bezier(0,0,.2,1);
     }
+    .card-click-area {
+      cursor: pointer;
+    }
   `],
   template: `
     <div class="kanban-wrapper">
@@ -226,11 +239,27 @@ function assigneeColor(name: string): string {
           (ngModelChange)="filterEpicId.set($event)"
           nzAllowClear
           nzPlaceHolder="Todas las épicas"
-          style="min-width:200px">
+          style="min-width:180px">
           @for (epic of epics()?.items ?? []; track epic.id) {
             <nz-option [nzValue]="epic.id" [nzLabel]="epic.title" />
           }
         </nz-select>
+
+        <nz-select
+          [ngModel]="filterPersonId()"
+          (ngModelChange)="filterPersonId.set($event)"
+          nzAllowClear
+          nzPlaceHolder="Todos los asignados"
+          style="min-width:180px">
+          @for (p of availablePersons(); track p.id) {
+            <nz-option [nzValue]="p.id" [nzLabel]="p.name" />
+          }
+        </nz-select>
+
+        <label nz-checkbox [ngModel]="onlyMine()" (ngModelChange)="toggleOnlyMine($event)"
+          style="font-size:13px">
+          Solo mis tareas
+        </label>
 
         @if (isFiltered()) {
           <button nz-button (click)="clearFilters()">Limpiar filtros</button>
@@ -251,6 +280,9 @@ function assigneeColor(name: string): string {
               <div class="col-header">
                 <span class="col-label">{{ col.label }}</span>
                 <span class="col-count">{{ col.items.length }}</span>
+                @if (col.totalPoints > 0) {
+                  <span class="col-pts">· {{ col.totalPoints }} pts</span>
+                }
               </div>
 
               <!-- Drop zone -->
@@ -268,6 +300,7 @@ function assigneeColor(name: string): string {
                     cdkDrag
                     [cdkDragData]="wi"
                     class="kanban-card"
+                    (click)="openDrawer(wi)"
                   >
                     <!-- Title -->
                     <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
@@ -307,7 +340,7 @@ function assigneeColor(name: string): string {
                           </span>
                         }
                         @if (wi.dueDate) {
-                          <span style="font-size:11px;color:#8c8c8c" [style.color]="isOverdue(wi.dueDate) ? '#f5222d' : '#8c8c8c'" title="Fecha fin">
+                          <span style="font-size:11px" [style.color]="isOverdue(wi.dueDate) ? '#f5222d' : '#8c8c8c'" title="Fecha fin">
                             📅 {{ wi.dueDate }}
                           </span>
                         }
@@ -332,12 +365,20 @@ function assigneeColor(name: string): string {
       }
 
     </div>
+
+    <!-- Work-item drawer -->
+    <app-work-item-drawer
+      [workItem]="drawerWorkItem()"
+      (closed)="drawerWorkItem.set(null)"
+      (changed)="onDrawerChanged()"
+    />
   `,
 })
 export class KanbanBoardComponent {
   private readonly workItemsService = inject(WorkItemsService);
   private readonly epicsService = inject(EpicsService);
   private readonly sprintService = inject(SprintService);
+  private readonly http = inject(HttpClient);
   private readonly message = inject(NzMessageService);
 
   readonly projectId = +inject(ActivatedRoute).snapshot.paramMap.get('id')!;
@@ -355,6 +396,16 @@ export class KanbanBoardComponent {
 
   readonly filterText = signal('');
   readonly filterEpicId = signal<number | null>(null);
+  readonly filterPersonId = signal<number | null>(null);
+  readonly onlyMine = signal(false);
+
+  // Drawer state
+  readonly drawerWorkItem = signal<WorkItem | null>(null);
+
+  // Current user for "only mine" filter
+  private readonly currentUser = toSignal(
+    this.http.get<{ id: number; name: string; role: string }>('/api/me')
+  );
 
   readonly rawItems = toSignal(
     this.refresh$.pipe(
@@ -364,6 +415,18 @@ export class KanbanBoardComponent {
   );
 
   readonly epics = toSignal(this.epicsService.getEpics(this.projectId));
+
+  // Derive list of persons who appear in any work item
+  readonly availablePersons = computed((): { id: number; name: string }[] => {
+    const items = this.rawItems()?.items ?? [];
+    const map = new Map<number, string>();
+    for (const wi of items) {
+      for (const a of wi.assignees) {
+        map.set(a.id, a.name);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  });
 
   private readonly effectiveItems = computed(() => {
     const raw = this.rawItems();
@@ -376,29 +439,56 @@ export class KanbanBoardComponent {
 
   readonly columns = computed<KanbanColumn[]>(() => {
     const items = this.effectiveItems();
-    if (!items) return COLUMNS_DEF.map(c => ({ ...c, items: [] }));
+    if (!items) return COLUMNS_DEF.map(c => ({ ...c, items: [], totalPoints: 0 }));
 
     const text = this.filterText().toLowerCase().trim();
     const epicId = this.filterEpicId();
+    const personId = this.filterPersonId();
+    const mine = this.onlyMine();
+    const myId = this.currentUser()?.id ?? null;
 
     let filtered = items;
     if (text) filtered = filtered.filter(i => i.title.toLowerCase().includes(text));
     if (epicId !== null) filtered = filtered.filter(i => i.epicId === epicId);
+    if (personId !== null) filtered = filtered.filter(i => i.assignees.some(a => a.id === personId));
+    if (mine && myId !== null) filtered = filtered.filter(i => i.assignees.some(a => a.id === myId));
 
-    return COLUMNS_DEF.map(col => ({
-      ...col,
-      items: filtered.filter(i => i.status === col.status),
-    }));
+    return COLUMNS_DEF.map(col => {
+      const colItems = filtered.filter(i => i.status === col.status);
+      const totalPoints = colItems.reduce((sum, wi) => sum + (wi.estimationPoints ?? 0), 0);
+      return { ...col, items: colItems, totalPoints };
+    });
   });
 
   readonly totalItems = computed(() => this.effectiveItems()?.length ?? null);
-  readonly isFiltered = computed(() => !!this.filterText() || this.filterEpicId() !== null);
+  readonly isFiltered = computed(() =>
+    !!this.filterText() || this.filterEpicId() !== null ||
+    this.filterPersonId() !== null || this.onlyMine()
+  );
 
   readonly connectedListIds = COLUMNS_DEF.map(c => c.status);
+
+  toggleOnlyMine(checked: boolean): void {
+    this.onlyMine.set(checked);
+    // Clear person filter when enabling "only mine"
+    if (checked) this.filterPersonId.set(null);
+  }
 
   clearFilters(): void {
     this.filterText.set('');
     this.filterEpicId.set(null);
+    this.filterPersonId.set(null);
+    this.onlyMine.set(false);
+  }
+
+  openDrawer(wi: WorkItem): void {
+    this.drawerWorkItem.set(wi);
+  }
+
+  onDrawerChanged(): void {
+    this.refresh$.next();
+    // Close drawer and reopen with updated item (refresh will update rawItems)
+    this.drawerWorkItem.set(null);
   }
 
   priorityColor(priority: string): string {

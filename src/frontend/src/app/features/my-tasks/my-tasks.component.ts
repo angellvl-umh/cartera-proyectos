@@ -6,6 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, Subject, startWith } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
@@ -20,6 +21,9 @@ import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { NzSelectModule } from 'ng-zorro-antd/select';
+import { NzMessageService } from 'ng-zorro-antd/message';
+import { WorkItemsService, WorkItemStatus } from '../projects/workitems.service';
 
 interface MyWorkItemDto {
   id: number; projectId: number; projectTitle: string;
@@ -46,14 +50,18 @@ const PRIORITY_COLORS: Record<string, string> = {
   Low: 'default', Medium: 'processing', High: 'warning', Critical: 'error',
 };
 
+const TERMINAL_STATUSES = ['Done', 'Discarded'];
+const SELECTABLE_STATUSES: WorkItemStatus[] = ['Backlog', 'ToDo', 'InProgress', 'Blocked', 'Done'];
+
 @Component({
   selector: 'app-my-tasks',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    RouterLink, NzCardModule, NzTableModule, NzTagModule, NzButtonModule,
+    RouterLink, FormsModule,
+    NzCardModule, NzTableModule, NzTagModule, NzButtonModule,
     NzIconModule, NzSpinModule, NzTabsModule, NzEmptyModule, NzProgressModule,
-    NzBadgeModule, NzTooltipModule,
+    NzBadgeModule, NzTooltipModule, NzSelectModule,
   ],
   styles: [`
     .header { margin-bottom: 20px; }
@@ -69,6 +77,7 @@ const PRIORITY_COLORS: Record<string, string> = {
     .count-chip.active { border-color: #1890ff; background: #e6f7ff; }
     .count-chip:hover:not(.active) { background: #f5f5f5; }
     .overdue { color: #ff4d4f; font-weight: 600; }
+    .status-select-cell { min-width: 130px; }
   `],
   template: `
     <div class="header">
@@ -85,8 +94,7 @@ const PRIORITY_COLORS: Record<string, string> = {
         <div class="count-chip" [class.active]="activeStatus() === null" (click)="setStatus(null)">
           <span nz-icon nzType="appstore"></span> Todas <strong>{{ data()!.counts.total }}</strong>
         </div>
-        <div class="count-chip" [class.active]="activeStatus() === 'InProgress'" (click)="setStatus('InProgress')"
-          style="border-color:#faad14" [class.active]="activeStatus() === 'InProgress'">
+        <div class="count-chip" [class.active]="activeStatus() === 'InProgress'" (click)="setStatus('InProgress')">
           🟡 En progreso <strong>{{ data()!.counts.inProgress }}</strong>
         </div>
         <div class="count-chip" [class.active]="activeStatus() === 'Blocked'" (click)="setStatus('Blocked')">
@@ -158,8 +166,22 @@ const PRIORITY_COLORS: Record<string, string> = {
                   }
                   @if (!wi.sprintName && !wi.epicTitle) { <span style="color:#bfbfbf">—</span> }
                 </td>
-                <td>
-                  <nz-tag [nzColor]="statusColors[wi.status]">{{ statusLabel(wi.status) }}</nz-tag>
+                <td class="status-select-cell">
+                  @if (isTerminal(wi.status)) {
+                    <nz-tag [nzColor]="statusColors[wi.status]">{{ statusLabel(wi.status) }}</nz-tag>
+                  } @else {
+                    <nz-select
+                      [ngModel]="wi.status"
+                      (ngModelChange)="changeStatus(wi, $event)"
+                      nzBorderless
+                      nzSize="small"
+                      style="width:130px"
+                      [nzLoading]="transitioning()[wi.id]">
+                      @for (s of selectableStatuses; track s) {
+                        <nz-option [nzValue]="s" [nzLabel]="statusLabel(s)" />
+                      }
+                    </nz-select>
+                  }
                 </td>
                 <td>
                   <nz-tag [nzColor]="priorityColors[wi.priority]">{{ wi.priority }}</nz-tag>
@@ -193,9 +215,13 @@ const PRIORITY_COLORS: Record<string, string> = {
 })
 export class MyTasksComponent {
   private readonly http = inject(HttpClient);
+  private readonly workItemsService = inject(WorkItemsService);
+  private readonly message = inject(NzMessageService);
 
   readonly activeStatus = signal<string | null>(null);
   readonly loading = signal(false);
+  /** Track per-item transition loading: Record<workItemId, boolean> */
+  readonly transitioning = signal<Record<number, boolean>>({});
   private readonly refresh$ = new Subject<string | null>();
 
   readonly data = toSignal(
@@ -218,6 +244,7 @@ export class MyTasksComponent {
 
   readonly statusColors = STATUS_COLORS;
   readonly priorityColors = PRIORITY_COLORS;
+  readonly selectableStatuses = SELECTABLE_STATUSES;
 
   setStatus(status: string | null): void {
     this.activeStatus.set(status);
@@ -228,5 +255,28 @@ export class MyTasksComponent {
 
   isOverdue(dateStr: string): boolean {
     return new Date(dateStr) < new Date();
+  }
+
+  isTerminal(status: string): boolean {
+    return TERMINAL_STATUSES.includes(status);
+  }
+
+  changeStatus(wi: MyWorkItemDto, newStatus: WorkItemStatus): void {
+    if (wi.status === newStatus) return;
+
+    this.transitioning.update(t => ({ ...t, [wi.id]: true }));
+
+    this.workItemsService.transitionStatus(wi.projectId, wi.id, newStatus).subscribe({
+      next: () => {
+        this.transitioning.update(t => { const next = { ...t }; delete next[wi.id]; return next; });
+        this.message.success(`Estado → ${STATUS_LABELS[newStatus] ?? newStatus}`);
+        // Reload with current filter to refresh counts
+        this.refresh$.next(this.activeStatus());
+      },
+      error: () => {
+        this.transitioning.update(t => { const next = { ...t }; delete next[wi.id]; return next; });
+        this.message.error('No se pudo cambiar el estado');
+      },
+    });
   }
 }

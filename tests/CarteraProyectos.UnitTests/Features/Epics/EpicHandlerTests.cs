@@ -161,4 +161,46 @@ public class EpicHandlerTests
         result.Items.Count.ShouldBe(2);
         result.Page.ShouldBe(2);
     }
+
+    // --- GetEpics: DoneWorkItemCount ---
+
+    [Fact]
+    public async Task GetEpics_DoneWorkItemCount_ReturnsCorrectCount()
+    {
+        var (db, project) = await DbWithProject();
+        var epic = Epic.Create(project.Id, "Épica con tareas", null, 0, 0);
+        db.Epics.Add(epic);
+        await db.SaveChangesAsync();
+
+        var done1 = WorkItem.Create(project.Id, "Done 1", null, WorkItemPriority.Medium, epic.Id, 0, null, false, null, null);
+        var done2 = WorkItem.Create(project.Id, "Done 2", null, WorkItemPriority.Medium, epic.Id, 0, null, false, null, null);
+        var inProgress = WorkItem.Create(project.Id, "En progreso", null, WorkItemPriority.Medium, epic.Id, 0, null, false, null, null);
+        done1.TransitionStatus(WorkItemStatus.Done);
+        done2.TransitionStatus(WorkItemStatus.Done);
+        inProgress.TransitionStatus(WorkItemStatus.InProgress);
+        db.WorkItems.AddRange(done1, done2, inProgress);
+        await db.SaveChangesAsync();
+
+        var handler = new GetEpicsHandler(db);
+        var result = await handler.Handle(new GetEpicsQuery(project.Id, 1, 10), CancellationToken.None);
+
+        result.Items.Count.ShouldBe(1);
+        result.Items[0].WorkItemCount.ShouldBe(3);
+        result.Items[0].DoneWorkItemCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task GetEpics_DoneWorkItemCount_NoItems_ReturnsZero()
+    {
+        var (db, project) = await DbWithProject();
+        var epic = Epic.Create(project.Id, "Épica vacía", null, 0, 0);
+        db.Epics.Add(epic);
+        await db.SaveChangesAsync();
+
+        var handler = new GetEpicsHandler(db);
+        var result = await handler.Handle(new GetEpicsQuery(project.Id, 1, 10), CancellationToken.None);
+
+        result.Items[0].WorkItemCount.ShouldBe(0);
+        result.Items[0].DoneWorkItemCount.ShouldBe(0);
+    }
 }
