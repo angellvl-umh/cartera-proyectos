@@ -41,9 +41,9 @@ public sealed class TransitionProjectStatusHandler(IAppDbContext db)
                 throw new InvalidOperationException("No se puede finalizar el proyecto: tiene sprints que no están en estado Completed.");
 
             var hasUnfinishedWorkItems = await db.WorkItems.AnyAsync(
-                w => w.ProjectId == project.Id && w.Status != WorkItemStatus.Done, cancellationToken);
+                w => w.ProjectId == project.Id && w.Status != WorkItemStatus.Done && w.Status != WorkItemStatus.Discarded, cancellationToken);
             if (hasUnfinishedWorkItems)
-                throw new InvalidOperationException("No se puede finalizar el proyecto: tiene tareas que no están en estado Done.");
+                throw new InvalidOperationException("No se puede finalizar el proyecto: tiene tareas que no están en estado Done o Discarded.");
         }
 
         project.TransitionTo(request.NewStatus);

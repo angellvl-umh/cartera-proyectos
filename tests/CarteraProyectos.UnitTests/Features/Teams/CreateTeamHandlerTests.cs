@@ -16,13 +16,25 @@ public class CreateTeamHandlerTests
         return new AppDbContext(options);
     }
 
+    private static async Task<(AppDbContext db, Person gestor)> DbWithGestor()
+    {
+        var db = CreateInMemoryContext();
+        var gestor = Person.CreateFromClaims("sub-gestor", "Gestor", "gestor@test.com", PersonRole.Gestor);
+        db.Persons.Add(gestor);
+        await db.SaveChangesAsync();
+        return (db, gestor);
+    }
+
     [Fact]
     public async Task Handle_ValidCommand_CreatesTeamAndReturnsId()
     {
-        await using var db = CreateInMemoryContext();
+        var (db, gestor) = await DbWithGestor();
+        await using var _ = db;
         var handler = new CreateTeamHandler(db);
 
-        var id = await handler.Handle(new CreateTeamCommand("Equipo Alpha", "Descripción", null), CancellationToken.None);
+        var id = await handler.Handle(
+            new CreateTeamCommand("Equipo Alpha", "Descripción", null, gestor.Id),
+            CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
         var team = await db.Teams.FindAsync(id);
@@ -33,20 +45,24 @@ public class CreateTeamHandlerTests
     [Fact]
     public async Task Handle_DuplicateName_ThrowsInvalidOperationException()
     {
-        await using var db = CreateInMemoryContext();
+        var (db, gestor) = await DbWithGestor();
+        await using var _ = db;
         db.Teams.Add(Team.Create("Equipo Alpha", null, null));
         await db.SaveChangesAsync();
 
         var handler = new CreateTeamHandler(db);
 
         await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(new CreateTeamCommand("Equipo Alpha", null, null), CancellationToken.None));
+            () => handler.Handle(
+                new CreateTeamCommand("Equipo Alpha", null, null, gestor.Id),
+                CancellationToken.None));
     }
 
     [Fact]
     public async Task Handle_DesarrolladorAsLead_ThrowsInvalidOperationException()
     {
-        await using var db = CreateInMemoryContext();
+        var (db, gestor) = await DbWithGestor();
+        await using var _ = db;
         var dev = Person.CreateFromClaims("sub-1", "Dev User", "dev@test.com", PersonRole.Desarrollador);
         db.Persons.Add(dev);
         await db.SaveChangesAsync();
@@ -54,20 +70,25 @@ public class CreateTeamHandlerTests
         var handler = new CreateTeamHandler(db);
 
         await Should.ThrowAsync<InvalidOperationException>(
-            () => handler.Handle(new CreateTeamCommand("Nuevo Equipo", null, dev.Id), CancellationToken.None));
+            () => handler.Handle(
+                new CreateTeamCommand("Nuevo Equipo", null, dev.Id, gestor.Id),
+                CancellationToken.None));
     }
 
     [Fact]
     public async Task Handle_JefeEquipoAsLead_CreatesTeamSuccessfully()
     {
-        await using var db = CreateInMemoryContext();
+        var (db, gestor) = await DbWithGestor();
+        await using var _ = db;
         var jefe = Person.CreateFromClaims("sub-2", "Jefe User", "jefe@test.com", PersonRole.JefeEquipo);
         db.Persons.Add(jefe);
         await db.SaveChangesAsync();
 
         var handler = new CreateTeamHandler(db);
 
-        var id = await handler.Handle(new CreateTeamCommand("Equipo Beta", null, jefe.Id), CancellationToken.None);
+        var id = await handler.Handle(
+            new CreateTeamCommand("Equipo Beta", null, jefe.Id, gestor.Id),
+            CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
     }

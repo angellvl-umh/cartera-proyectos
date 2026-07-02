@@ -6,7 +6,8 @@ public enum WorkItemStatus
     ToDo,
     InProgress,
     Blocked,
-    Done
+    Done,
+    Discarded
 }
 
 public enum WorkItemPriority
@@ -84,8 +85,8 @@ public class WorkItem
 
     public void TransitionStatus(WorkItemStatus newStatus)
     {
-        if (Status == WorkItemStatus.Done)
-            throw new InvalidOperationException("Una tarea Done es terminal. Crea una nueva tarea para reabrirla.");
+        if (Status == WorkItemStatus.Done || Status == WorkItemStatus.Discarded)
+            throw new InvalidOperationException("Una tarea en estado Done o Discarded es terminal. Crea una nueva tarea para reabrirla.");
 
         Status = newStatus;
     }

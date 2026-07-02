@@ -78,7 +78,7 @@ public sealed class GetPersonProfileHandler(IAppDbContext db)
             Projects:   byProject);
 
         var activeTasks = myWorkItems
-            .Where(w => w.Status != WorkItemStatus.Done && w.Status != WorkItemStatus.Backlog)
+            .Where(w => w.Status != WorkItemStatus.Done && w.Status != WorkItemStatus.Discarded && w.Status != WorkItemStatus.Backlog)
             .OrderBy(w => w.Priority == WorkItemPriority.Critical ? 0
                         : w.Priority == WorkItemPriority.High ? 1
                         : w.Priority == WorkItemPriority.Medium ? 2 : 3)

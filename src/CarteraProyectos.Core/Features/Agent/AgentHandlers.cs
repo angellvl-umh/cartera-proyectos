@@ -207,7 +207,7 @@ public sealed class AgentGetProjectDetailHandler(IAppDbContext db)
             .ToListAsync(ct);
 
         var pendingTasks = await db.WorkItems
-            .Where(w => w.ProjectId == request.ProjectId && w.Status != WorkItemStatus.Done)
+            .Where(w => w.ProjectId == request.ProjectId && w.Status != WorkItemStatus.Done && w.Status != WorkItemStatus.Discarded)
             .OrderBy(w => w.Priority == WorkItemPriority.Critical ? 0 : w.Priority == WorkItemPriority.High ? 1 : 2)
             .Take(20)
             .Select(w => new AgentTaskSummaryDto(

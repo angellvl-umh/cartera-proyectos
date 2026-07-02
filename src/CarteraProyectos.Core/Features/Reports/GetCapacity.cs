@@ -24,6 +24,7 @@ public sealed class GetCapacityHandler(IAppDbContext db)
 {
     public async Task<IReadOnlyList<TeamCapacityDto>> Handle(GetCapacityQuery _, CancellationToken ct)
     {
+        // Cargar equipos con sus relaciones (teams, lead, members, projects)
         var teams = await db.Teams
             .Include(t => t.Lead)
             .Include(t => t.Members).ThenInclude(m => m.Person)
@@ -40,6 +41,20 @@ public sealed class GetCapacityHandler(IAppDbContext db)
             ProjectStatus.InTesting,
         };
 
+        // Query única: agregación de conteos por (PersonId, WorkItemStatus)
+        var taskCountsByPerson = await db.WorkItems
+            .SelectMany(w => w.Assignees.Select(a => new { PersonId = a.Id, w.Status }))
+            .GroupBy(x => new { x.PersonId, x.Status })
+            .Select(g => new { g.Key.PersonId, g.Key.Status, Count = g.Count() })
+            .ToListAsync(ct);
+
+        // Construir diccionario para acceso O(1): personId → { status → count }
+        var countsDict = taskCountsByPerson
+            .GroupBy(x => x.PersonId)
+            .ToDictionary(
+                grp => grp.Key,
+                grp => grp.ToDictionary(x => x.Status, x => x.Count));
+
         var result = new List<TeamCapacityDto>();
 
         foreach (var team in teams)
@@ -54,17 +69,16 @@ public sealed class GetCapacityHandler(IAppDbContext db)
                 var person = membership.Person;
                 if (person is null) continue;
 
-                var activeTasks = await db.WorkItems.CountAsync(w =>
-                    w.Assignees.Any(a => a.Id == person.Id) &&
-                    (w.Status == WorkItemStatus.InProgress || w.Status == WorkItemStatus.Blocked), ct);
+                // Obtener conteos del diccionario; por defecto 0 si no hay tareas
+                var statusCounts = countsDict.TryGetValue(person.Id, out var counts) ? counts : new Dictionary<WorkItemStatus, int>();
 
-                var pendingTasks = await db.WorkItems.CountAsync(w =>
-                    w.Assignees.Any(a => a.Id == person.Id) &&
-                    (w.Status == WorkItemStatus.ToDo || w.Status == WorkItemStatus.Backlog), ct);
+                var activeTasks = (statusCounts.TryGetValue(WorkItemStatus.InProgress, out var inProg) ? inProg : 0) +
+                                  (statusCounts.TryGetValue(WorkItemStatus.Blocked, out var blocked) ? blocked : 0);
 
-                var doneTasks = await db.WorkItems.CountAsync(w =>
-                    w.Assignees.Any(a => a.Id == person.Id) &&
-                    w.Status == WorkItemStatus.Done, ct);
+                var pendingTasks = (statusCounts.TryGetValue(WorkItemStatus.ToDo, out var todo) ? todo : 0) +
+                                   (statusCounts.TryGetValue(WorkItemStatus.Backlog, out var backlog) ? backlog : 0);
+
+                var doneTasks = statusCounts.TryGetValue(WorkItemStatus.Done, out var done) ? done : 0;
 
                 var loadLevel = activeTasks <= 3 ? "Green" : activeTasks <= 6 ? "Yellow" : "Red";
 

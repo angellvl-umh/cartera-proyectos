@@ -56,7 +56,7 @@ public sealed class GetMyWorkItemsHandler(IAppDbContext db)
         };
 
         var items = await baseQuery
-            .OrderBy(w => w.Status == WorkItemStatus.Done ? 1 : 0)
+            .OrderBy(w => (w.Status == WorkItemStatus.Done || w.Status == WorkItemStatus.Discarded) ? 1 : 0)
             .ThenBy(w => w.Priority == WorkItemPriority.Critical ? 0
                        : w.Priority == WorkItemPriority.High ? 1
                        : w.Priority == WorkItemPriority.Medium ? 2 : 3)
