@@ -86,7 +86,7 @@ public static class DataSeeder
                 prev, null,
                 prom[pr].Id, unit[ou].Id, uor,
                 gp, sg, D(date), specs, epic);
-            if (st != Stopped) p.TransitionTo(st);
+            if (st != Stopped) p.SetStatusDirectly(st);
             db.Projects.Add(p);
         }
 

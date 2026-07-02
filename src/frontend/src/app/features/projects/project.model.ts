@@ -147,6 +147,7 @@ export interface Project {
   promoterId: number | null;
   promoterName: string | null;
   estimatedBudget: number | null;
+  businessValue: number | null;
   tags: TagDto[];
 }
 
@@ -168,6 +169,7 @@ export interface ProjectDetail extends Project {
   specificationsUrl: string | null;
   epicUrl: string | null;
   tags: TagDto[];
+  allowedNextStatuses: ProjectStatus[];
 }
 
 export interface CreateProjectDto {
@@ -189,7 +191,72 @@ export interface CreateProjectDto {
   specificationsUrl?: string | null;
   epicUrl?: string | null;
   estimatedBudget?: number | null;
+  businessValue?: number | null;
   tagIds?: number[];
+}
+
+// ── Risks ──────────────────────────────────────────────────────────────────────
+
+export type RiskLevel = 'Low' | 'Medium' | 'High';
+export type RiskStatus = 'Open' | 'Mitigated' | 'Closed';
+
+export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
+  Low: 'Baja',
+  Medium: 'Media',
+  High: 'Alta',
+};
+
+export const RISK_STATUS_LABELS: Record<RiskStatus, string> = {
+  Open: 'Abierto',
+  Mitigated: 'Mitigado',
+  Closed: 'Cerrado',
+};
+
+export const RISK_STATUS_COLORS: Record<RiskStatus, string> = {
+  Open: 'error',
+  Mitigated: 'warning',
+  Closed: 'default',
+};
+
+export interface ProjectRiskDto {
+  id: number;
+  projectId: number;
+  description: string;
+  probability: RiskLevel;
+  impact: RiskLevel;
+  mitigationPlan: string | null;
+  status: RiskStatus;
+  severity: number;
+  createdById: number;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRiskDto {
+  description: string;
+  probability: RiskLevel;
+  impact: RiskLevel;
+  mitigationPlan?: string | null;
+}
+
+export interface UpdateRiskDto extends CreateRiskDto {
+  status: RiskStatus;
+}
+
+// ── Dependencies ───────────────────────────────────────────────────────────────
+
+export interface DependencyItemDto {
+  dependencyId: number;
+  projectId: number;
+  projectTitle: string;
+  projectStatus: string;
+  description: string | null;
+}
+
+export interface ProjectDependenciesDto {
+  dependsOn: DependencyItemDto[];
+  dependents: DependencyItemDto[];
 }
 
 export type UpdateProjectDto = CreateProjectDto;

@@ -33,6 +33,7 @@ public record ProjectListDto(
     string? SiptGroup,
     int? PromoterId,
     string? PromoterName,
+    int? BusinessValue,
     List<TagDto> Tags);
 
 public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetProjectsQuery, PagedResult<ProjectListDto>>
@@ -92,6 +93,7 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
                 p.PortfolioYear, p.StartDate, p.EndDate,
                 p.GroupPriority, p.SiptGroup?.ToString(),
                 p.PromoterId, p.Promoter?.Name,
+                p.BusinessValue,
                 p.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList())).ToList(),
             total, page, pageSize);
     }

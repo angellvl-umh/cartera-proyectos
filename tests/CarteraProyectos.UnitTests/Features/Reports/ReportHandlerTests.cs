@@ -26,8 +26,26 @@ public class ReportHandlerTests
     private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.Stopped)
     {
         var p = Project.Create(title, null, "TIC", ProjectComplexity.VerySmall, 2026, null, null);
-        if (status != ProjectStatus.Stopped) p.TransitionTo(status);
+        AdvanceProjectTo(p, status);
         return p;
+    }
+
+    /// <summary>Avanza el proyecto por rutas válidas hasta el estado deseado (solo para tests).</summary>
+    private static void AdvanceProjectTo(Project p, ProjectStatus target)
+    {
+        // Ruta canónica: Stopped → PlanningWithClient → PlanningSprint → InSprint → InTesting → Completed
+        var path = new[]
+        {
+            ProjectStatus.Stopped,
+            ProjectStatus.PlanningWithClient,
+            ProjectStatus.PlanningSprint,
+            ProjectStatus.InSprint,
+            ProjectStatus.InTesting,
+            ProjectStatus.Completed,
+        };
+        var idx = Array.IndexOf(path, target);
+        for (var i = 1; i <= idx; i++)
+            p.TransitionTo(path[i]);
     }
 
     private static async Task<(AppDbContext db, Person person, Project project, Team team)> SeedPersonInTeamWithProject(
@@ -448,5 +466,176 @@ public class ReportHandlerTests
 
         result[0].TeamName.ShouldBe("Alpha Team");
         result[1].TeamName.ShouldBe("Zebra Team");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GetCapacity extended tests (N+1 fix)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetCapacity_MemberWithNoTasks_AllCountsAreZero()
+    {
+        await using var db = CreateDb();
+        var person = MakePerson("NoTasks");
+        var team = Team.Create("Empty Team", null, null);
+
+        db.Persons.Add(person);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person.Id, team.Id));
+        await db.SaveChangesAsync();
+
+        var handler = new GetCapacityHandler(db);
+        var result = await handler.Handle(new GetCapacityQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(1);
+        result[0].Members.Count.ShouldBe(1);
+        var member = result[0].Members[0];
+        member.ActiveTasks.ShouldBe(0);
+        member.PendingTasks.ShouldBe(0);
+        member.DoneTasks.ShouldBe(0);
+        member.LoadLevel.ShouldBe("Green");
+    }
+
+    [Fact]
+    public async Task GetCapacity_TwoTeamsMultipleMembersVariousStates_CountsCorrect()
+    {
+        await using var db = CreateDb();
+
+        // 3 people in 1 team with different active task counts
+        var person1 = MakePerson("Person1");
+        var person2 = MakePerson("Person2");
+        var person3 = MakePerson("Person3");
+        var team = Team.Create("Team", null, null);
+        var proj = MakeProject("Project", ProjectStatus.InSprint);
+
+        db.Persons.AddRange(person1, person2, person3);
+        db.Teams.Add(team);
+        db.Projects.Add(proj);
+        await db.SaveChangesAsync();
+
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person1.Id, team.Id));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person2.Id, team.Id));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person3.Id, team.Id));
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(proj.Id, team.Id, isPrimary: true));
+        await db.SaveChangesAsync();
+
+        // Person1: 5 InProgress → Yellow
+        for (var i = 0; i < 5; i++)
+            db.WorkItems.Add(MakeWorkItem(proj.Id, person1, WorkItemStatus.InProgress));
+        
+        // Person2: 1 InProgress → Green
+        db.WorkItems.Add(MakeWorkItem(proj.Id, person2, WorkItemStatus.InProgress));
+        
+        // Person3: 3 InProgress → Green
+        for (var i = 0; i < 3; i++)
+            db.WorkItems.Add(MakeWorkItem(proj.Id, person3, WorkItemStatus.InProgress));
+        
+        await db.SaveChangesAsync();
+
+        var handler = new GetCapacityHandler(db);
+        var result = await handler.Handle(new GetCapacityQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(1);
+        var teamDto = result[0];
+        teamDto.Members.Count.ShouldBe(3);
+
+        // Should be ordered by ActiveTasks descending: 5, 3, 1
+        teamDto.Members[0].ActiveTasks.ShouldBe(5);
+        teamDto.Members[0].LoadLevel.ShouldBe("Yellow");
+
+        teamDto.Members[1].ActiveTasks.ShouldBe(3);
+        teamDto.Members[1].LoadLevel.ShouldBe("Green");
+
+        teamDto.Members[2].ActiveTasks.ShouldBe(1);
+        teamDto.Members[2].LoadLevel.ShouldBe("Green");
+    }
+
+    [Fact]
+    public async Task GetCapacity_PersonInTwoTeams_ShowsInBothWithSameTaskCounts()
+    {
+        await using var db = CreateDb();
+
+        var person = MakePerson("CrossTeam");
+        var team1 = Team.Create("Team Alpha", null, null);
+        var team2 = Team.Create("Team Beta", null, null);
+
+        db.Persons.Add(person);
+        db.Teams.AddRange(team1, team2);
+        await db.SaveChangesAsync();
+
+        // Add person to both teams
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person.Id, team1.Id));
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person.Id, team2.Id));
+        await db.SaveChangesAsync();
+
+        // Project for tasks (assigned to team1)
+        var project = MakeProject("Shared", ProjectStatus.InSprint);
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team1.Id, isPrimary: true));
+        await db.SaveChangesAsync();
+
+        // 3 InProgress tasks (all assigned to person)
+        for (var i = 0; i < 3; i++)
+            db.WorkItems.Add(MakeWorkItem(project.Id, person, WorkItemStatus.InProgress));
+        await db.SaveChangesAsync();
+
+        var handler = new GetCapacityHandler(db);
+        var result = await handler.Handle(new GetCapacityQuery(), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+
+        // Both teams should show same person with same task counts
+        var inTeamAlpha = result.First(t => t.TeamName == "Team Alpha").Members.First(m => m.PersonId == person.Id);
+        var inTeamBeta = result.First(t => t.TeamName == "Team Beta").Members.First(m => m.PersonId == person.Id);
+
+        inTeamAlpha.ActiveTasks.ShouldBe(3);
+        inTeamAlpha.LoadLevel.ShouldBe("Green");
+
+        inTeamBeta.ActiveTasks.ShouldBe(3);
+        inTeamBeta.LoadLevel.ShouldBe("Green");
+    }
+
+    [Fact]
+    public async Task GetCapacity_DiscardedStatus_NotCountedInAnyCategory()
+    {
+        await using var db = CreateDb();
+
+        var person = MakePerson("DiscardTest");
+        var project = MakeProject("DiscardProject", ProjectStatus.InSprint);
+        var team = Team.Create("Test Team", null, null);
+
+        db.Persons.Add(person);
+        db.Projects.Add(project);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        db.PersonTeamMemberships.Add(PersonTeamMembership.Create(person.Id, team.Id));
+        db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, isPrimary: true));
+        await db.SaveChangesAsync();
+
+        // 2 InProgress, 1 Discarded, 1 Done
+        var inprog1 = MakeWorkItem(project.Id, person, WorkItemStatus.InProgress);
+        var inprog2 = MakeWorkItem(project.Id, person, WorkItemStatus.InProgress);
+
+        var discarded = WorkItem.Create(project.Id, "Discarded", null, WorkItemPriority.Low, null, 3, null, false, null, null);
+        discarded.TransitionStatus(WorkItemStatus.Discarded);
+        ((List<Person>)discarded.Assignees).Add(person);
+
+        var done = MakeWorkItem(project.Id, person, WorkItemStatus.Done);
+
+        db.WorkItems.AddRange(inprog1, inprog2, discarded, done);
+        await db.SaveChangesAsync();
+
+        var handler = new GetCapacityHandler(db);
+        var result = await handler.Handle(new GetCapacityQuery(), CancellationToken.None);
+
+        var member = result[0].Members[0];
+        member.ActiveTasks.ShouldBe(2); // Only InProgress, not Discarded
+        member.PendingTasks.ShouldBe(0);
+        member.DoneTasks.ShouldBe(1); // Only Done, not Discarded
     }
 }

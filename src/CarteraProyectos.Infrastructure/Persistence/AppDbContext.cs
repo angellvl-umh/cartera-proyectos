@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ProjectNote> ProjectNotes => Set<ProjectNote>();
     public DbSet<ProjectWeeklyUpdate> ProjectWeeklyUpdates => Set<ProjectWeeklyUpdate>();
     public DbSet<AgentActionLog> AgentActionLogs => Set<AgentActionLog>();
+    public DbSet<ProjectRisk> ProjectRisks => Set<ProjectRisk>();
+    public DbSet<ProjectDependency> ProjectDependencies => Set<ProjectDependency>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +78,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(n => n.ProjectId).OnDelete(DeleteBehavior.Cascade);
             e.HasMany(p => p.WeeklyUpdates).WithOne(w => w.Project)
                 .HasForeignKey(w => w.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.Risks).WithOne(r => r.Project)
+                .HasForeignKey(r => r.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.Dependencies).WithOne(d => d.Project)
+                .HasForeignKey(d => d.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ProjectTeamAssignment>(e =>
@@ -197,6 +203,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(a => a.Id);
             e.Property(a => a.ActionName).IsRequired().HasMaxLength(200);
             e.Property(a => a.Payload).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<ProjectRisk>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Description).IsRequired().HasMaxLength(500);
+            e.Property(r => r.MitigationPlan).HasMaxLength(1000);
+            e.Property(r => r.Probability).HasConversion<string>();
+            e.Property(r => r.Impact).HasConversion<string>();
+            e.Property(r => r.Status).HasConversion<string>();
+            e.Ignore(r => r.Severity); // propiedad calculada, no persistida
+            e.HasOne(r => r.CreatedBy).WithMany()
+                .HasForeignKey(r => r.CreatedById).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(r => r.ProjectId);
+        });
+
+        modelBuilder.Entity<ProjectDependency>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Description).HasMaxLength(500);
+            e.HasIndex(d => new { d.ProjectId, d.DependsOnProjectId }).IsUnique();
+            e.HasOne(d => d.Project)
+                .WithMany(p => p.Dependencies)
+                .HasForeignKey(d => d.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(d => d.DependsOnProject)
+                .WithMany()
+                .HasForeignKey(d => d.DependsOnProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

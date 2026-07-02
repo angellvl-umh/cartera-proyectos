@@ -23,6 +23,8 @@ public interface IAppDbContext
     DbSet<ProjectNote> ProjectNotes { get; }
     DbSet<ProjectWeeklyUpdate> ProjectWeeklyUpdates { get; }
     DbSet<AgentActionLog> AgentActionLogs { get; }
+    DbSet<ProjectRisk> ProjectRisks { get; }
+    DbSet<ProjectDependency> ProjectDependencies { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

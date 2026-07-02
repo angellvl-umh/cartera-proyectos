@@ -14,7 +14,9 @@ public record ProjectReportDto(
     IReadOnlyList<EpicReportDto> Epics,
     IReadOnlyList<MilestoneDto> MilestonesReached,
     IReadOnlyList<MilestoneDto> MilestonesUpcoming,
-    IReadOnlyList<SprintReportDto> Sprints);
+    IReadOnlyList<SprintReportDto> Sprints,
+    IReadOnlyList<ProjectRiskSummaryDto> OpenRisks,
+    IReadOnlyList<string> DependsOnTitles);
 
 public record EpicReportDto(int Id, string Title, int TotalWorkItems, int DoneWorkItems);
 
@@ -25,6 +27,9 @@ public record MilestoneDto(
 public record SprintReportDto(
     int Id, string Name, string Status,
     int TotalWorkItems, int DoneWorkItems, int TotalPoints);
+
+public record ProjectRiskSummaryDto(
+    int Id, string Description, string Probability, string Impact, int Severity);
 
 public sealed class GetProjectReportHandler(IAppDbContext db)
     : IRequestHandler<GetProjectReportQuery, ProjectReportDto>
@@ -65,12 +70,30 @@ public sealed class GetProjectReportHandler(IAppDbContext db)
                 s.WorkItems.Sum(w => w.EstimationPoints ?? 0)))
             .ToListAsync(ct);
 
+        // Riesgos abiertos ordenados por Severity desc
+        var openRisks = await db.ProjectRisks
+            .Where(r => r.ProjectId == request.ProjectId && r.Status == RiskStatus.Open)
+            .OrderByDescending(r => ((int)r.Probability + 1) * ((int)r.Impact + 1))
+            .Select(r => new ProjectRiskSummaryDto(
+                r.Id, r.Description,
+                r.Probability.ToString(), r.Impact.ToString(),
+                ((int)r.Probability + 1) * ((int)r.Impact + 1)))
+            .ToListAsync(ct);
+
+        // Títulos de proyectos de los que depende éste
+        var dependsOnTitles = await db.ProjectDependencies
+            .Include(d => d.DependsOnProject)
+            .Where(d => d.ProjectId == request.ProjectId)
+            .OrderBy(d => d.DependsOnProject!.Title)
+            .Select(d => d.DependsOnProject!.Title)
+            .ToListAsync(ct);
+
         return new ProjectReportDto(
             project.Id, project.Title, project.Status.ToString(), project.RequestingUnit,
             project.StartDate?.ToString(), project.EndDate?.ToString(),
             totalWi, doneWi, epics,
             allMilestones.Where(m => m.Status == "Done").ToList(),
             allMilestones.Where(m => m.Status != "Done").ToList(),
-            sprints);
+            sprints, openRisks, dependsOnTitles);
     }
 }

@@ -37,12 +37,13 @@ public class TransitionProjectStatusHandlerTests
         await using var _ = db;
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.InSprint, gestor.Id);
+        // Stopped → PlanningWithClient es una transición válida
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, gestor.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
 
         var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.InSprint);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningWithClient);
     }
 
     [Fact]
@@ -52,6 +53,15 @@ public class TransitionProjectStatusHandlerTests
         await using var _ = db;
 
         var handler = new TransitionProjectStatusHandler(db);
+
+        // Avanzar por ruta válida hasta InTesting: Stopped → PlanningWithClient → InTesting no es directo.
+        // Ruta: Stopped → PlanningWithClient → PlanningSprint → InSprint → InTesting → Completed
+        project.TransitionTo(ProjectStatus.PlanningWithClient);
+        project.TransitionTo(ProjectStatus.PlanningSprint);
+        project.TransitionTo(ProjectStatus.InSprint);
+        project.TransitionTo(ProjectStatus.InTesting);
+        await db.SaveChangesAsync();
+
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
@@ -65,6 +75,13 @@ public class TransitionProjectStatusHandlerTests
     {
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
+
+        // Avanzar a InTesting (estado previo a Completed) por ruta válida
+        project.TransitionTo(ProjectStatus.PlanningWithClient);
+        project.TransitionTo(ProjectStatus.PlanningSprint);
+        project.TransitionTo(ProjectStatus.InSprint);
+        project.TransitionTo(ProjectStatus.InTesting);
+
         db.Sprints.Add(Sprint.Create(project.Id, "Sprint 1", null, null, null, null));
         await db.SaveChangesAsync();
 
@@ -80,6 +97,13 @@ public class TransitionProjectStatusHandlerTests
     {
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
+
+        // Avanzar a InTesting (estado previo a Completed) por ruta válida
+        project.TransitionTo(ProjectStatus.PlanningWithClient);
+        project.TransitionTo(ProjectStatus.PlanningSprint);
+        project.TransitionTo(ProjectStatus.InSprint);
+        project.TransitionTo(ProjectStatus.InTesting);
+
         db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea", null, WorkItemPriority.Medium, null, 0, null, false, null, null));
         await db.SaveChangesAsync();
 
@@ -160,12 +184,13 @@ public class TransitionProjectStatusHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, jefe.Id);
+        // Stopped → PlanningWithClient es una transición válida
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
 
         var updated = await db.Projects.FindAsync(project.Id);
-        updated!.Status.ShouldBe(ProjectStatus.PlanningSprint);
+        updated!.Status.ShouldBe(ProjectStatus.PlanningWithClient);
     }
 
     [Fact]
@@ -193,7 +218,8 @@ public class TransitionProjectStatusHandlerTests
         await db.SaveChangesAsync();
 
         var handler = new TransitionProjectStatusHandler(db);
-        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, jefe.Id);
+        // Stopped → PlanningWithClient es una transición válida (el JefeEquipo no lider no puede hacerla)
+        var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(cmd, CancellationToken.None));

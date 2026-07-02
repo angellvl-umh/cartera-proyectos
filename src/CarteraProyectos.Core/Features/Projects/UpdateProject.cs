@@ -27,6 +27,7 @@ public record UpdateProjectCommand(
     string? SpecificationsUrl = null,
     string? EpicUrl = null,
     decimal? EstimatedBudget = null,
+    int? BusinessValue = null,
     IReadOnlyList<int>? TagIds = null) : IRequest;
 
 public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectCommand>
@@ -39,6 +40,7 @@ public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectComm
         RuleFor(x => x.GroupPriority).InclusiveBetween(1, 5).When(x => x.GroupPriority.HasValue);
         RuleFor(x => x.SpecificationsUrl).MaximumLength(500).When(x => x.SpecificationsUrl is not null);
         RuleFor(x => x.EpicUrl).MaximumLength(500).When(x => x.EpicUrl is not null);
+        RuleFor(x => x.BusinessValue).InclusiveBetween(1, 5).When(x => x.BusinessValue.HasValue);
     }
 }
 
@@ -66,7 +68,7 @@ public sealed class UpdateProjectHandler(IAppDbContext db) : IRequestHandler<Upd
             request.PromoterId, request.OrganicUnitId, request.UorOrder,
             request.GroupPriority, request.SiptGroup,
             request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl,
-            request.EstimatedBudget);
+            request.EstimatedBudget, request.BusinessValue);
 
         if (request.TagIds is not null)
         {

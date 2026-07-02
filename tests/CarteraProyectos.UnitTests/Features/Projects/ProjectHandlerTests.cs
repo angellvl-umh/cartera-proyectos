@@ -131,6 +131,9 @@ public class ProjectHandlerTests
         var project = Project.Create("Activo", null, "TIC", ProjectComplexity.VerySmall, null, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
+        // Ruta válida: Stopped → PlanningWithClient → PlanningSprint → InSprint
+        project.TransitionTo(ProjectStatus.PlanningWithClient);
+        project.TransitionTo(ProjectStatus.PlanningSprint);
         project.TransitionTo(ProjectStatus.InSprint);
         await db.SaveChangesAsync();
 

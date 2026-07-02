@@ -24,8 +24,27 @@ public class GetWeeklyPortfolioReportHandlerTests
     private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.InSprint, int? year = 2026, SiptGroup? siptGroup = null)
     {
         var p = Project.Create(title, null, "TIC", ProjectComplexity.VerySmall, year, null, null, siptGroup: siptGroup);
-        if (status != ProjectStatus.Stopped) p.TransitionTo(status);
+        AdvanceProjectTo(p, status);
         return p;
+    }
+
+    /// <summary>Avanza el proyecto por rutas válidas hasta el estado deseado (solo para tests).</summary>
+    private static void AdvanceProjectTo(Project p, ProjectStatus target)
+    {
+        if (target == ProjectStatus.Stopped) return;
+        // Ruta canónica: Stopped → PlanningWithClient → PlanningSprint → InSprint → InTesting → Completed
+        var path = new[]
+        {
+            ProjectStatus.Stopped,
+            ProjectStatus.PlanningWithClient,
+            ProjectStatus.PlanningSprint,
+            ProjectStatus.InSprint,
+            ProjectStatus.InTesting,
+            ProjectStatus.Completed,
+        };
+        var idx = Array.IndexOf(path, target);
+        for (var i = 1; i <= idx; i++)
+            p.TransitionTo(path[i]);
     }
 
     private static ProjectWeeklyUpdate MakeUpdate(int projectId, int authorId, ProjectHealthStatus healthStatus, DateOnly? weekOf = null)

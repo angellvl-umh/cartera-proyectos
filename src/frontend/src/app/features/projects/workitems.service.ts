@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-export type WorkItemStatus = 'Backlog' | 'ToDo' | 'InProgress' | 'Blocked' | 'Done';
+export type WorkItemStatus = 'Backlog' | 'ToDo' | 'InProgress' | 'Blocked' | 'Done' | 'Discarded';
 export type WorkItemPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type WorkItemType = 'Task' | 'UserStory';
 export const WORK_ITEM_TYPE_LABELS: Record<WorkItemType, string> = { Task: 'Tarea', UserStory: 'Historia de usuario' };

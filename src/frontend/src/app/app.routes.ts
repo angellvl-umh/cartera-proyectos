@@ -44,6 +44,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/capacity/capacity.component').then(m => m.CapacityComponent),
   },
   {
+    path: 'capacity/forecast',
+    canActivate: [AutoLoginPartialRoutesGuard],
+    loadComponent: () => import('./features/capacity/capacity-forecast.component').then(m => m.CapacityForecastComponent),
+  },
+  {
+    path: 'roadmap',
+    canActivate: [AutoLoginPartialRoutesGuard],
+    loadComponent: () => import('./features/roadmap/roadmap.component').then(m => m.RoadmapComponent),
+  },
+  {
     path: 'admin',
     canActivate: [AutoLoginPartialRoutesGuard],
     loadChildren: () => import('./features/admin/admin.routes').then(m => m.adminRoutes),

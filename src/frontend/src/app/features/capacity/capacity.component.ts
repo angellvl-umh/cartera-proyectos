@@ -3,6 +3,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { NzCardModule } from 'ng-zorro-antd/card';
@@ -14,6 +15,7 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { NzBadgeModule } from 'ng-zorro-antd/badge';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
+import { NzButtonModule } from 'ng-zorro-antd/button';
 
 interface MemberCapacity {
   personId: number; name: string; role: string;
@@ -37,6 +39,7 @@ const ROLE_LABELS: Record<string, string> = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink, NzButtonModule,
     NzCardModule, NzTagModule, NzIconModule, NzSpinModule, NzEmptyModule,
     NzProgressModule, NzTooltipModule, NzBadgeModule, NzDividerModule,
   ],
@@ -69,9 +72,14 @@ const ROLE_LABELS: Record<string, string> = {
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
   `],
   template: `
-    <div class="header">
-      <h2><span nz-icon nzType="team" style="color:#1890ff;margin-right:8px"></span>Capacidad de equipos</h2>
-      <p>Carga de trabajo actual por equipo y persona</p>
+    <div class="header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <h2><span nz-icon nzType="team" style="color:#1890ff;margin-right:8px"></span>Capacidad de equipos</h2>
+        <p>Carga de trabajo actual por equipo y persona</p>
+      </div>
+      <a routerLink="/capacity/forecast" nz-button nzType="primary">
+        <span nz-icon nzType="line-chart"></span> Previsión anual →
+      </a>
     </div>
 
     <!-- Leyenda -->

@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -22,6 +23,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzModalModule } from 'ng-zorro-antd/modal';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzFormModule } from 'ng-zorro-antd/form';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
@@ -29,12 +31,15 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzListModule } from 'ng-zorro-antd/list';
 import { NzAvatarModule } from 'ng-zorro-antd/avatar';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
+import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { HttpClient } from '@angular/common/http';
 import { ProjectsService } from '../projects.service';
 import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
 import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority, WorkItemType, WORK_ITEM_TYPE_LABELS, WorkItemStatusHistoryEntry } from '../workitems.service';
 import { SprintService, Sprint, CreateSprintDto, SprintStatusHistoryEntry } from '../sprint.service';
 import { CommentsService, CommentDto } from '../comments.service';
+import { RisksService } from '../risks.service';
 import {
   PROJECT_HEALTH_STATUS_COLORS,
   PROJECT_HEALTH_STATUS_LABELS,
@@ -46,6 +51,16 @@ import {
   ProjectTeam,
   ProjectWeeklyUpdateDto,
   UpsertWeeklyUpdateDto,
+  ProjectRiskDto,
+  ProjectDependenciesDto,
+  DependencyItemDto,
+  RiskLevel,
+  RiskStatus,
+  RISK_LEVEL_LABELS,
+  RISK_STATUS_LABELS,
+  RISK_STATUS_COLORS,
+  CreateRiskDto,
+  UpdateRiskDto,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
@@ -57,6 +72,7 @@ const STATUS_COLORS: Record<WorkItemStatus, string> = {
   InProgress: 'processing',
   Blocked: 'error',
   Done: 'success',
+  Discarded: 'default',
 };
 
 const STATUS_LABELS: Record<WorkItemStatus, string> = {
@@ -65,6 +81,7 @@ const STATUS_LABELS: Record<WorkItemStatus, string> = {
   InProgress: 'En curso',
   Blocked: 'Bloqueada',
   Done: 'Hecho',
+  Discarded: 'Descartada',
 };
 
 const PRIORITY_COLORS: Record<WorkItemPriority, string> = {
@@ -90,7 +107,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
     NzPopconfirmModule, NzSpaceModule, NzDividerModule, NzIconModule,
     NzSpinModule, NzTabsModule, NzTagModule, NzModalModule, NzFormModule,
     NzInputModule, NzInputNumberModule, NzSelectModule, NzDatePickerModule,
-    NzListModule, NzAvatarModule,
+    NzListModule, NzAvatarModule, NzRadioModule, NzEmptyModule,
     RouterLink, ProjectStatusBadgeComponent, ComplexityIndicatorComponent, ProjectFormComponent,
   ],
   template: `
@@ -121,8 +138,10 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
           <nz-space>
             <nz-select *nzSpaceItem [ngModel]="project()!.status"
               (ngModelChange)="transition($event)"
-              style="width:220px" nzPlaceHolder="Cambiar estado">
-              @for (opt of statusOptions; track opt.value) {
+              style="width:220px" nzPlaceHolder="Cambiar estado"
+              [nzDisabled]="project()!.allowedNextStatuses.length === 0">
+              <nz-option [nzValue]="project()!.status" [nzLabel]="statusOptionLabel(project()!.status)" [nzDisabled]="true" />
+              @for (opt of allowedStatusOptions(); track opt.value) {
                 <nz-option [nzValue]="opt.value" [nzLabel]="opt.label" />
               }
             </nz-select>
@@ -252,17 +271,34 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </div>
             <nz-table [nzData]="sprints()?.items ?? []" nzBordered nzSize="small"
               [nzLoading]="!sprints()" [nzShowPagination]="false">
-              <thead><tr><th>Nombre</th><th>Estado</th><th>Fechas</th><th>Capacidad</th><th>Tareas</th><th>Horas</th><th>Puntos</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Estado</th><th>Fechas</th><th>Pts / Capacidad</th><th>Tareas</th><th>Horas</th><th>Acciones</th></tr></thead>
               <tbody>
                 @for (sprint of sprints()?.items ?? []; track sprint.id) {
                   <tr>
                     <td>{{ sprint.name }}</td>
                     <td><nz-tag [nzColor]="SPRINT_STATUS_COLORS[sprint.status]">{{ sprint.status }}</nz-tag></td>
                     <td>{{ sprint.startDate ?? '—' }} / {{ sprint.endDate ?? '—' }}</td>
-                    <td>{{ sprint.capacity ?? '—' }}</td>
+                    <td>
+                      @if (sprint.status === 'Completed' && sprint.committedPoints !== undefined && sprint.deliveredPoints !== undefined) {
+                        <span style="font-size:12px;color:#595959">
+                          comprometidos <strong>{{ sprint.committedPoints }}</strong>
+                          &nbsp;·&nbsp; entregados <strong style="color:#1C7A4B">{{ sprint.deliveredPoints }}</strong>
+                        </span>
+                      } @else if (sprint.status !== 'Completed') {
+                        <span
+                          [style.color]="sprint.capacity && sprint.totalEstimationPoints > sprint.capacity ? '#ff4d4f' : 'inherit'"
+                          style="font-size:13px;font-weight:500">
+                          {{ sprint.totalEstimationPoints }} pts
+                          @if (sprint.capacity) {
+                            <span style="font-weight:400;color:#8c8c8c"> / cap {{ sprint.capacity }}</span>
+                          }
+                        </span>
+                      } @else {
+                        <span style="color:#8c8c8c">{{ sprint.totalEstimationPoints }} pts</span>
+                      }
+                    </td>
                     <td>{{ sprint.workItemCount }}</td>
                     <td>{{ sprint.totalEstimationHours }}</td>
-                    <td>{{ sprint.totalEstimationPoints }}</td>
                     <td>
                       <nz-space nzSize="small">
                         @if (sprint.status === 'Planning') {
@@ -273,8 +309,6 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                             nzPopconfirmTitle="¿Eliminar sprint?" (nzOnConfirm)="deleteSprint(sprint)">
                             <span nz-icon nzType="delete"></span>
                           </button>
-                        }
-                        @if (sprint.status === 'Planning') {
                           <button *nzSpaceItem nz-button nzSize="small" nzType="primary"
                             (click)="transitionSprint(sprint, 'Active')">
                             Iniciar
@@ -282,7 +316,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                         }
                         @if (sprint.status === 'Active') {
                           <button *nzSpaceItem nz-button nzSize="small" nzType="primary"
-                            (click)="transitionSprint(sprint, 'Completed')">
+                            (click)="completeSprint(sprint)">
                             Completar
                           </button>
                         }
@@ -297,7 +331,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="8" style="text-align:center;color:#999">Sin sprints</td></tr>
+                  <tr><td colspan="7" style="text-align:center;color:#999">Sin sprints</td></tr>
                 }
               </tbody>
             </nz-table>
@@ -383,6 +417,135 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </div>
           </nz-tab>
 
+          <!-- TAB: Riesgos -->
+          <nz-tab nzTitle="Riesgos" (nzSelect)="loadRisks()">
+            <div style="margin-bottom:12px;text-align:right">
+              @if (!isDeveloper()) {
+                <button nz-button nzType="primary" (click)="openRiskForm()">
+                  <span nz-icon nzType="plus"></span> Añadir riesgo
+                </button>
+              }
+            </div>
+            @if (risksLoading()) {
+              <div style="text-align:center;padding:32px"><nz-spin /></div>
+            } @else {
+              <nz-table [nzData]="risks()" nzBordered nzSize="small" [nzShowPagination]="false">
+                <thead>
+                  <tr>
+                    <th>Descripción</th>
+                    <th>Probabilidad</th>
+                    <th>Impacto</th>
+                    <th>Severidad</th>
+                    <th>Estado</th>
+                    <th>Plan de mitigación</th>
+                    <th>Autor</th>
+                    @if (!isDeveloper()) { <th>Acciones</th> }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (risk of risks(); track risk.id) {
+                    <tr>
+                      <td>{{ risk.description }}</td>
+                      <td>{{ RISK_LEVEL_LABELS[risk.probability] }}</td>
+                      <td>{{ RISK_LEVEL_LABELS[risk.impact] }}</td>
+                      <td>
+                        <nz-tag [nzColor]="severityColor(risk.severity)">{{ risk.severity }}</nz-tag>
+                      </td>
+                      <td>
+                        <nz-tag [nzColor]="RISK_STATUS_COLORS[risk.status]">{{ RISK_STATUS_LABELS[risk.status] }}</nz-tag>
+                      </td>
+                      <td style="max-width:200px;white-space:pre-wrap;font-size:12px;color:#595959">
+                        {{ risk.mitigationPlan ?? '—' }}
+                      </td>
+                      <td style="font-size:12px">{{ risk.createdByName }}</td>
+                      @if (!isDeveloper()) {
+                        <td>
+                          <nz-space nzSize="small">
+                            <button *nzSpaceItem nz-button nzSize="small" (click)="openRiskForm(risk)">
+                              <span nz-icon nzType="edit"></span>
+                            </button>
+                            <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
+                              nzPopconfirmTitle="¿Eliminar este riesgo?" (nzOnConfirm)="deleteRisk(risk)">
+                              <span nz-icon nzType="delete"></span>
+                            </button>
+                          </nz-space>
+                        </td>
+                      }
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td [attr.colspan]="isDeveloper() ? 7 : 8" style="text-align:center;padding:24px">
+                        <nz-empty nzNotFoundContent="Sin riesgos registrados" />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </nz-table>
+            }
+          </nz-tab>
+
+          <!-- TAB: Dependencias -->
+          <nz-tab nzTitle="Dependencias" (nzSelect)="loadDependencies()">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
+
+              <!-- Depende de -->
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <span style="font-weight:600;font-size:14px">Este proyecto depende de:</span>
+                  @if (!isDeveloper()) {
+                    <button nz-button nzSize="small" nzType="primary" (click)="openAddDependencyModal()">
+                      <span nz-icon nzType="plus"></span> Añadir
+                    </button>
+                  }
+                </div>
+                @if (dependenciesLoading()) {
+                  <div style="text-align:center;padding:16px"><nz-spin /></div>
+                } @else if (dependencies()?.dependsOn?.length === 0) {
+                  <nz-empty nzNotFoundContent="Sin dependencias" style="padding:16px" />
+                } @else {
+                  @for (dep of dependencies()?.dependsOn ?? []; track dep.dependencyId) {
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;margin-bottom:8px">
+                      <div style="flex:1;min-width:0">
+                        <a [routerLink]="['/projects', dep.projectId]" style="font-weight:600;font-size:13px">{{ dep.projectTitle }}</a>
+                        <div style="margin-top:4px"><app-project-status-badge [status]="dep.projectStatus" /></div>
+                        @if (dep.description) {
+                          <p style="font-size:12px;color:#8c8c8c;margin:4px 0 0">{{ dep.description }}</p>
+                        }
+                      </div>
+                      @if (!isDeveloper()) {
+                        <button nz-button nzSize="small" nzDanger nz-popconfirm
+                          nzPopconfirmTitle="¿Eliminar esta dependencia?" (nzOnConfirm)="deleteDependency(dep)"
+                          style="margin-left:8px;flex-shrink:0">
+                          <span nz-icon nzType="delete"></span>
+                        </button>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+
+              <!-- Dependientes -->
+              <div>
+                <div style="font-weight:600;font-size:14px;margin-bottom:8px">Proyectos que dependen de este:</div>
+                @if (dependenciesLoading()) {
+                  <div style="text-align:center;padding:16px"><nz-spin /></div>
+                } @else if (dependencies()?.dependents?.length === 0) {
+                  <nz-empty nzNotFoundContent="Ningún proyecto depende de este" style="padding:16px" />
+                } @else {
+                  @for (dep of dependencies()?.dependents ?? []; track dep.dependencyId) {
+                    <div style="padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;margin-bottom:8px">
+                      <a [routerLink]="['/projects', dep.projectId]" style="font-weight:600;font-size:13px">{{ dep.projectTitle }}</a>
+                      <div style="margin-top:4px"><app-project-status-badge [status]="dep.projectStatus" /></div>
+                      @if (dep.description) {
+                        <p style="font-size:12px;color:#8c8c8c;margin:4px 0 0">{{ dep.description }}</p>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          </nz-tab>
+
           <!-- TAB: Product Backlog -->
           <nz-tab nzTitle="Product Backlog">
             <div style="margin-bottom:12px;text-align:right">
@@ -427,6 +590,13 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
                         <button *nzSpaceItem nz-button nzSize="small" (click)="openWorkItemForm(wi)">
                           <span nz-icon nzType="edit"></span>
                         </button>
+                        @if (wi.status !== 'Done' && wi.status !== 'Discarded') {
+                          <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
+                            nzPopconfirmTitle="¿Descartar esta tarea? Es irreversible."
+                            (nzOnConfirm)="discardWorkItem(wi)">
+                            <span nz-icon nzType="stop"></span>
+                          </button>
+                        }
                         <button *nzSpaceItem nz-button nzSize="small" nzDanger nz-popconfirm
                           nzPopconfirmTitle="¿Eliminar tarea?" (nzOnConfirm)="deleteWorkItem(wi)">
                           <span nz-icon nzType="delete"></span>
@@ -452,6 +622,94 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
       (saved)="onSaved()"
       (cancelled)="formVisible.set(false)"
     />
+
+    <!-- Modal riesgo -->
+    <nz-modal
+      [nzVisible]="riskModalVisible()"
+      [nzTitle]="editingRisk() ? 'Editar riesgo' : 'Nuevo riesgo'"
+      (nzOnCancel)="riskModalVisible.set(false)"
+      (nzOnOk)="saveRisk()"
+    >
+      <ng-container *nzModalContent>
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Descripción</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <textarea nz-input [(ngModel)]="riskForm.description" [nzAutosize]="{ minRows: 2 }" placeholder="Descripción del riesgo"></textarea>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Probabilidad</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <nz-select [(ngModel)]="riskForm.probability" style="width:100%">
+              <nz-option nzValue="Low" nzLabel="Baja"></nz-option>
+              <nz-option nzValue="Medium" nzLabel="Media"></nz-option>
+              <nz-option nzValue="High" nzLabel="Alta"></nz-option>
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Impacto</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <nz-select [(ngModel)]="riskForm.impact" style="width:100%">
+              <nz-option nzValue="Low" nzLabel="Bajo"></nz-option>
+              <nz-option nzValue="Medium" nzLabel="Medio"></nz-option>
+              <nz-option nzValue="High" nzLabel="Alto"></nz-option>
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        @if (editingRisk()) {
+          <nz-form-item>
+            <nz-form-label [nzSpan]="6">Estado</nz-form-label>
+            <nz-form-control [nzSpan]="18">
+              <nz-select [(ngModel)]="riskFormStatus" style="width:100%">
+                <nz-option nzValue="Open" nzLabel="Abierto"></nz-option>
+                <nz-option nzValue="Mitigated" nzLabel="Mitigado"></nz-option>
+                <nz-option nzValue="Closed" nzLabel="Cerrado"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        }
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Mitigación</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <textarea nz-input [(ngModel)]="riskForm.mitigationPlan" [nzAutosize]="{ minRows: 2 }" placeholder="Plan de mitigación (opcional)"></textarea>
+          </nz-form-control>
+        </nz-form-item>
+      </ng-container>
+    </nz-modal>
+
+    <!-- Modal añadir dependencia -->
+    <nz-modal
+      [nzVisible]="addDependencyModalVisible()"
+      nzTitle="Añadir dependencia"
+      (nzOnCancel)="addDependencyModalVisible.set(false)"
+      (nzOnOk)="saveAddDependency()"
+    >
+      <ng-container *nzModalContent>
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Proyecto</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <nz-select
+              [(ngModel)]="addDepProjectId"
+              nzShowSearch
+              nzServerSearch
+              (nzOnSearch)="searchDependencyProjects($event)"
+              nzPlaceHolder="Buscar proyecto..."
+              style="width:100%">
+              @for (p of dependencyProjectSearch(); track p.id) {
+                <nz-option [nzValue]="p.id" [nzLabel]="p.title"></nz-option>
+              }
+            </nz-select>
+          </nz-form-control>
+        </nz-form-item>
+        <nz-form-item>
+          <nz-form-label [nzSpan]="6">Descripción</nz-form-label>
+          <nz-form-control [nzSpan]="18">
+            <textarea nz-input [(ngModel)]="addDepDescription" [nzAutosize]="{ minRows: 2 }" placeholder="Descripción opcional"></textarea>
+          </nz-form-control>
+        </nz-form-item>
+      </ng-container>
+    </nz-modal>
 
     <!-- Modal épica -->
     <nz-modal
@@ -606,7 +864,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             <nz-form-control [nzSpan]="18">
               <div style="display:flex;gap:8px;align-items:center">
                 <nz-select [(ngModel)]="workItemForm.status"
-                  [nzDisabled]="editingWorkItem()!.status === 'Done'" style="flex:1">
+                  [nzDisabled]="editingWorkItem()!.status === 'Done' || editingWorkItem()!.status === 'Discarded'" style="flex:1">
                   <nz-option nzValue="Backlog" nzLabel="Backlog"></nz-option>
                   <nz-option nzValue="ToDo" nzLabel="Por hacer"></nz-option>
                   <nz-option nzValue="InProgress" nzLabel="En curso"></nz-option>
@@ -768,6 +1026,46 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
         }
       </ng-container>
     </nz-modal>
+
+    <!-- Modal cerrar sprint (carry-over) -->
+    <nz-modal
+      [nzVisible]="carryOverModalVisible()"
+      nzTitle="Cerrar sprint"
+      [nzOkText]="'Completar'"
+      [nzOkLoading]="carryOverLoading()"
+      (nzOnOk)="confirmCompleteSprint()"
+      (nzOnCancel)="carryOverModalVisible.set(false)"
+    >
+      <ng-container *nzModalContent>
+        <p style="margin-bottom:16px">
+          El sprint tiene <strong>{{ unfinishedItemsCount() }}</strong> tarea(s) sin terminar.
+          ¿Qué deseas hacer con ellas?
+        </p>
+        <nz-radio-group [(ngModel)]="carryOverChoice" nzButtonStyle="solid">
+          <label nz-radio nzValue="Backlog" style="display:block;margin-bottom:12px">
+            Devolver al backlog del proyecto
+          </label>
+          <label nz-radio nzValue="Sprint"
+            [nzDisabled]="planningSprintsForCarryOver().length === 0"
+            style="display:block;margin-bottom:8px">
+            Mover al sprint...
+            @if (planningSprintsForCarryOver().length === 0) {
+              <span style="font-size:11px;color:#8c8c8c;margin-left:6px">(no hay sprints en Planning)</span>
+            }
+          </label>
+        </nz-radio-group>
+        @if (carryOverChoice === 'Sprint') {
+          <div style="margin-top:8px;margin-left:24px">
+            <nz-select [(ngModel)]="carryOverTargetSprintId" style="width:100%"
+              nzPlaceHolder="Seleccionar sprint destino">
+              @for (s of planningSprintsForCarryOver(); track s.id) {
+                <nz-option [nzValue]="s.id" [nzLabel]="s.name" />
+              }
+            </nz-select>
+          </div>
+        }
+      </ng-container>
+    </nz-modal>
   `,
 })
 export class ProjectDetailComponent {
@@ -778,6 +1076,7 @@ export class ProjectDetailComponent {
   private readonly workItemsService = inject(WorkItemsService);
   private readonly sprintService = inject(SprintService);
   private readonly commentsService = inject(CommentsService);
+  private readonly risksService = inject(RisksService);
   private readonly http = inject(HttpClient);
   private readonly message = inject(NzMessageService);
 
@@ -822,6 +1121,20 @@ export class ProjectDetailComponent {
   sprintHistory = signal<SprintStatusHistoryEntry[]>([]);
   sprintHistoryLoading = signal(false);
 
+  // ── Carry-over sprint modal ───────────────────────────────────────────────
+  carryOverModalVisible = signal(false);
+  carryOverLoading = signal(false);
+  carryOverChoice: 'Backlog' | 'Sprint' = 'Backlog';
+  carryOverTargetSprintId: number | null = null;
+  private sprintToComplete: Sprint | null = null;
+
+  unfinishedItemsCount = signal(0);
+
+  planningSprintsForCarryOver = computed(() =>
+    (this.sprints()?.items ?? []).filter(s => s.status === 'Planning')
+  );
+  // ─────────────────────────────────────────────────────────────────────────
+
   weeklyUpdates = signal<ProjectWeeklyUpdateDto[]>([]);
   weeklyUpdatesLoading = signal(false);
   savingWeeklyUpdate = signal(false);
@@ -831,9 +1144,142 @@ export class ProjectDetailComponent {
   readonly HEALTH_STATUS_LABELS = PROJECT_HEALTH_STATUS_LABELS;
   readonly HEALTH_STATUS_COLORS = PROJECT_HEALTH_STATUS_COLORS;
 
+  // ── Risks ─────────────────────────────────────────────────────────────────
+  risks = signal<ProjectRiskDto[]>([]);
+  risksLoading = signal(false);
+  riskModalVisible = signal(false);
+  editingRisk = signal<ProjectRiskDto | null>(null);
+  riskForm: { description: string; probability: RiskLevel; impact: RiskLevel; mitigationPlan?: string | null } = {
+    description: '',
+    probability: 'Medium',
+    impact: 'Medium',
+    mitigationPlan: null,
+  };
+  riskFormStatus: RiskStatus = 'Open';
+
+  readonly RISK_LEVEL_LABELS = RISK_LEVEL_LABELS;
+  readonly RISK_STATUS_LABELS = RISK_STATUS_LABELS;
+  readonly RISK_STATUS_COLORS = RISK_STATUS_COLORS;
+
+  isDeveloper(): boolean {
+    return this.currentPerson()?.role === 'Desarrollador';
+  }
+
+  severityColor(severity: number): string {
+    if (severity <= 2) return 'success';
+    if (severity <= 4) return 'warning';
+    return 'error';
+  }
+
+  loadRisks(): void {
+    this.risksLoading.set(true);
+    this.risksService.getRisks(this.projectId).subscribe({
+      next: r => { this.risks.set(r.items); this.risksLoading.set(false); },
+      error: () => { this.risksLoading.set(false); },
+    });
+  }
+
+  openRiskForm(risk?: ProjectRiskDto): void {
+    this.editingRisk.set(risk ?? null);
+    this.riskForm = risk
+      ? { description: risk.description, probability: risk.probability, impact: risk.impact, mitigationPlan: risk.mitigationPlan }
+      : { description: '', probability: 'Medium', impact: 'Medium', mitigationPlan: null };
+    this.riskFormStatus = risk ? risk.status : 'Open';
+    this.riskModalVisible.set(true);
+  }
+
+  saveRisk(): void {
+    const editing = this.editingRisk();
+    const onError = (err: unknown) => {
+      const msg = (err as { error?: { message?: string } })?.error?.message;
+      this.message.error(msg ?? 'Error al guardar el riesgo');
+    };
+    if (editing) {
+      const dto: UpdateRiskDto = { ...this.riskForm, description: this.riskForm.description, status: this.riskFormStatus };
+      this.risksService.updateRisk(this.projectId, editing.id, dto).subscribe({
+        next: () => { this.riskModalVisible.set(false); this.message.success('Riesgo actualizado'); this.loadRisks(); },
+        error: onError,
+      });
+    } else {
+      this.risksService.createRisk(this.projectId, this.riskForm as CreateRiskDto).subscribe({
+        next: () => { this.riskModalVisible.set(false); this.message.success('Riesgo añadido'); this.loadRisks(); },
+        error: onError,
+      });
+    }
+  }
+
+  deleteRisk(risk: ProjectRiskDto): void {
+    this.risksService.deleteRisk(this.projectId, risk.id).subscribe({
+      next: () => { this.message.success('Riesgo eliminado'); this.loadRisks(); },
+      error: () => this.message.error('Error al eliminar el riesgo'),
+    });
+  }
+
+  // ── Dependencies ──────────────────────────────────────────────────────────
+  dependencies = signal<ProjectDependenciesDto | null>(null);
+  dependenciesLoading = signal(false);
+  addDependencyModalVisible = signal(false);
+  addDepProjectId: number | null = null;
+  addDepDescription = '';
+  dependencyProjectSearch = signal<{ id: number; title: string }[]>([]);
+
+  loadDependencies(): void {
+    this.dependenciesLoading.set(true);
+    this.risksService.getDependencies(this.projectId).subscribe({
+      next: d => { this.dependencies.set(d); this.dependenciesLoading.set(false); },
+      error: () => { this.dependenciesLoading.set(false); },
+    });
+  }
+
+  openAddDependencyModal(): void {
+    this.addDepProjectId = null;
+    this.addDepDescription = '';
+    this.dependencyProjectSearch.set([]);
+    this.addDependencyModalVisible.set(true);
+  }
+
+  searchDependencyProjects(q: string): void {
+    if (!q.trim()) { this.dependencyProjectSearch.set([]); return; }
+    this.http.get<{ items: { id: number; title: string }[] }>(`/api/projects?q=${encodeURIComponent(q)}&pageSize=20`).subscribe({
+      next: r => this.dependencyProjectSearch.set(r.items),
+      error: () => {},
+    });
+  }
+
+  saveAddDependency(): void {
+    if (!this.addDepProjectId) { this.message.warning('Selecciona un proyecto'); return; }
+    this.risksService.createDependency(this.projectId, this.addDepProjectId, this.addDepDescription || null).subscribe({
+      next: () => {
+        this.addDependencyModalVisible.set(false);
+        this.message.success('Dependencia añadida');
+        this.loadDependencies();
+      },
+      error: (err) => {
+        const msg = (err as { error?: string | { message?: string } })?.error;
+        this.message.error(typeof msg === 'string' ? msg : 'Error al añadir la dependencia');
+      },
+    });
+  }
+
+  deleteDependency(dep: DependencyItemDto): void {
+    this.risksService.deleteDependency(this.projectId, dep.dependencyId).subscribe({
+      next: () => { this.message.success('Dependencia eliminada'); this.loadDependencies(); },
+      error: () => this.message.error('Error al eliminar la dependencia'),
+    });
+  }
+
   readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
     value: v, label: PROJECT_STATUS_LABELS[v],
   }));
+
+  allowedStatusOptions(): { value: ProjectStatus; label: string }[] {
+    const allowed = this.project()?.allowedNextStatuses ?? [];
+    return allowed.map(v => ({ value: v, label: PROJECT_STATUS_LABELS[v] }));
+  }
+
+  statusOptionLabel(status: ProjectStatus): string {
+    return PROJECT_STATUS_LABELS[status] ?? status;
+  }
 
   epicForm: CreateEpicDto = { title: '', priority: 0, sortOrder: 0 };
   sprintForm: CreateSprintDto = { name: '' };
@@ -1071,6 +1517,57 @@ export class ProjectDetailComponent {
     });
   }
 
+  /** Called when the user clicks "Completar" on an Active sprint. */
+  completeSprint(sprint: Sprint): void {
+    // Count unfinished items in the current backlog for this sprint
+    const unfinished = (this.backlog()?.items ?? [])
+      .filter(wi => wi.sprintId === sprint.id && wi.status !== 'Done' && wi.status !== 'Discarded');
+
+    if (unfinished.length === 0) {
+      // No carry-over needed — complete directly
+      this.transitionSprint(sprint, 'Completed');
+      return;
+    }
+
+    // Open carry-over modal
+    this.sprintToComplete = sprint;
+    this.unfinishedItemsCount.set(unfinished.length);
+    this.carryOverChoice = 'Backlog';
+    this.carryOverTargetSprintId = null;
+    this.carryOverModalVisible.set(true);
+  }
+
+  confirmCompleteSprint(): void {
+    if (!this.sprintToComplete) return;
+
+    if (this.carryOverChoice === 'Sprint' && !this.carryOverTargetSprintId) {
+      this.message.warning('Selecciona un sprint destino');
+      return;
+    }
+
+    this.carryOverLoading.set(true);
+    this.sprintService.transitionStatus(
+      this.projectId,
+      this.sprintToComplete.id,
+      'Completed',
+      this.carryOverChoice,
+      this.carryOverChoice === 'Sprint' ? (this.carryOverTargetSprintId ?? undefined) : undefined,
+    ).subscribe({
+      next: () => {
+        this.carryOverLoading.set(false);
+        this.carryOverModalVisible.set(false);
+        this.sprintToComplete = null;
+        this.message.success('Sprint completado');
+        this.sprintsRefresh$.next();
+        this.backlogRefresh$.next();
+      },
+      error: () => {
+        this.carryOverLoading.set(false);
+        this.message.error('Error al completar el sprint');
+      },
+    });
+  }
+
   openWorkItemForm(wi?: WorkItem): void {
     this.editingWorkItem.set(wi ?? null);
     this.workItemForm = wi
@@ -1138,6 +1635,13 @@ export class ProjectDetailComponent {
     this.workItemsService.deleteWorkItem(this.projectId, wi.id).subscribe({
       next: () => { this.message.success('Tarea eliminada'); this.backlogRefresh$.next(); },
       error: () => this.message.error('Error al eliminar la tarea'),
+    });
+  }
+
+  discardWorkItem(wi: WorkItem): void {
+    this.workItemsService.transitionStatus(this.projectId, wi.id, 'Discarded').subscribe({
+      next: () => { this.message.success('Tarea descartada'); this.backlogRefresh$.next(); },
+      error: () => this.message.error('Error al descartar la tarea'),
     });
   }
 

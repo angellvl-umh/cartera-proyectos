@@ -19,7 +19,9 @@ import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
+import { NzRateModule } from 'ng-zorro-antd/rate';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { FormsModule } from '@angular/forms';
 import { ProjectsService } from '../projects.service';
 import {
   CreateProjectDto,
@@ -40,9 +42,9 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ReactiveFormsModule,
+    ReactiveFormsModule, FormsModule,
     NzFormModule, NzInputModule, NzSelectModule, NzInputNumberModule,
-    NzDatePickerModule, NzModalModule, NzButtonModule, NzDividerModule,
+    NzDatePickerModule, NzModalModule, NzButtonModule, NzDividerModule, NzRateModule,
   ],
   template: `
     <nz-modal
@@ -211,6 +213,27 @@ import {
             </nz-form-control>
           </nz-form-item>
 
+          <nz-form-item>
+            <nz-form-label>Valor de negocio</nz-form-label>
+            <nz-form-control>
+              <div style="display:flex;align-items:center;gap:12px">
+                <nz-rate formControlName="businessValue" [nzCount]="5" nzAllowHalf="false"></nz-rate>
+                <span style="font-size:12px;color:#8c8c8c">
+                  @if (form.get('businessValue')?.value) {
+                    {{ businessValueLabel(form.get('businessValue')!.value!) }}
+                  } @else {
+                    Sin valorar
+                  }
+                </span>
+                @if (form.get('businessValue')?.value) {
+                  <button type="button" nz-button nzSize="small" nzType="text"
+                    (click)="form.get('businessValue')!.setValue(null)"
+                    style="font-size:12px;color:#8c8c8c">Limpiar</button>
+                }
+              </div>
+            </nz-form-control>
+          </nz-form-item>
+
           <nz-divider nzText="Ciclo de vida" nzOrientation="left"></nz-divider>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
@@ -287,6 +310,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
     specificationsUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
     epicUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
     estimatedBudget: new FormControl<number | null>(null),
+    businessValue: new FormControl<number | null>(null),
     tagIds: new FormControl<number[]>([]),
   });
 
@@ -318,6 +342,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
         specificationsUrl: p.specificationsUrl ?? null,
         epicUrl: p.epicUrl ?? null,
         estimatedBudget: p.estimatedBudget ?? null,
+        businessValue: p.businessValue ?? null,
         tagIds: p.tags.map(t => t.id),
       });
     } else if (this.visible && !this.project) {
@@ -354,6 +379,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
       specificationsUrl: raw.specificationsUrl || null,
       epicUrl: raw.epicUrl || null,
       estimatedBudget: raw.estimatedBudget ?? null,
+      businessValue: raw.businessValue ?? null,
       tagIds: raw.tagIds ?? [],
     };
 
@@ -378,5 +404,16 @@ export class ProjectFormComponent implements OnChanges, OnInit {
   cancel(): void {
     this.form.reset({ complexity: 'Small', tagIds: [] });
     this.cancelled.emit();
+  }
+
+  businessValueLabel(value: number): string {
+    const labels: Record<number, string> = {
+      1: 'Marginal',
+      2: 'Bajo',
+      3: 'Moderado',
+      4: 'Alto',
+      5: 'Crítico',
+    };
+    return labels[value] ?? '';
   }
 }

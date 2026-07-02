@@ -369,7 +369,9 @@ export class KanbanBoardComponent {
     const raw = this.rawItems();
     if (!raw) return null;
     const overrides = this.statusOverrides();
-    return raw.items.map(i => overrides[i.id] ? { ...i, status: overrides[i.id] } : i);
+    return raw.items
+      .filter(i => (overrides[i.id] ?? i.status) !== 'Discarded')
+      .map(i => overrides[i.id] ? { ...i, status: overrides[i.id] } : i);
   });
 
   readonly columns = computed<KanbanColumn[]>(() => {

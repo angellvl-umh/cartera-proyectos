@@ -18,7 +18,8 @@ public record PortfolioProjectDto(
     string? PrimaryTeamName,
     int TotalWorkItems, int DoneWorkItems,
     int TotalMilestones, int ReachedMilestones,
-    int ActiveSprintCount);
+    int ActiveSprintCount,
+    int? BusinessValue);
 
 public record PortfolioStatsDto(
     int Total,
@@ -94,7 +95,7 @@ public sealed class GetPortfolioHandler(IAppDbContext db)
             return new PortfolioProjectDto(
                 p.Id, p.Title, p.Status.ToString(), p.RequestingUnit, p.Complexity.ToString(),
                 p.PortfolioYear, p.StartDate?.ToString(), p.EndDate?.ToString(),
-                teamName, total, done, totalM, reachedM, activeSprints);
+                teamName, total, done, totalM, reachedM, activeSprints, p.BusinessValue);
         }).ToList();
 
         var stats = new PortfolioStatsDto(

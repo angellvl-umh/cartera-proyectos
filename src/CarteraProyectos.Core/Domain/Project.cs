@@ -48,6 +48,7 @@ public class Project
     public string? SpecificationsUrl { get; private set; }
     public string? EpicUrl { get; private set; }
     public decimal? EstimatedBudget { get; private set; }
+    public int? BusinessValue { get; private set; } // Valor de negocio percibido: escala 1–5
 
     // Navegación
     public Promoter? Promoter { get; private set; }
@@ -57,8 +58,37 @@ public class Project
     public ICollection<Tag> Tags { get; } = [];
     public ICollection<ProjectNote> Notes { get; } = [];
     public ICollection<ProjectWeeklyUpdate> WeeklyUpdates { get; } = [];
+    public ICollection<ProjectRisk> Risks { get; } = [];
+    public ICollection<ProjectDependency> Dependencies { get; } = [];
 
-    public void TransitionTo(ProjectStatus next) => Status = next;
+    private static readonly Dictionary<ProjectStatus, ProjectStatus[]> AllowedTransitions = new()
+    {
+        [ProjectStatus.Stopped]                  = [ProjectStatus.PlanningWithClient, ProjectStatus.PostponedByClient],
+        [ProjectStatus.PlanningWithClient]       = [ProjectStatus.WaitingForDevelopers, ProjectStatus.PlanningSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.WaitingForDevelopers]     = [ProjectStatus.PlanningSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.PlanningWithClient, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.PlanningSprint]           = [ProjectStatus.InSprint, ProjectStatus.WaitingForDevelopers, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.InSprint]                 = [ProjectStatus.InTesting, ProjectStatus.PlanningSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.DevelopmentOutsideSprint] = [ProjectStatus.InTesting, ProjectStatus.PlanningSprint, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.InTesting]                = [ProjectStatus.Completed, ProjectStatus.InSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.Stopped, ProjectStatus.PostponedByClient],
+        [ProjectStatus.PostponedByClient]        = [ProjectStatus.PlanningWithClient, ProjectStatus.PlanningSprint, ProjectStatus.DevelopmentOutsideSprint, ProjectStatus.Stopped],
+        [ProjectStatus.Completed]                = [],
+    };
+
+    public static IReadOnlyList<ProjectStatus> GetAllowedTransitions(ProjectStatus from)
+        => AllowedTransitions.TryGetValue(from, out var targets) ? targets : [];
+
+    public void TransitionTo(ProjectStatus next)
+    {
+        if (!AllowedTransitions[Status].Contains(next))
+            throw new InvalidOperationException($"No se puede transicionar el proyecto de '{Status}' a '{next}'.");
+        Status = next;
+    }
+
+    /// <summary>
+    /// Establece el estado directamente sin validar la máquina de estados.
+    /// Solo debe usarse en seeds de datos y tests de integración.
+    /// </summary>
+    public void SetStatusDirectly(ProjectStatus status) => Status = status;
 
     public void Update(
         string title, string? description, string? requestingUnit,
@@ -68,7 +98,7 @@ public class Project
         int? groupPriority = null, SiptGroup? siptGroup = null,
         DateOnly? desiredDeploymentDate = null,
         string? specificationsUrl = null, string? epicUrl = null,
-        decimal? estimatedBudget = null)
+        decimal? estimatedBudget = null, int? businessValue = null)
     {
         Title = title;
         Description = description;
@@ -88,6 +118,7 @@ public class Project
         SpecificationsUrl = specificationsUrl;
         EpicUrl = epicUrl;
         EstimatedBudget = estimatedBudget;
+        BusinessValue = businessValue;
     }
 
     public static Project Create(
@@ -98,7 +129,7 @@ public class Project
         int? groupPriority = null, SiptGroup? siptGroup = null,
         DateOnly? desiredDeploymentDate = null,
         string? specificationsUrl = null, string? epicUrl = null,
-        decimal? estimatedBudget = null)
+        decimal? estimatedBudget = null, int? businessValue = null)
         => new()
         {
             Title = title,
@@ -119,5 +150,6 @@ public class Project
             SpecificationsUrl = specificationsUrl,
             EpicUrl = epicUrl,
             EstimatedBudget = estimatedBudget,
+            BusinessValue = businessValue,
         };
 }

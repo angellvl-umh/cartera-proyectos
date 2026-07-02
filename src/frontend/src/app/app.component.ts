@@ -17,6 +17,7 @@ const ROUTE_LABELS: Record<string, string> = {
   teams: 'Equipos',
   persons: 'Personas',
   portfolio: 'Cartera',
+  roadmap: 'Roadmap',
   reports: 'Informe semanal',
   'my-tasks': 'Mis tareas',
   capacity: 'Capacidad',
@@ -59,6 +60,9 @@ const ROUTE_LABELS: Record<string, string> = {
           </a>
           <a routerLink="/portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item">
             <span nz-icon nzType="fund"></span><span>Cartera</span>
+          </a>
+          <a routerLink="/roadmap" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+            <span nz-icon nzType="schedule"></span><span>Roadmap</span>
           </a>
           <a routerLink="/reports/weekly-portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item" style="padding-left:34px;font-size:13.5px">
             <span nz-icon nzType="schedule"></span><span>Informe semanal</span>

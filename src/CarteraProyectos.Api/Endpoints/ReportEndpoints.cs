@@ -79,6 +79,50 @@ public static class ReportEndpoints
             .WithName("GetWeeklyPortfolioReport")
             .WithDescription("Informe semanal de seguimiento de cartera: proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT.");
 
+        // Velocity por proyecto
+        app.MapGet("/api/projects/{projectId:int}/velocity",
+            async (int projectId, IMediator mediator, CancellationToken ct) =>
+            {
+                try { return Results.Ok(await mediator.Send(new GetProjectVelocityQuery(projectId), ct)); }
+                catch (KeyNotFoundException) { return Results.NotFound(); }
+            })
+            .RequireAuthorization()
+            .WithName("GetProjectVelocity")
+            .WithDescription("Velocidad del equipo por proyecto: puntos comprometidos y entregados por sprint completado, con la media de velocidad.");
+
+        // Cycle time / lead time por proyecto
+        app.MapGet("/api/projects/{projectId:int}/cycle-time",
+            async (int projectId, IMediator mediator, CancellationToken ct) =>
+            {
+                try { return Results.Ok(await mediator.Send(new GetProjectCycleTimeQuery(projectId), ct)); }
+                catch (KeyNotFoundException) { return Results.NotFound(); }
+            })
+            .RequireAuthorization()
+            .WithName("GetProjectCycleTime")
+            .WithDescription("Métricas de cycle time y lead time por proyecto: tiempo desde inicio de trabajo hasta Done (cycle time) y desde creación hasta Done (lead time), para las tareas completadas.");
+
+        // Roadmap de cartera
+        app.MapGet("/api/portfolio/roadmap",
+            async (IMediator mediator, CancellationToken ct, int? year = null) =>
+                Results.Ok(await mediator.Send(new GetPortfolioRoadmapQuery(year), ct)))
+            .RequireAuthorization()
+            .WithName("GetPortfolioRoadmap")
+            .WithDescription(
+                "Roadmap visual de la cartera agrupado por equipo primario. " +
+                "Devuelve los proyectos con sus fechas y hitos para el año indicado (por defecto el año actual). " +
+                "Los proyectos sin StartDate aparecen en 'undated'; los sin equipo asignado en 'unassigned'.");
+
+        // Capacidad prospectiva trimestral
+        app.MapGet("/api/capacity/forecast",
+            async (IMediator mediator, CancellationToken ct, int? year = null) =>
+                Results.Ok(await mediator.Send(new GetCapacityForecastQuery(year), ct)))
+            .RequireAuthorization()
+            .WithName("GetCapacityForecast")
+            .WithDescription(
+                "Previsión de carga de trabajo por equipo y trimestre para el año indicado (por defecto el año actual). " +
+                "La demanda se estima a partir de la complejidad y las fechas de los proyectos activos. " +
+                "Nivel de carga: Green <70 %, Yellow 70–100 %, Red >100 %.");
+
         return app;
     }
 }

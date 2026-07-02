@@ -36,11 +36,11 @@ interface MyWorkItemsDto { items: MyWorkItemDto[]; total: number; counts: WorkIt
 
 const STATUS_COLORS: Record<string, string> = {
   Backlog: 'default', ToDo: 'processing', InProgress: 'warning',
-  Blocked: 'error', Done: 'success',
+  Blocked: 'error', Done: 'success', Discarded: 'default',
 };
 const STATUS_LABELS: Record<string, string> = {
   Backlog: 'Backlog', ToDo: 'Por hacer', InProgress: 'En progreso',
-  Blocked: 'Bloqueada', Done: 'Hecho',
+  Blocked: 'Bloqueada', Done: 'Hecho', Discarded: 'Descartada',
 };
 const PRIORITY_COLORS: Record<string, string> = {
   Low: 'default', Medium: 'processing', High: 'warning', Critical: 'error',

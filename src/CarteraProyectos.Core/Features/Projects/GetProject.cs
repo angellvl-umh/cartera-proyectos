@@ -1,3 +1,4 @@
+using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Tags;
 using CarteraProyectos.Core.Interfaces;
 using MediatR;
@@ -34,7 +35,9 @@ public record ProjectDetailDto(
     string? SpecificationsUrl,
     string? EpicUrl,
     decimal? EstimatedBudget,
-    List<TagDto> Tags);
+    int? BusinessValue,
+    List<TagDto> Tags,
+    IReadOnlyList<string> AllowedNextStatuses);
 
 public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetProjectQuery, ProjectDetailDto?>
 {
@@ -73,6 +76,8 @@ public sealed class GetProjectHandler(IAppDbContext db) : IRequestHandler<GetPro
             project.SpecificationsUrl,
             project.EpicUrl,
             project.EstimatedBudget,
-            project.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList());
+            project.BusinessValue,
+            project.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList(),
+            Project.GetAllowedTransitions(project.Status).Select(s => s.ToString()).ToList());
     }
 }

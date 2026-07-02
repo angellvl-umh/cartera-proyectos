@@ -27,8 +27,8 @@ interface PersonProfileDto { id: number; name: string; email: string; role: stri
 
 const ROLE_LABELS: Record<string, string> = { Gestor: 'Gestor de cartera', JefeEquipo: 'Jefe de equipo', Desarrollador: 'Desarrollador' };
 const ROLE_COLORS: Record<string, string> = { Gestor: 'purple', JefeEquipo: 'blue', Desarrollador: 'green' };
-const STATUS_COLORS: Record<string, string> = { Backlog: 'default', ToDo: 'processing', InProgress: 'warning', Blocked: 'error', Done: 'success' };
-const STATUS_LABELS: Record<string, string> = { Backlog: 'Backlog', ToDo: 'Por hacer', InProgress: 'En progreso', Blocked: 'Bloqueada', Done: 'Hecho' };
+const STATUS_COLORS: Record<string, string> = { Backlog: 'default', ToDo: 'processing', InProgress: 'warning', Blocked: 'error', Done: 'success', Discarded: 'default' };
+const STATUS_LABELS: Record<string, string> = { Backlog: 'Backlog', ToDo: 'Por hacer', InProgress: 'En progreso', Blocked: 'Bloqueada', Done: 'Hecho', Discarded: 'Descartada' };
 const PRIORITY_COLORS: Record<string, string> = { Low: 'default', Medium: 'processing', High: 'warning', Critical: 'error' };
 
 @Component({

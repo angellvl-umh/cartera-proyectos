@@ -14,7 +14,9 @@ public record WeeklyPortfolioReportDto(
 public record WeeklyPortfolioProjectDto(
     int ProjectId, string Title, string? PrimaryTeamName, string Status,
     bool IsAtRisk, string? LatestSummary, string? LatestHealthStatus,
-    string? LatestAuthorName, string? LatestUpdateDate, bool HasUpdateThisWeek, int? PortfolioYear = null);
+    string? LatestAuthorName, string? LatestUpdateDate, bool HasUpdateThisWeek,
+    int? PortfolioYear = null,
+    int OpenHighImpactRisks = 0);
 
 public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
     : IRequestHandler<GetWeeklyPortfolioReportQuery, WeeklyPortfolioReportDto>
@@ -72,6 +74,17 @@ public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
             .Where(p => authorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, ct);
 
+        // Contar riesgos Open con Impact=High por proyecto (una sola query, sin N+1)
+        var highImpactRiskCounts = await db.ProjectRisks
+            .Where(r => projectIds.Contains(r.ProjectId)
+                     && r.Status == RiskStatus.Open
+                     && r.Impact == RiskLevel.High)
+            .GroupBy(r => r.ProjectId)
+            .Select(g => new { ProjectId = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var highImpactByProject = highImpactRiskCounts.ToDictionary(x => x.ProjectId, x => x.Count);
+
         // Mapear DTOs
         var projectDtos = projects.Select(p =>
         {
@@ -80,6 +93,7 @@ public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
             var hasUpdateThisWeek = hasUpdate && update is not null && update.WeekOf == thisWeekMonday;
             var isAtRisk = !hasUpdateThisWeek || (hasUpdate && update is not null && (update.HealthStatus == ProjectHealthStatus.AtRisk || update.HealthStatus == ProjectHealthStatus.Blocked));
             var authorName = hasUpdate && update is not null && authors.TryGetValue(update.AuthorId, out var author) ? author.Name : null;
+            var openHighImpact = highImpactByProject.TryGetValue(p.Id, out var count) ? count : 0;
 
             return new WeeklyPortfolioProjectDto(
                 p.Id,
@@ -92,7 +106,8 @@ public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
                 authorName,
                 update?.UpdatedAt.ToString("yyyy-MM-dd"),
                 hasUpdateThisWeek,
-                p.PortfolioYear
+                p.PortfolioYear,
+                openHighImpact
             );
         }).ToList();
 

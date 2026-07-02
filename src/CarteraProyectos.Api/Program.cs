@@ -196,6 +196,8 @@ app.MapAgentEndpoints();
 app.MapPromoterEndpoints();
 app.MapOrganicUnitEndpoints();
 app.MapTagEndpoints();
+app.MapProjectRiskEndpoints();
+app.MapProjectDependencyEndpoints();
 app.MapAgentChartEndpoints();
 
 app.Run();
