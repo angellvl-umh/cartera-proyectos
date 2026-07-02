@@ -36,7 +36,10 @@ public sealed class GetProjectRisksHandler(IAppDbContext db)
             .Include(r => r.CreatedBy)
             .Where(r => r.ProjectId == request.ProjectId)
             .OrderBy(r => r.Status == RiskStatus.Open ? 0 : r.Status == RiskStatus.Mitigated ? 1 : 2)
-            .ThenByDescending(r => ((int)r.Probability + 1) * ((int)r.Impact + 1));
+            // Los enums se almacenan como string en BD: usar CASE traducible en vez de casts a int
+            .ThenByDescending(r =>
+                (r.Probability == RiskLevel.High ? 3 : r.Probability == RiskLevel.Medium ? 2 : 1) *
+                (r.Impact == RiskLevel.High ? 3 : r.Impact == RiskLevel.Medium ? 2 : 1));
 
         var total = await query.CountAsync(cancellationToken);
 
