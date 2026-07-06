@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { catchError, filter, map, of, startWith, switchMap, take } from 'rxjs';
@@ -34,79 +34,83 @@ const ROUTE_LABELS: Record<string, string> = {
   imports: [RouterOutlet, RouterLink, RouterLinkActive, NzLayoutModule, NzMenuModule, NzIconModule, NzButtonModule],
   template: `
     <div style="display:flex;height:100vh;overflow:hidden">
-      <aside style="width:252px;flex:0 0 auto;background:var(--sidebar-bg);display:flex;flex-direction:column;overflow:hidden">
-        <div style="height:64px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--sidebar-border)">
-          <div style="width:38px;height:38px;border-radius:8px;background:var(--brand-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:0 0 auto">UMH</div>
-          @if (!collapsed()) {
-            <div style="line-height:1.25;overflow:hidden">
-              <div style="color:#fff;font-weight:700;font-size:14px;white-space:nowrap">Cartera TIC</div>
-              <div style="color:var(--sidebar-text-muted);font-size:11.5px;white-space:nowrap">Gestión de proyectos</div>
-            </div>
-          }
-        </div>
+      @if (!denied()) {
+        <aside style="width:252px;flex:0 0 auto;background:var(--sidebar-bg);display:flex;flex-direction:column;overflow:hidden">
+          <div style="height:64px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--sidebar-border)">
+            <div style="width:38px;height:38px;border-radius:8px;background:var(--brand-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex:0 0 auto">UMH</div>
+            @if (!collapsed()) {
+              <div style="line-height:1.25;overflow:hidden">
+                <div style="color:#fff;font-weight:700;font-size:14px;white-space:nowrap">Cartera TIC</div>
+                <div style="color:var(--sidebar-text-muted);font-size:11.5px;white-space:nowrap">Gestión de proyectos</div>
+              </div>
+            }
+          </div>
 
-        <nav style="flex:1 1 auto;overflow-y:auto;padding:16px 12px">
-          <div style="color:var(--sidebar-heading);font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:0 10px;margin-bottom:6px">Principal</div>
-          <a routerLink="/dashboard" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="dashboard"></span><span>Dashboard</span>
-          </a>
-          <a routerLink="/projects" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="project"></span><span>Proyectos</span>
-          </a>
-          <a routerLink="/teams" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="team"></span><span>Equipos</span>
-          </a>
-          <a routerLink="/persons" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="user"></span><span>Personas</span>
-          </a>
-          <a routerLink="/portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="fund"></span><span>Cartera</span>
-          </a>
-          <a routerLink="/roadmap" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="schedule"></span><span>Roadmap</span>
-          </a>
-          <a routerLink="/reports/weekly-portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item" style="padding-left:34px;font-size:13.5px">
-            <span nz-icon nzType="schedule"></span><span>Informe semanal</span>
-          </a>
-          <a routerLink="/my-tasks" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="check-square"></span><span>Mis tareas</span>
-          </a>
-          <a routerLink="/capacity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="team"></span><span>Capacidad</span>
-          </a>
-          <a routerLink="/team-activity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-            <span nz-icon nzType="eye"></span><span>Actividad</span>
-          </a>
+          <nav style="flex:1 1 auto;overflow-y:auto;padding:16px 12px">
+            <div style="color:var(--sidebar-heading);font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:0 10px;margin-bottom:6px">Principal</div>
+            <a routerLink="/dashboard" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="dashboard"></span><span>Dashboard</span>
+            </a>
+            <a routerLink="/projects" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="project"></span><span>Proyectos</span>
+            </a>
+            <a routerLink="/teams" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="team"></span><span>Equipos</span>
+            </a>
+            <a routerLink="/persons" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="user"></span><span>Personas</span>
+            </a>
+            <a routerLink="/portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="fund"></span><span>Cartera</span>
+            </a>
+            <a routerLink="/roadmap" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="schedule"></span><span>Roadmap</span>
+            </a>
+            <a routerLink="/reports/weekly-portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item" style="padding-left:34px;font-size:13.5px">
+              <span nz-icon nzType="schedule"></span><span>Informe semanal</span>
+            </a>
+            <a routerLink="/my-tasks" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="check-square"></span><span>Mis tareas</span>
+            </a>
+            <a routerLink="/capacity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="team"></span><span>Capacidad</span>
+            </a>
+            <a routerLink="/team-activity" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+              <span nz-icon nzType="eye"></span><span>Actividad</span>
+            </a>
 
-          @if (isGestor()) {
-            <div style="color:var(--sidebar-heading);font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:0 10px;margin:16px 0 6px">Administración</div>
-            <a routerLink="/admin/promoters" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-              <span nz-icon nzType="solution"></span><span>Promotores</span>
-            </a>
-            <a routerLink="/admin/organic-units" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-              <span nz-icon nzType="apartment"></span><span>Unidades Orgánicas</span>
-            </a>
-            <a routerLink="/admin/tags" routerLinkActive="nav-item-active" class="sidebar-nav-item">
-              <span nz-icon nzType="tags"></span><span>Etiquetas</span>
-            </a>
-          }
-        </nav>
-      </aside>
+            @if (isGestor()) {
+              <div style="color:var(--sidebar-heading);font-size:11px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;padding:0 10px;margin:16px 0 6px">Administración</div>
+              <a routerLink="/admin/promoters" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+                <span nz-icon nzType="solution"></span><span>Promotores</span>
+              </a>
+              <a routerLink="/admin/organic-units" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+                <span nz-icon nzType="apartment"></span><span>Unidades Orgánicas</span>
+              </a>
+              <a routerLink="/admin/tags" routerLinkActive="nav-item-active" class="sidebar-nav-item">
+                <span nz-icon nzType="tags"></span><span>Etiquetas</span>
+              </a>
+            }
+          </nav>
+        </aside>
+      }
 
       <div style="flex:1 1 auto;display:flex;flex-direction:column;min-width:0;background:var(--bg-app)">
-        <header style="height:62px;flex:0 0 auto;background:var(--bg-surface);border-bottom:1px solid var(--border-strong-alt);padding:0 32px;display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:13px;color:var(--text-muted)">Inicio / <span style="color:var(--ink);font-weight:600">{{ breadcrumb() }}</span></span>
-          <div style="display:flex;align-items:center;gap:12px">
-            @if (me()) {
-              <div style="width:34px;height:34px;border-radius:999px;background:var(--brand-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">{{ initials() }}</div>
-              <span style="font-size:13px;color:var(--ink-700)">{{ me()!.name }}</span>
-              <span style="width:1px;height:20px;background:var(--border-strong-alt)"></span>
-            }
-            <button nz-button nzType="text" (click)="logout()" class="logout-btn">
-              <span nz-icon nzType="logout"></span> Salir
-            </button>
-          </div>
-        </header>
+        @if (!denied()) {
+          <header style="height:62px;flex:0 0 auto;background:var(--bg-surface);border-bottom:1px solid var(--border-strong-alt);padding:0 32px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--text-muted)">Inicio / <span style="color:var(--ink);font-weight:600">{{ breadcrumb() }}</span></span>
+            <div style="display:flex;align-items:center;gap:12px">
+              @if (me()) {
+                <div style="width:34px;height:34px;border-radius:999px;background:var(--brand-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">{{ initials() }}</div>
+                <span style="font-size:13px;color:var(--ink-700)">{{ me()!.name }}</span>
+                <span style="width:1px;height:20px;background:var(--border-strong-alt)"></span>
+              }
+              <button nz-button nzType="text" (click)="logout()" class="logout-btn">
+                <span nz-icon nzType="logout"></span> Salir
+              </button>
+            </div>
+          </header>
+        }
         <main style="flex:1 1 auto;overflow-y:auto;padding:30px 36px 48px">
           <router-outlet />
         </main>
@@ -149,6 +153,9 @@ export class AppComponent {
 
   collapsed = signal(false);
 
+  // Set to true when /api/me responds with 403, so sidebar/header are hidden.
+  denied = signal(false);
+
   // Espera a que el token OIDC esté disponible antes de llamar a /api/me,
   // para que el interceptor pueda añadir el header Authorization.
   readonly me = toSignal(
@@ -156,7 +163,18 @@ export class AppComponent {
       filter(({ isAuthenticated }) => isAuthenticated),
       take(1),
       switchMap(() => this.http.get<MeDto>('/api/me')),
-      catchError(() => of(null)),
+      catchError((err: HttpErrorResponse) => {
+        if (err.status === 403) {
+          this.denied.set(true);
+          // Detect "desactivado" in the ProblemDetails detail/title
+          const body = err.error as { detail?: string; title?: string } | null;
+          const message = body?.detail ?? body?.title ?? '';
+          const reason = message.includes('desactivado') ? 'inactive' : null;
+          const extras = reason ? { queryParams: { reason } } : {};
+          this.router.navigate(['/access-denied'], extras);
+        }
+        return of(null);
+      }),
     ),
     { initialValue: null as MeDto | null },
   );

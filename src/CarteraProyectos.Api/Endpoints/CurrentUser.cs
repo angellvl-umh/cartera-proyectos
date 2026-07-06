@@ -10,6 +10,20 @@ internal static class CurrentUser
     {
         var sub = ctx.User.FindFirst("sub")?.Value;
         if (sub is null) return null;
-        return await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub, ct);
+
+        var person = await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub && p.IsActive, ct);
+        if (person is not null) return person;
+
+        // Primer login de una persona pre-registrada: las peticiones que llegan en
+        // paralelo con /api/me aún no tienen el SubjectId vinculado — vincular aquí también.
+        var email = ctx.User.FindFirst("email")?.Value;
+        if (string.IsNullOrEmpty(email)) return null;
+
+        person = await db.Persons.FirstOrDefaultAsync(p => p.Email == email && p.IsActive, ct);
+        if (person is null) return null;
+
+        person.UpdateSubjectId(sub);
+        await db.SaveChangesAsync(ct);
+        return person;
     }
 }

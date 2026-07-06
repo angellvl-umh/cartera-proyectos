@@ -27,10 +27,7 @@ public static class ReportEndpoints
             async (HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct,
                    string? status = null, int page = 1, int pageSize = 50) =>
             {
-                var sub = ctx.User.FindFirst("sub")?.Value;
-                if (sub is null) return Results.Unauthorized();
-
-                var person = await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub, ct);
+                var person = await CurrentUser.ResolveAsync(ctx, db, ct);
                 if (person is null) return Results.Unauthorized();
 
                 WorkItemStatus? statusEnum = null;

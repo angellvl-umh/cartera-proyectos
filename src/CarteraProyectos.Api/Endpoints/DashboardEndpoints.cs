@@ -11,10 +11,7 @@ public static class DashboardEndpoints
     {
         app.MapGet("/api/dashboard", async (HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {
-            var sub = ctx.User.FindFirst("sub")?.Value;
-            if (sub is null) return Results.Unauthorized();
-
-            var person = await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub, ct);
+            var person = await CurrentUser.ResolveAsync(ctx, db, ct);
             if (person is null) return Results.Unauthorized();
 
             return Results.Ok(await mediator.Send(new GetDashboardQuery(person.Id), ct));

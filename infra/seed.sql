@@ -86,6 +86,15 @@ INSERT INTO "Persons" ("SubjectId", "Name", "Email", "Role") VALUES
   ('seed-ivan.sanchezm',        'Iván Sánchez',           'ivan.sanchezm@umh.es',         'Desarrollador')
 ON CONFLICT ("Email") DO NOTHING;
 
+-- Usuarios del realm Keycloak de desarrollo (infra/keycloak/cartera-realm.json),
+-- pre-registrados con SubjectId NULL: el primer login los vincula por email.
+-- Sin esto no pueden entrar (el login ya no auto-provisiona personas).
+INSERT INTO "Persons" ("SubjectId", "Name", "Email", "Role") VALUES
+  (NULL, 'Ana García',     'gestor@universidad.es', 'Gestor'),
+  (NULL, 'Carlos López',   'jefe@universidad.es',   'Desarrollador'),
+  (NULL, 'María Martínez', 'dev@universidad.es',    'Desarrollador')
+ON CONFLICT ("Email") DO NOTHING;
+
 -- ─── 4. EQUIPOS ──────────────────────────────────────────────────────────────
 
 INSERT INTO "Teams" ("Name", "Description", "LeadPersonId")

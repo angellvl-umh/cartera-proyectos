@@ -63,5 +63,11 @@ export const routes: Routes = [
     canActivate: [AutoLoginPartialRoutesGuard],
     loadChildren: () => import('./features/admin/admin.routes').then(m => m.adminRoutes),
   },
+  {
+    path: 'access-denied',
+    canActivate: [AutoLoginPartialRoutesGuard],
+    loadComponent: () =>
+      import('./features/access-denied/access-denied.component').then(m => m.AccessDeniedComponent),
+  },
   { path: 'callback', loadComponent: () => import('./core/callback.component').then(m => m.CallbackComponent) },
 ];

@@ -34,10 +34,7 @@ public static class CommentEndpoints
         int projectId, int workItemId, CreateCommentRequest req,
         HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct)
     {
-        var sub = ctx.User.FindFirst("sub")?.Value;
-        var person = sub is not null
-            ? await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub, ct)
-            : null;
+        var person = await CurrentUser.ResolveAsync(ctx, db, ct);
         if (person is null) return Results.Unauthorized();
 
         var id = await mediator.Send(
@@ -49,10 +46,7 @@ public static class CommentEndpoints
         int projectId, int workItemId, int commentId,
         HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct)
     {
-        var sub = ctx.User.FindFirst("sub")?.Value;
-        var person = sub is not null
-            ? await db.Persons.FirstOrDefaultAsync(p => p.SubjectId == sub, ct)
-            : null;
+        var person = await CurrentUser.ResolveAsync(ctx, db, ct);
         if (person is null) return Results.Unauthorized();
 
         await mediator.Send(new DeleteCommentCommand(commentId, person.Id), ct);
