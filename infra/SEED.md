@@ -9,6 +9,8 @@ Script SQL idempotente con todos los datos de prueba del CPTI-2026: 10 promotore
 - Docker Compose levantado (`docker compose up -d`) **o** PostgreSQL en `localhost:5432`
 - `psql` disponible en PATH, o cualquier cliente SQL (DBeaver, pgAdmin)
 
+> **Stacks separados**: el stack por defecto usa el volumen persistente `pgdata` (datos de uso/demo). Los tests E2E se ejecutan contra un stack con BD efímera en tmpfs (`docker-compose.e2e.yml`, volumen `pgdata_e2e`) que `pnpm stack:e2e:up` levanta y siembra con este SQL, y cuyos datos se descartan al parar — ver `src/frontend/e2e/README.md`. Nunca ejecutes `docker compose down -v`: borraría `pgdata`.
+
 ---
 
 ## Cargar los datos de semilla
@@ -74,6 +76,6 @@ docker compose exec -T db psql -U postgres -d cartera_app < infra/seed.sql
 
 ## Notas
 
-- **Usuario gestor**: el seed NO incluye la persona del gestor. La provisión ocurre automáticamente en el primer login: el backend crea la fila con el UUID real de Keycloak y le asigna rol `Gestor` porque `gestor@universidad.es` está en `Admin__InitialGestorEmails`. No es necesaria ninguna acción manual.
+- **Usuario gestor**: el seed NO incluye la persona del gestor. Es el único caso de auto-provisión que queda: en el primer login el backend crea la fila con el UUID real de Keycloak y rol `Gestor` porque `gestor@universidad.es` está en `Admin__InitialGestorEmails` (bootstrap). Cualquier otro usuario debe estar pre-registrado por un Gestor o recibirá `403` al entrar.
 - **DataSeeder.cs**: el backend también carga estos mismos datos automáticamente al arrancar en modo `Development` (si la tabla `Projects` está vacía). El seed SQL es útil cuando se quiere cargar datos sin arrancar el backend, o para entornos de CI.
 - **Enums almacenados como strings**: `Status`, `Complexity`, `SiptGroup` y `Role` se guardan como texto en PostgreSQL. Los valores válidos están documentados en `CLAUDE.md`.

@@ -8,7 +8,11 @@
     "build": "ng build",
     "test": "vitest",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "stack:e2e:up": "docker compose -f ../../docker-compose.yml -f ../../docker-compose.e2e.yml up -d --wait db keycloak backend frontend && pnpm stack:e2e:seed",
+    "stack:e2e:seed": "docker compose -f ../../docker-compose.yml exec -T db psql -U postgres -d cartera_app -v ON_ERROR_STOP=1 < ../../infra/seed.sql",
+    "stack:e2e:down": "docker compose -f ../../docker-compose.yml -f ../../docker-compose.e2e.yml down",
+    "stack:up": "docker compose -f ../../docker-compose.yml up -d --wait db keycloak backend frontend"
   },
   "private": true,
   "dependencies": {

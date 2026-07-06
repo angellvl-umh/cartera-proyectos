@@ -2,20 +2,24 @@
 
 Tests de extremo a extremo con [Playwright](https://playwright.dev/) para el frontend Angular 21.
 
+## Dos stacks: uso vs E2E
+
+Los tests crean proyectos y tareas reales, así que **no deben ejecutarse contra el stack de uso** (volumen `pgdata`, donde vive tu base de demo/pruebas manuales). Para eso existe `docker-compose.e2e.yml`: un override que monta la BD sobre un volumen tmpfs **efímero** (`pgdata_e2e`). Cada arranque parte de una BD vacía: el backend la migra al arrancar y `pnpm stack:e2e:up` aplica `infra/seed.sql` al final (personas —incluidos los usuarios de Keycloak pre-registrados—, equipos y proyectos). Al parar el stack, los datos E2E se descartan.
+
+| Stack | Comando (desde `src/frontend`) | Volumen BD |
+|-------|-------------------------------|-----------|
+| E2E (efímero) | `pnpm stack:e2e:up` / `pnpm stack:e2e:down` | tmpfs, se descarta al parar |
+| Uso (persistente) | `pnpm stack:up` | `pgdata`, nunca lo tocan los tests |
+
+⚠️ No uses `docker compose down -v`: borraría también `pgdata` con tus datos de uso.
+
 ## Requisitos previos
 
-1. **Stack Docker levantado** con todos los servicios:
+1. **Stack E2E levantado y sembrado** (espera a los healthchecks de `db`, `keycloak`, `backend` y `frontend`, y aplica `infra/seed.sql`):
    ```bash
-   docker compose up -d
+   pnpm stack:e2e:up
    ```
-   Servicios necesarios: `db` (PostgreSQL), `keycloak`, `backend` (.NET), `frontend` (Angular).
-
-2. **Datos de semilla** cargados:
-   ```bash
-   # Aplica infra/seed.sql contra la base de datos
-   docker compose exec db psql -U postgres -d cartera -f /seed.sql
-   ```
-   Ver `infra/SEED.md` para más detalles.
+   Para re-aplicar solo el seed (idempotente): `pnpm stack:e2e:seed`. Ver `infra/SEED.md`.
 
 3. **Node.js / pnpm** instalados (misma versión que el proyecto).
 
@@ -32,6 +36,12 @@ pnpm e2e
 
 # Abrir la interfaz visual de Playwright
 pnpm e2e:ui
+
+# Ciclo completo: levantar stack E2E efímero, testear y tirar el stack
+pnpm stack:e2e:up && pnpm e2e && pnpm stack:e2e:down
+
+# Volver al stack de uso (recrea `db` apuntando al volumen persistente pgdata)
+pnpm stack:up
 
 # Listar los tests sin ejecutarlos
 pnpm exec playwright test --list

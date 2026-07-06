@@ -1,0 +1,23 @@
+# Override para tests E2E: sustituye el volumen de datos de PostgreSQL por uno
+# efímero respaldado en tmpfs. Así los tests nunca contaminan los datos de uso
+# del volumen `pgdata`, y cada arranque parte de una BD vacía que el backend
+# migra y siembra automáticamente (DataSeeder en modo Development).
+#
+# Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait
+#   pnpm e2e            (desde src/frontend)
+#   docker compose down (los datos E2E se descartan solos; NUNCA usar `down -v`,
+#                        borraría también pgdata con los datos de uso)
+#
+# Volver al stack de uso: docker compose up -d (recrea `db` apuntando a pgdata).
+services:
+  db:
+    volumes:
+      - pgdata_e2e:/var/lib/postgresql
+
+volumes:
+  pgdata_e2e:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
