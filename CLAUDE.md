@@ -232,6 +232,32 @@ kiro-cli chat "<spec técnica detallada>" \
   --model <modelo-elegido>
 ```
 
+### Ejecución dentro de Herdr: kiro-cli en panes
+
+Si la sesión corre dentro de [Herdr](https://herdr.dev) (detectable por la variable de entorno `HERDR_ENV=1`; `HERDR_PANE_ID` identifica la pane actual), **lanzar kiro-cli en una pane paralela en lugar de bloquear el Bash de Claude Code**. Así el usuario ve el progreso de kiro en directo y Claude Code queda libre mientras espera.
+
+```bash
+# 1. Lanzar kiro en una pane nueva (split a la derecha de la pane actual)
+herdr agent start kiro --cwd "C:\Angel\git\cartera-proyectos" --split right --no-focus -- \
+  kiro-cli chat "<spec técnica detallada>" --agent <agent-name> --no-interactive --trust-all-tools --model <modelo>
+# → devuelve el pane_id de la pane creada
+
+# 2. Esperar a que termine (bloqueante, con timeout generoso)
+herdr wait agent-status <pane_id> --status idle --timeout 600000
+#    (si herdr no detecta kiro como agente, usar: herdr wait output <pane_id> --match "<texto final>" --timeout 600000)
+
+# 3. Leer el resultado y revisar el output como siempre
+herdr pane read <pane_id> --source recent --lines 300
+
+# 4. Cerrar la pane cuando ya no haga falta
+herdr pane close <pane_id>
+```
+
+Notas:
+- Si `HERDR_ENV` no está definida, usar el patrón de invocación directo por Bash de arriba (sin cambios).
+- Para builds/tests largos (docker compose, Playwright) aplica el mismo patrón: `herdr pane split` + `herdr pane run` + `herdr wait output`.
+- Las specs largas con comillas conflictivas pueden escribirse a un fichero temporal y pasarse con `--resume` o interpolación, según convenga.
+
 ### Selección de modelo para kiro-cli
 
 Claude Code elige el modelo en función de la complejidad de la tarea. Al final de cada spec generada se incluye la línea:
