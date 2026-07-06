@@ -53,6 +53,11 @@ builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IAppDbContext>(
 // Embedding service (Bedrock)
 builder.Services.AddSingleton<IEmbeddingService, BedrockEmbeddingService>();
 
+// Identity Provider service (Keycloak Admin API)
+builder.Services.AddHttpClient<CarteraProyectos.Infrastructure.Identity.KeycloakAdminService>();
+builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IIdentityProviderService,
+    CarteraProyectos.Infrastructure.Identity.KeycloakAdminService>();
+
 // OpenAPI (frontend)
 builder.Services.AddOpenApi(options =>
 {

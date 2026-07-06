@@ -6,6 +6,7 @@ using CarteraProyectos.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -25,6 +26,13 @@ public class AgentPersonsHandlerTests
         var services = new ServiceCollection();
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AgentGetPersonsQuery).Assembly));
         services.AddScoped<IAppDbContext>(sp => db);
+        // El agente nunca crea credenciales locales, pero el handler de CreatePerson
+        // requiere IIdentityProviderService inyectado — registrar un stub que nunca se invoca.
+        var idpStub = Substitute.For<IIdentityProviderService>();
+        idpStub.CreateUserWithTemporaryPasswordAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new IdentityCredentialsResult(IdentityCredentialsStatus.Unavailable, null));
+        services.AddScoped<IIdentityProviderService>(_ => idpStub);
         var sp = services.BuildServiceProvider();
         return sp.GetRequiredService<ISender>();
     }

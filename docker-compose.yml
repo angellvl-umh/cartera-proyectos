@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+      - ./infra/docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -22,10 +23,22 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
+      # Persistencia en PostgreSQL (BD propia `keycloak`; ver infra/docker/initdb)
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      # Identity broker (sustituidos en el import del realm; ver infra/KEYCLOAK.md)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-google-client-id-pendiente}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-google-client-secret-pendiente}
+      KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-cartera-admin-secret}
     ports:
       - "8080:8080"
     volumes:
       - ./infra/keycloak:/opt/keycloak/data/import
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
       interval: 10s
@@ -48,6 +61,10 @@ services:
       Cors__Origins__2: "http://localhost:3000"
       Admin__InitialGestorEmails__0: "gestor@universidad.es"
       Agent__ApiKey: ${AGENT_API_KEY:-cartera-agent-key}
+      Keycloak__BaseUrl: "http://keycloak:8080"
+      Keycloak__Realm: "cartera"
+      Keycloak__AdminClientId: "cartera-admin"
+      Keycloak__AdminClientSecret: ${KC_ADMIN_CLIENT_SECRET:-cartera-admin-secret}
       Aws__BearerToken: ${AWS_BEARER_TOKEN_BEDROCK:-}
       Aws__AccessKeyId: ${AWS_ACCESS_KEY_ID:-}
       Aws__SecretAccessKey: ${AWS_SECRET_ACCESS_KEY:-}

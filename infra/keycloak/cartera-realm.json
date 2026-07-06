@@ -21,6 +21,33 @@
       "enabled": true,
       "bearerOnly": true,
       "protocol": "openid-connect"
+    },
+    {
+      "clientId": "cartera-admin",
+      "description": "Service account que usa el backend para crear usuarios locales (Admin API)",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "secret": "${KC_ADMIN_CLIENT_SECRET}"
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
+        "syncMode": "IMPORT"
+      }
     }
   ],
   "users": [
@@ -56,6 +83,14 @@
       "credentials": [
         { "type": "password", "value": "dev123", "temporary": false }
       ]
+    },
+    {
+      "username": "service-account-cartera-admin",
+      "enabled": true,
+      "serviceAccountClientId": "cartera-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "query-users"]
+      }
     }
   ]
 }

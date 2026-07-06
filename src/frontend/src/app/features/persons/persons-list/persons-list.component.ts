@@ -23,8 +23,11 @@ import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { Person, PersonsService, PersonUpsertDto } from '../persons.service';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { CommonModule } from '@angular/common';
+import { Person, PersonsService, PersonUpsertDto, CreatePersonDto } from '../persons.service';
 
 const ROLE_COLORS: Record<string, string> = {
   Gestor: 'purple',
@@ -43,11 +46,11 @@ const ROLE_LABELS: Record<string, string> = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FormsModule, ReactiveFormsModule, RouterLink,
+    CommonModule, FormsModule, ReactiveFormsModule, RouterLink,
     NzTableModule, NzTagModule, NzButtonModule, NzIconModule,
     NzModalModule, NzFormModule, NzInputModule, NzSelectModule,
     NzSwitchModule, NzPopconfirmModule, NzSpaceModule,
-    NzTooltipModule, NzSpinModule,
+    NzTooltipModule, NzSpinModule, NzCheckboxModule,
   ],
   template: `
     <!-- Encabezado -->
@@ -195,6 +198,15 @@ const ROLE_LABELS: Record<string, string> = {
               </nz-select>
             </nz-form-control>
           </nz-form-item>
+          @if (!editingPerson()) {
+            <nz-form-item>
+              <nz-form-control>
+                <label nz-checkbox formControlName="createLocalCredentials" style="display:flex;align-items:center">
+                  <span style="margin-left:8px;font-size:13px">Crear credenciales locales (usuario/contraseña)</span>
+                </label>
+              </nz-form-control>
+            </nz-form-item>
+          }
         </form>
       </ng-container>
     </nz-modal>
@@ -203,6 +215,7 @@ const ROLE_LABELS: Record<string, string> = {
 export class PersonsListComponent {
   private readonly svc = inject(PersonsService);
   private readonly msg = inject(NzMessageService);
+  private readonly modal = inject(NzModalService);
   private readonly http = inject(HttpClient);
 
   // ── Current user ─────────────────────────────────────────────────────────
@@ -233,6 +246,7 @@ export class PersonsListComponent {
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
     role: new FormControl<'Desarrollador' | 'Gestor' | null>(null, [Validators.required]),
+    createLocalCredentials: new FormControl(false, { nonNullable: true }),
   });
 
   // ── Pagination ───────────────────────────────────────────────────────────
@@ -249,7 +263,7 @@ export class PersonsListComponent {
   // ── Modal helpers ─────────────────────────────────────────────────────────
   openCreateModal(): void {
     this.editingPerson.set(null);
-    this.personForm.reset({ name: '', email: '', role: null });
+    this.personForm.reset({ name: '', email: '', role: null, createLocalCredentials: false });
     this.modalVisible.set(true);
   }
 
@@ -277,30 +291,88 @@ export class PersonsListComponent {
     }
 
     const raw = this.personForm.getRawValue();
-    const dto: PersonUpsertDto = {
-      name: raw.name,
-      email: raw.email,
-      role: raw.role!,
-    };
-
-    this.saving.set(true);
     const editing = this.editingPerson();
 
-    const op$: Observable<unknown> = editing
-      ? this.svc.updatePerson(editing.id, dto)
-      : this.svc.createPerson(dto);
+    if (editing) {
+      // Edición: no incluir createLocalCredentials
+      const dto: PersonUpsertDto = {
+        name: raw.name,
+        email: raw.email,
+        role: raw.role!,
+      };
+      this.saving.set(true);
+      this.svc.updatePerson(editing.id, dto).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.msg.success('Persona actualizada');
+          this.closeModal();
+          this.refresh$.next();
+        },
+        error: (err: unknown) => {
+          this.saving.set(false);
+          const msg = (err as { error?: { message?: string } })?.error?.message;
+          this.msg.error(msg ?? 'Error al guardar la persona');
+        },
+      });
+    } else {
+      // Alta: incluir createLocalCredentials
+      const dto: CreatePersonDto = {
+        name: raw.name,
+        email: raw.email,
+        role: raw.role!,
+        createLocalCredentials: raw.createLocalCredentials,
+      };
+      this.saving.set(true);
+      this.svc.createPerson(dto).subscribe({
+        next: (response) => {
+          this.saving.set(false);
+          this.msg.success('Persona creada');
+          this.closeModal();
+          this.refresh$.next();
 
-    op$.subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.msg.success(editing ? 'Persona actualizada' : 'Persona creada');
-        this.closeModal();
-        this.refresh$.next();
-      },
-      error: (err: unknown) => {
-        this.saving.set(false);
-        const msg = (err as { error?: { message?: string } })?.error?.message;
-        this.msg.error(msg ?? 'Error al guardar la persona');
+          // Mostrar modal con contraseña temporal si aplica
+          if (response.temporaryPassword) {
+            this.showTemporaryPasswordModal(response.temporaryPassword);
+          }
+
+          // Mostrar warning si aplica
+          if (response.credentialsWarning) {
+            this.msg.warning(response.credentialsWarning);
+          }
+        },
+        error: (err: unknown) => {
+          this.saving.set(false);
+          const msg = (err as { error?: { message?: string } })?.error?.message;
+          this.msg.error(msg ?? 'Error al crear la persona');
+        },
+      });
+    }
+  }
+
+  private showTemporaryPasswordModal(password: string): void {
+    this.modal.create({
+      nzTitle: 'Contraseña temporal',
+      nzContent: `
+        <div style="margin-bottom:16px">
+          <p style="font-weight:600;margin-bottom:8px">Contraseña temporal generada:</p>
+          <div style="background:#f5f5f5;border:1px solid #d9d9d9;border-radius:4px;padding:12px;font-family:monospace;font-size:14px;user-select:all;word-break:break-all">
+            ${password}
+          </div>
+        </div>
+        <div style="background:#fff7e6;border:1px solid #ffe58f;border-radius:4px;padding:12px;margin-bottom:16px">
+          <p style="margin:0;font-size:13px;color:#ad6800">
+            <strong>⚠️ Apúntala ahora:</strong> No se puede volver a consultar. El usuario deberá cambiarla en su primer inicio de sesión.
+          </p>
+        </div>
+      `,
+      nzOkText: 'Copiar y cerrar',
+      nzCancelText: 'Cerrar',
+      nzOnOk: () => {
+        navigator.clipboard.writeText(password).then(() => {
+          this.msg.success('Contraseña copiada al portapapeles');
+        }).catch(() => {
+          this.msg.error('No se pudo copiar al portapapeles');
+        });
       },
     });
   }

@@ -50,11 +50,16 @@ public sealed class AgentCreatePersonHandler(ISender sender)
     {
         if (!Enum.TryParse<PersonRole>(request.Role, out var role))
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
-        
+
         if (role == PersonRole.JefeEquipo)
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
 
-        return await sender.Send(new CreatePersonCommand(request.Name, request.Email, role, request.PersonId), ct);
+        // El agente nunca crea credenciales locales — CreateLocalCredentials: false
+        var result = await sender.Send(
+            new CreatePersonCommand(request.Name, request.Email, role, request.PersonId, CreateLocalCredentials: false),
+            ct);
+
+        return result.Id;
     }
 }
 
@@ -65,7 +70,7 @@ public sealed class AgentUpdatePersonHandler(ISender sender)
     {
         if (!Enum.TryParse<PersonRole>(request.Role, out var role))
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
-        
+
         if (role == PersonRole.JefeEquipo)
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
 

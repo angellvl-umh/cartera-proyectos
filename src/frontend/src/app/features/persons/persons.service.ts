@@ -24,6 +24,16 @@ export interface PersonUpsertDto {
   role: 'Desarrollador' | 'Gestor';
 }
 
+export interface CreatePersonDto extends PersonUpsertDto {
+  createLocalCredentials?: boolean;
+}
+
+export interface CreatePersonResponse {
+  id: number;
+  temporaryPassword?: string;
+  credentialsWarning?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PersonsService {
   private readonly http = inject(HttpClient);
@@ -34,8 +44,8 @@ export class PersonsService {
     );
   }
 
-  createPerson(data: PersonUpsertDto): Observable<{ id: number }> {
-    return this.http.post<{ id: number }>('/api/persons', data);
+  createPerson(data: CreatePersonDto): Observable<CreatePersonResponse> {
+    return this.http.post<CreatePersonResponse>('/api/persons', data);
   }
 
   updatePerson(id: number, data: PersonUpsertDto): Observable<void> {
