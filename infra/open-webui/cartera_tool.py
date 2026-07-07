@@ -1,8 +1,8 @@
 """
 title: Cartera de Proyectos TIC
-description: Herramientas para consultar y gestionar la cartera de proyectos TIC universitaria. Permite al agente IA consultar tareas, proyectos, capacidad de equipos, registrar avance semanal y consultar/exportar el informe semanal de cartera, realizar acciones como cambiar estados o crear tareas, generar gráficos visuales (tarta o barras) y exportar listados a Excel.
+description: Herramientas para consultar y gestionar la cartera de proyectos TIC universitaria. Permite al agente IA consultar tareas, proyectos, capacidad de equipos, registrar avance semanal y consultar/exportar el informe semanal de cartera, realizar acciones como cambiar estados, crear tareas, crear/modificar proyectos y gestionar personas (solo Gestor), riesgos y dependencias, generar gráficos visuales (tarta o barras) y exportar listados a Excel.
 author: Cartera TIC
-version: 1.3.0
+version: 1.5.0
 required_open_webui_version: 0.5.0
 requirements: matplotlib, openpyxl
 """
@@ -126,11 +126,13 @@ class Tools:
     def update_task_status(self, task_id: int, status: str, __user__: dict) -> str:
         """
         Cambiar el estado de una tarea.
-        Estados válidos: Backlog, ToDo, InProgress, Blocked, Done. Done es terminal y no puede revertirse.
+        Estados válidos: Backlog, ToDo, InProgress, Blocked, Done, Discarded.
+        Done y Discarded son terminales y no pueden revertirse (Discarded = tarea descartada,
+        no cuenta como completada en métricas).
         IMPORTANTE: confirma siempre con el usuario antes de ejecutar este cambio.
-        Úsalo cuando el usuario diga que terminó una tarea, que está bloqueado o que empieza a trabajar en algo.
+        Úsalo cuando el usuario diga que terminó una tarea, que está bloqueado, que empieza a trabajar en algo o que quiere descartar una tarea.
         :param task_id: ID numérico de la tarea
-        :param status: Nuevo estado — uno de: Backlog, ToDo, InProgress, Blocked, Done
+        :param status: Nuevo estado — uno de: Backlog, ToDo, InProgress, Blocked, Done, Discarded
         """
         result = self._post(
             f"/tasks/{task_id}/status",
@@ -222,6 +224,328 @@ class Tools:
             f"/projects/{project_id}/weekly-updates",
             __user__.get("email", ""),
             {"summary": summary, "healthStatus": health_status},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def create_project(
+        self,
+        title: str,
+        complexity: str,
+        __user__: dict,
+        description: Optional[str] = None,
+        requesting_unit: Optional[str] = None,
+        portfolio_year: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        beneficiary_count: Optional[int] = None,
+        promoter_id: Optional[int] = None,
+        organic_unit_id: Optional[int] = None,
+        group_priority: Optional[int] = None,
+        sipt_group: Optional[str] = None,
+        desired_deployment_date: Optional[str] = None,
+        specifications_url: Optional[str] = None,
+        epic_url: Optional[str] = None,
+        estimated_budget: Optional[float] = None,
+        business_value: Optional[int] = None,
+    ) -> str:
+        """
+        Crear un nuevo proyecto en la cartera. Solo el Gestor puede hacerlo.
+        El proyecto se crea en estado Stopped; usa update_project_status para moverlo.
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param title: Título del proyecto (obligatorio, máx. 150 caracteres)
+        :param complexity: Complejidad — VerySmall, Small, Medium, Large o VeryLarge
+        :param description: Descripción opcional
+        :param requesting_unit: Unidad solicitante (texto libre)
+        :param portfolio_year: Año de cartera, p. ej. 2026
+        :param start_date: Fecha de inicio en formato yyyy-MM-dd
+        :param end_date: Fecha de fin en formato yyyy-MM-dd
+        :param beneficiary_count: Número de beneficiarios
+        :param promoter_id: ID del promotor (catálogo de promotores)
+        :param organic_unit_id: ID de la unidad orgánica (catálogo)
+        :param group_priority: Prioridad dentro del grupo, entre 1 y 5
+        :param sipt_group: Grupo SIPT — WebTransversal, RRHH, Academico, Sede, Observatorio o InvestigacionEconomico
+        :param desired_deployment_date: Fecha deseada de puesta en producción (yyyy-MM-dd)
+        :param specifications_url: URL del documento de especificaciones
+        :param epic_url: URL de la épica en la herramienta externa del equipo
+        :param estimated_budget: Presupuesto estimado en euros
+        :param business_value: Valor de negocio, entre 1 y 5
+        """
+        body = {
+            "title": title,
+            "complexity": complexity,
+            "description": description,
+            "requestingUnit": requesting_unit,
+            "portfolioYear": portfolio_year,
+            "startDate": start_date,
+            "endDate": end_date,
+            "beneficiaryCount": beneficiary_count,
+            "promoterId": promoter_id,
+            "organicUnitId": organic_unit_id,
+            "groupPriority": group_priority,
+            "siptGroup": sipt_group,
+            "desiredDeploymentDate": desired_deployment_date,
+            "specificationsUrl": specifications_url,
+            "epicUrl": epic_url,
+            "estimatedBudget": estimated_budget,
+            "businessValue": business_value,
+        }
+        result = self._post("/projects", __user__.get("email", ""), body)
+        return json.dumps(result, ensure_ascii=False)
+
+    def update_project(
+        self,
+        project_id: int,
+        __user__: dict,
+        title: Optional[str] = None,
+        complexity: Optional[str] = None,
+        description: Optional[str] = None,
+        requesting_unit: Optional[str] = None,
+        portfolio_year: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        beneficiary_count: Optional[int] = None,
+        promoter_id: Optional[int] = None,
+        organic_unit_id: Optional[int] = None,
+        group_priority: Optional[int] = None,
+        sipt_group: Optional[str] = None,
+        desired_deployment_date: Optional[str] = None,
+        specifications_url: Optional[str] = None,
+        epic_url: Optional[str] = None,
+        estimated_budget: Optional[float] = None,
+        business_value: Optional[int] = None,
+    ) -> str:
+        """
+        Modificar los datos de un proyecto existente. Solo el Gestor puede hacerlo.
+        Actualización PARCIAL: solo se modifican los parámetros que se envíen; los omitidos
+        conservan su valor actual (no es posible vaciar un campo con esta herramienta).
+        No cambia el estado del proyecto: para eso usa update_project_status.
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param project_id: ID numérico del proyecto a modificar
+        :param title: Nuevo título (máx. 150 caracteres)
+        :param complexity: Nueva complejidad — VerySmall, Small, Medium, Large o VeryLarge
+        :param description: Nueva descripción
+        :param requesting_unit: Unidad solicitante (texto libre)
+        :param portfolio_year: Año de cartera, p. ej. 2026
+        :param start_date: Fecha de inicio en formato yyyy-MM-dd
+        :param end_date: Fecha de fin en formato yyyy-MM-dd
+        :param beneficiary_count: Número de beneficiarios
+        :param promoter_id: ID del promotor (catálogo de promotores)
+        :param organic_unit_id: ID de la unidad orgánica (catálogo)
+        :param group_priority: Prioridad dentro del grupo, entre 1 y 5
+        :param sipt_group: Grupo SIPT — WebTransversal, RRHH, Academico, Sede, Observatorio o InvestigacionEconomico
+        :param desired_deployment_date: Fecha deseada de puesta en producción (yyyy-MM-dd)
+        :param specifications_url: URL del documento de especificaciones
+        :param epic_url: URL de la épica en la herramienta externa del equipo
+        :param estimated_budget: Presupuesto estimado en euros
+        :param business_value: Valor de negocio, entre 1 y 5
+        """
+        body = {
+            "title": title,
+            "complexity": complexity,
+            "description": description,
+            "requestingUnit": requesting_unit,
+            "portfolioYear": portfolio_year,
+            "startDate": start_date,
+            "endDate": end_date,
+            "beneficiaryCount": beneficiary_count,
+            "promoterId": promoter_id,
+            "organicUnitId": organic_unit_id,
+            "groupPriority": group_priority,
+            "siptGroup": sipt_group,
+            "desiredDeploymentDate": desired_deployment_date,
+            "specificationsUrl": specifications_url,
+            "epicUrl": epic_url,
+            "estimatedBudget": estimated_budget,
+            "businessValue": business_value,
+        }
+        result = self._post(f"/projects/{project_id}", __user__.get("email", ""), body)
+        return json.dumps(result, ensure_ascii=False)
+
+    def update_project_status(self, project_id: int, status: str, __user__: dict) -> str:
+        """
+        Cambiar el estado de un proyecto.
+        Estados válidos: Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint,
+        InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient.
+        El grafo de transiciones se valida en el servidor (para Completed todos los sprints
+        deben estar completados y las tareas Done o Discarded).
+        Pueden hacerlo el Gestor y cualquier miembro de un equipo asignado al proyecto.
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param project_id: ID numérico del proyecto
+        :param status: Nuevo estado del proyecto
+        """
+        result = self._post(
+            f"/projects/{project_id}/status",
+            __user__.get("email", ""),
+            {"status": status},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    # ── Personas (solo Gestor) ────────────────────────────────────────────────
+
+    def get_persons(self, __user__: dict, include_inactive: Optional[bool] = False) -> str:
+        """
+        Listar personas registradas con su rol (Desarrollador/Gestor), si están activas
+        y si ya han iniciado sesión alguna vez.
+        Úsalo para buscar a una persona por nombre o email antes de editarla o asignarle trabajo.
+        :param include_inactive: Si true, incluye también las personas desactivadas
+        """
+        params = {"includeInactive": "true"} if include_inactive else None
+        result = self._get("/persons", __user__.get("email", ""), params=params)
+        return json.dumps(result, ensure_ascii=False)
+
+    def create_person(self, name: str, email: str, role: str, __user__: dict) -> str:
+        """
+        Pre-registrar una nueva persona. Solo el Gestor puede hacerlo.
+        La persona se vinculará con su cuenta SSO en su primer inicio de sesión (por email).
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param name: Nombre completo de la persona
+        :param email: Email institucional (debe coincidir con el del SSO)
+        :param role: Rol — Desarrollador o Gestor
+        """
+        result = self._post(
+            "/persons",
+            __user__.get("email", ""),
+            {"name": name, "email": email, "role": role},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def update_person(self, person_id: int, name: str, email: str, role: str, __user__: dict) -> str:
+        """
+        Actualizar nombre, email y rol de una persona. Solo el Gestor puede hacerlo.
+        Hay que enviar los tres campos (usa get_persons para consultar los valores actuales).
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param person_id: ID numérico de la persona a actualizar
+        :param name: Nombre completo
+        :param email: Email institucional
+        :param role: Rol — Desarrollador o Gestor
+        """
+        result = self._post(
+            f"/persons/{person_id}",
+            __user__.get("email", ""),
+            {"name": name, "email": email, "role": role},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def set_person_active(self, person_id: int, is_active: bool, __user__: dict) -> str:
+        """
+        Activar o desactivar una persona (baja lógica). Solo el Gestor puede hacerlo.
+        Las personas inactivas no aparecen en listados ni pueden recibir tareas.
+        Un Gestor no puede desactivarse a sí mismo.
+        IMPORTANTE: confirma siempre con el usuario antes de ejecutar esta acción.
+        :param person_id: ID numérico de la persona
+        :param is_active: true para activar, false para desactivar
+        """
+        result = self._post(
+            f"/persons/{person_id}/active",
+            __user__.get("email", ""),
+            {"isActive": is_active},
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    # ── Riesgos y dependencias ───────────────────────────────────────────────
+
+    def get_project_risks(self, project_id: int, __user__: dict) -> str:
+        """
+        Listar los riesgos de un proyecto, con probabilidad × impacto = severidad (1-9)
+        y estado (Open/Mitigated/Closed).
+        Úsalo cuando el usuario pregunte por los riesgos de un proyecto.
+        :param project_id: ID numérico del proyecto
+        """
+        result = self._get(f"/projects/{project_id}/risks", __user__.get("email", ""))
+        return json.dumps(result, ensure_ascii=False)
+
+    def add_project_risk(
+        self,
+        project_id: int,
+        description: str,
+        probability: str,
+        impact: str,
+        __user__: dict,
+        mitigation_plan: Optional[str] = None,
+    ) -> str:
+        """
+        Registrar un riesgo en un proyecto.
+        Pueden hacerlo el Gestor y cualquier miembro de un equipo asignado al proyecto.
+        :param project_id: ID numérico del proyecto
+        :param description: Descripción del riesgo
+        :param probability: Probabilidad — Low, Medium o High
+        :param impact: Impacto — Low, Medium o High
+        :param mitigation_plan: Plan de mitigación (opcional)
+        """
+        result = self._post(
+            f"/projects/{project_id}/risks",
+            __user__.get("email", ""),
+            {
+                "description": description,
+                "probability": probability,
+                "impact": impact,
+                "mitigationPlan": mitigation_plan,
+            },
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def update_project_risk(
+        self,
+        project_id: int,
+        risk_id: int,
+        description: str,
+        probability: str,
+        impact: str,
+        status: str,
+        __user__: dict,
+        mitigation_plan: Optional[str] = None,
+    ) -> str:
+        """
+        Actualizar un riesgo de un proyecto: descripción, niveles, plan de mitigación y estado.
+        Hay que enviar todos los campos (usa get_project_risks para consultar los actuales).
+        :param project_id: ID numérico del proyecto
+        :param risk_id: ID numérico del riesgo
+        :param description: Descripción del riesgo
+        :param probability: Probabilidad — Low, Medium o High
+        :param impact: Impacto — Low, Medium o High
+        :param status: Estado — Open, Mitigated o Closed
+        :param mitigation_plan: Plan de mitigación (opcional)
+        """
+        result = self._post(
+            f"/projects/{project_id}/risks/{risk_id}",
+            __user__.get("email", ""),
+            {
+                "description": description,
+                "probability": probability,
+                "impact": impact,
+                "mitigationPlan": mitigation_plan,
+                "status": status,
+            },
+        )
+        return json.dumps(result, ensure_ascii=False)
+
+    def get_project_dependencies(self, project_id: int, __user__: dict) -> str:
+        """
+        Listar las dependencias de un proyecto: de qué proyectos depende y qué proyectos
+        dependen de él.
+        :param project_id: ID numérico del proyecto
+        """
+        result = self._get(f"/projects/{project_id}/dependencies", __user__.get("email", ""))
+        return json.dumps(result, ensure_ascii=False)
+
+    def add_project_dependency(
+        self,
+        project_id: int,
+        depends_on_project_id: int,
+        __user__: dict,
+        description: Optional[str] = None,
+    ) -> str:
+        """
+        Registrar que un proyecto depende de otro.
+        El servidor rechaza autodependencias, duplicados y ciclos directos.
+        :param project_id: ID numérico del proyecto que depende
+        :param depends_on_project_id: ID numérico del proyecto del que depende
+        :param description: Descripción de la dependencia (opcional)
+        """
+        result = self._post(
+            f"/projects/{project_id}/dependencies",
+            __user__.get("email", ""),
+            {"dependsOnProjectId": depends_on_project_id, "description": description},
         )
         return json.dumps(result, ensure_ascii=False)
 

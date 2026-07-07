@@ -227,6 +227,42 @@ public static class AgentEndpoints
         .WithSummary("Cambiar el estado de un proyecto")
         .WithDescription("Cambia el estado de un proyecto. Estados: Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient. El grafo de transiciones se valida en el servidor (para Completed todos los sprints deben estar completados y las tareas Done o Discarded). Pueden hacerlo el Gestor y cualquier miembro de un equipo asignado al proyecto. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
+        // ── 5a. POST /projects (crear proyecto) ──────────────────────────────
+        group.MapPost("/projects", async (AgentProjectCreateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            var id = await sender.Send(new AgentCreateProjectCommand(
+                person!.Id, req.Title, req.Description, req.RequestingUnit,
+                req.Complexity, req.PortfolioYear, req.StartDate, req.EndDate,
+                req.BeneficiaryCount, req.PromoterId, req.OrganicUnitId, req.GroupPriority,
+                req.SiptGroup, req.DesiredDeploymentDate, req.SpecificationsUrl,
+                req.EpicUrl, req.EstimatedBudget, req.BusinessValue));
+            return Results.Created($"/api/projects/{id}", new { id, message = $"Proyecto '{req.Title}' creado con ID {id}." });
+        })
+        .WithName("create_project")
+        .WithSummary("Crear un nuevo proyecto en la cartera")
+        .WithDescription("Crea un nuevo proyecto en la cartera. Solo el Gestor puede hacerlo. complexity: VerySmall, Small, Medium, Large, VeryLarge. siptGroup opcional: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico. Fechas en formato yyyy-MM-dd. businessValue (valor de negocio) y groupPriority entre 1 y 5. El proyecto se crea en estado Stopped; usa update_project_status para moverlo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+
+        // ── 5b. POST /projects/{id:int} (actualizar proyecto) ──────────────────
+        group.MapPost("/projects/{id:int}", async (int id, AgentProjectUpdateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
+        {
+            var person = await ResolvePersonAsync(http, db);
+            var guardResult = Guard(person);
+            if (guardResult is not null) return guardResult;
+            await sender.Send(new AgentUpdateProjectCommand(
+                person!.Id, id, req.Title, req.Description, req.RequestingUnit,
+                req.Complexity, req.PortfolioYear, req.StartDate, req.EndDate,
+                req.BeneficiaryCount, req.PromoterId, req.OrganicUnitId, req.GroupPriority,
+                req.SiptGroup, req.DesiredDeploymentDate, req.SpecificationsUrl,
+                req.EpicUrl, req.EstimatedBudget, req.BusinessValue));
+            return Results.Ok(new { message = $"Proyecto {id} actualizado." });
+        })
+        .WithName("update_project")
+        .WithSummary("Modificar los datos de un proyecto")
+        .WithDescription("Actualización parcial de un proyecto: solo se modifican los campos enviados; los omitidos conservan su valor actual (no es posible vaciar un campo con esta tool). Solo el Gestor puede hacerlo. No cambia el estado del proyecto: para eso usa update_project_status. complexity: VerySmall, Small, Medium, Large, VeryLarge. siptGroup: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico. Fechas en formato yyyy-MM-dd. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+
         // ── 6. GET /projects/{id:int}/risks (listar riesgos) ────────────────
         group.MapGet("/projects/{id:int}/risks", async (int id, ISender sender) =>
         {
@@ -429,3 +465,17 @@ public record AgentRiskRequest(string Description, string Probability, string Im
 public record AgentRiskUpdateRequest(string Description, string Probability, string Impact, string? MitigationPlan, string Status);
 
 public record AgentDependencyRequest(int DependsOnProjectId, string? Description);
+
+public record AgentProjectCreateRequest(
+    string Title, string? Description, string? RequestingUnit, string Complexity,
+    int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate, int? BeneficiaryCount,
+    int? PromoterId, int? OrganicUnitId, int? GroupPriority, string? SiptGroup,
+    DateOnly? DesiredDeploymentDate, string? SpecificationsUrl, string? EpicUrl,
+    decimal? EstimatedBudget, int? BusinessValue);
+
+public record AgentProjectUpdateRequest(
+    string? Title, string? Description, string? RequestingUnit, string? Complexity,
+    int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate, int? BeneficiaryCount,
+    int? PromoterId, int? OrganicUnitId, int? GroupPriority, string? SiptGroup,
+    DateOnly? DesiredDeploymentDate, string? SpecificationsUrl, string? EpicUrl,
+    decimal? EstimatedBudget, int? BusinessValue);
