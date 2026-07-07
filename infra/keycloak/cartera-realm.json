@@ -36,6 +36,18 @@
       "directAccessGrantsEnabled": false,
       "protocol": "openid-connect",
       "secret": "${KC_ADMIN_CLIENT_SECRET}"
+    },
+    {
+      "clientId": "cartera-openwebui",
+      "description": "Cliente OIDC de Open WebUI (SSO del chat del agente)",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/oauth/oidc/callback"],
+      "webOrigins": ["http://localhost:3000"],
+      "protocol": "openid-connect",
+      "secret": "${OPENWEBUI_CLIENT_SECRET}"
     }
   ],
   "identityProviders": [

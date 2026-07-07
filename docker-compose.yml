@@ -23,6 +23,10 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
+      # Hostname frontend fijo + backchannel dinámico: el navegador ve localhost:8080
+      # y los contenedores (open-webui, backend) hablan con keycloak:8080 (ver infra/KEYCLOAK.md)
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       # Persistencia en PostgreSQL (BD propia `keycloak`; ver infra/docker/initdb)
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://db:5432/keycloak
@@ -32,6 +36,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-google-client-id-pendiente}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-google-client-secret-pendiente}
       KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-cartera-admin-secret}
+      OPENWEBUI_CLIENT_SECRET: ${OPENWEBUI_CLIENT_SECRET:-cartera-openwebui-secret}
     ports:
       - "8080:8080"
     volumes:
@@ -124,6 +129,16 @@ services:
       ENABLE_OLLAMA_API: "false"
       # Security
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-cartera-webui-secret-change-in-prod}
+      # SSO via Keycloak (OIDC) — ver infra/KEYCLOAK.md
+      ENABLE_OAUTH_SIGNUP: "true"
+      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "true"
+      OAUTH_CLIENT_ID: "cartera-openwebui"
+      OAUTH_CLIENT_SECRET: ${OPENWEBUI_CLIENT_SECRET:-cartera-openwebui-secret}
+      OPENID_PROVIDER_URL: "http://keycloak:8080/realms/cartera/.well-known/openid-configuration"
+      OPENID_REDIRECT_URI: "http://localhost:3000/oauth/oidc/callback"
+      OAUTH_PROVIDER_NAME: "SSO Cartera"
+      # Alta SSO en pending: el admin de Open WebUI aprueba cada cuenta nueva
+      DEFAULT_USER_ROLE: "pending"
       # Tool Server: registrar manualmente en Admin → Settings → Tools → Add Tool Server
       # URL: http://backend:8080/openapi/agent.json  |  Auth: Bearer cartera-agent-key
     ports:
@@ -134,6 +149,8 @@ services:
       litellm:
         condition: service_healthy
       backend:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
 volumes:
