@@ -2,6 +2,10 @@
   "realm": "cartera",
   "enabled": true,
   "registrationAllowed": false,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es", "en", "ca"],
+  "defaultLocale": "es",
+  "loginTheme": "cartera",
   "clients": [
     {
       "clientId": "cartera-frontend",
