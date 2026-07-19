@@ -27,6 +27,10 @@ Thumbs.db
 .claude/settings.local.json
 .claude/worktrees/
 
+# Agent tooling caches (Serena, tokensave, etc.)
+.serena/
+.tokensave/
+
 #.playwright
 .playwright-mcp
 
