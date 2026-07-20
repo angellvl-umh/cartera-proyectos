@@ -267,9 +267,9 @@ Claude Code elige el modelo en función de la complejidad de la tarea. Al final 
 
 | Señal de complejidad | Modelo |
 |----------------------|--------|
-| Backend CQRS puro (handler + endpoint siguiendo patrón existente) | `claude-haiku-4.5` |
-| Tests unitarios sobre código existente | `claude-haiku-4.5` |
-| Frontend con un único componente aislado | `claude-haiku-4.5` |
+| Backend CQRS puro (handler + endpoint siguiendo patrón existente) | `claude-sonnet-4.6` |
+| Tests unitarios sobre código existente | `claude-sonnet-4.6` |
+| Frontend con un único componente aislado | `claude-sonnet-4.6` |
 | Frontend con múltiples archivos y contratos TypeScript entre ellos | `claude-sonnet-4.6` |
 | Refactor transversal (cambia interfaces que impactan varios archivos) | `claude-sonnet-4.6` |
 | Lógica de negocio compleja o máquina de estados nueva | `claude-sonnet-4.6` |

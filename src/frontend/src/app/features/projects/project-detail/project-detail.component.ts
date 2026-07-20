@@ -155,9 +155,8 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             <a *nzSpaceItem nz-button [routerLink]="['/projects', projectId, 'report']">
               <span nz-icon nzType="bar-chart"></span> Informe
             </a>
-            <button *nzSpaceItem nz-button nzType="text" nzSize="small" (click)="openProjectHistory()"
-              nz-tooltip nzTooltipTitle="Histórico de estados">
-              <span nz-icon nzType="history"></span>
+            <button *nzSpaceItem nz-button (click)="openProjectHistory()">
+              <span nz-icon nzType="clock-circle"></span> Histórico
             </button>
             <button *nzSpaceItem nz-button (click)="openEdit()">
               <span nz-icon nzType="edit"></span> Editar
