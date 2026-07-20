@@ -347,6 +347,39 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.ToTable("ProjectNotes");
                 });
 
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectStatusHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ChangedById")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FromStatus")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedById");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectStatusHistories");
+                });
+
             modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectRisk", b =>
                 {
                     b.Property<int>("Id")
@@ -956,6 +989,25 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.Navigation("ChangedBy");
 
                     b.Navigation("Sprint");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ProjectStatusHistory", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.Person", "ChangedBy")
+                        .WithMany()
+                        .HasForeignKey("ChangedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CarteraProyectos.Core.Domain.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangedBy");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Team", b =>

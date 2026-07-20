@@ -35,7 +35,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { HttpClient } from '@angular/common/http';
-import { ProjectsService } from '../projects.service';
+import { ProjectsService, ProjectStatusHistoryEntry } from '../projects.service';
 import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
 import { WorkItemsService, WorkItem, WorkItemStatus, WorkItemPriority, WorkItemType, WORK_ITEM_TYPE_LABELS, WorkItemStatusHistoryEntry } from '../workitems.service';
 import { SprintService, Sprint, CreateSprintDto, SprintStatusHistoryEntry } from '../sprint.service';
@@ -155,6 +155,10 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             <a *nzSpaceItem nz-button [routerLink]="['/projects', projectId, 'report']">
               <span nz-icon nzType="bar-chart"></span> Informe
             </a>
+            <button *nzSpaceItem nz-button nzType="text" nzSize="small" (click)="openProjectHistory()"
+              nz-tooltip nzTooltipTitle="Histórico de estados">
+              <span nz-icon nzType="history"></span>
+            </button>
             <button *nzSpaceItem nz-button (click)="openEdit()">
               <span nz-icon nzType="edit"></span> Editar
             </button>
@@ -1003,6 +1007,36 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
       </ng-container>
     </nz-modal>
 
+    <!-- Modal histórico de estado del proyecto -->
+    <nz-modal
+      [nzVisible]="projectHistoryModalVisible()"
+      nzTitle="Histórico de estados del proyecto"
+      [nzFooter]="null"
+      (nzOnCancel)="projectHistoryModalVisible.set(false)"
+    >
+      <ng-container *nzModalContent>
+        @if (projectHistoryLoading()) {
+          <div style="text-align:center;padding:24px"><nz-spin /></div>
+        } @else if (projectHistory().length === 0) {
+          <p style="color:#999;text-align:center">Sin histórico.</p>
+        } @else {
+          <nz-table [nzData]="projectHistory()" nzSize="small" [nzShowPagination]="false">
+            <thead><tr><th>De</th><th>A</th><th>Quién</th><th>Cuándo</th></tr></thead>
+            <tbody>
+              @for (h of projectHistory(); track h.id) {
+                <tr>
+                  <td>{{ h.fromStatus ? PROJECT_STATUS_LABELS[h.fromStatus] : '—' }}</td>
+                  <td><nz-tag>{{ PROJECT_STATUS_LABELS[h.toStatus] }}</nz-tag></td>
+                  <td>{{ h.changedByName }}</td>
+                  <td>{{ formatCommentDate(h.changedAt) }}</td>
+                </tr>
+              }
+            </tbody>
+          </nz-table>
+        }
+      </ng-container>
+    </nz-modal>
+
     <!-- Modal cerrar sprint (carry-over) -->
     <nz-modal
       [nzVisible]="carryOverModalVisible()"
@@ -1072,6 +1106,7 @@ export class ProjectDetailComponent {
   commentsModalVisible = signal(false);
   workItemHistoryModalVisible = signal(false);
   sprintHistoryModalVisible = signal(false);
+  projectHistoryModalVisible = signal(false);
 
   // ── Work-item drawer ──────────────────────────────────────────────────────
   drawerWorkItem = signal<WorkItem | null>(null);
@@ -1109,6 +1144,9 @@ export class ProjectDetailComponent {
   sprintHistory = signal<SprintStatusHistoryEntry[]>([]);
   sprintHistoryLoading = signal(false);
 
+  projectHistory = signal<ProjectStatusHistoryEntry[]>([]);
+  projectHistoryLoading = signal(false);
+
   // ── Carry-over sprint modal ───────────────────────────────────────────────
   carryOverModalVisible = signal(false);
   carryOverLoading = signal(false);
@@ -1132,7 +1170,14 @@ export class ProjectDetailComponent {
   readonly HEALTH_STATUS_LABELS = PROJECT_HEALTH_STATUS_LABELS;
   readonly HEALTH_STATUS_COLORS = PROJECT_HEALTH_STATUS_COLORS;
 
+  readonly RISK_LEVEL_LABELS = RISK_LEVEL_LABELS;
+  readonly RISK_STATUS_LABELS = RISK_STATUS_LABELS;
+  readonly RISK_STATUS_COLORS = RISK_STATUS_COLORS;
+
+  readonly PROJECT_STATUS_LABELS = PROJECT_STATUS_LABELS;
+
   // ── Risks ─────────────────────────────────────────────────────────────────
+
   risks = signal<ProjectRiskDto[]>([]);
   risksLoading = signal(false);
   riskModalVisible = signal(false);
@@ -1144,10 +1189,6 @@ export class ProjectDetailComponent {
     mitigationPlan: null,
   };
   riskFormStatus: RiskStatus = 'Open';
-
-  readonly RISK_LEVEL_LABELS = RISK_LEVEL_LABELS;
-  readonly RISK_STATUS_LABELS = RISK_STATUS_LABELS;
-  readonly RISK_STATUS_COLORS = RISK_STATUS_COLORS;
 
   severityColor(severity: number): string {
     if (severity <= 2) return 'success';
@@ -1617,6 +1658,15 @@ export class ProjectDetailComponent {
     this.sprintService.getStatusHistory(this.projectId, sprint.id).subscribe({
       next: (h) => { this.sprintHistory.set(h); this.sprintHistoryLoading.set(false); },
       error: () => { this.sprintHistoryLoading.set(false); this.message.error('Error al cargar el histórico'); },
+    });
+  }
+
+  openProjectHistory(): void {
+    this.projectHistoryModalVisible.set(true);
+    this.projectHistoryLoading.set(true);
+    this.service.getStatusHistory(this.projectId).subscribe({
+      next: (h) => { this.projectHistory.set(h); this.projectHistoryLoading.set(false); },
+      error: () => { this.projectHistoryLoading.set(false); this.message.error('Error al cargar el histórico'); },
     });
   }
 

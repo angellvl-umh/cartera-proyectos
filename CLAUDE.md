@@ -287,6 +287,7 @@ IDs de modelo exactos para kiro-cli: `claude-haiku-4.5`, `claude-sonnet-4.6`, `c
 | `/frontend-dev` | Lee API y contexto, genera spec Angular detallada, elige modelo, llama a kiro, revisa output | Implementa componentes, servicios, rutas | Sonnet (ajustable) |
 | `/architect` | Revisa código directamente | — | Sonnet (cerebro) |
 | `/tester` | Define casos de prueba, elige modelo, llama a kiro, revisa cobertura | Escribe tests unitarios, integración y E2E | Haiku (ajustable) |
+| `/opsx:apply-kiro` | Agrupa tasks de un change OpenSpec por capa, elige modelo, llama a kiro (pane Herdr si aplica), revisa output | Implementa las tasks de la capa asignada | Haiku (ajustable, por capa) |
 
 ### Flujo típico por feature
 
@@ -299,3 +300,17 @@ IDs de modelo exactos para kiro-cli: `claude-haiku-4.5`, `claude-sonnet-4.6`, `c
 ```
 
 Los agentes kiro están definidos en `.kiro/agents/`. Claude Code los invoca desde el directorio raíz del proyecto para que kiro detecte los agentes del workspace.
+
+### OpenSpec como complemento (specs versionadas + delegación a kiro/Herdr)
+
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) (`openspec/`, comandos `/opsx:*` en `.claude/commands/opsx/`) es un complemento opcional al flujo de arriba para features que conviene versionar como artefactos (`proposal.md` / `design.md` / `tasks.md` por change en `openspec/changes/<nombre>/`), en vez de specs efímeras en el chat. No sustituye a `/specifier` — puedes usar `/specifier` para pensar la spec y `/opsx:propose` para dejarla como artefactos versionados, o ir directo a `/opsx:propose`.
+
+```
+1. /opsx:propose "<idea>" → Claude Code crea el change y genera proposal/design/tasks
+2. /opsx:apply-kiro <change> → Claude Code agrupa las tasks por capa (Backend/Frontend/Tests),
+                                 elige modelo por capa y delega en kiro-cli (pane Herdr si HERDR_ENV=1),
+                                 revisa build/tests/diff antes de marcar cada task como hecha
+3. /opsx:archive <change>  → una vez todas las tasks están completas y verificadas
+```
+
+`/opsx:apply` (generado por OpenSpec, sin sufijo `-kiro`) sigue disponible tal cual: hace que Claude Code implemente directamente, útil para changes pequeños o fuera de Herdr. `/opsx:apply-kiro` es la variante que respeta el modelo cerebro/manos de esta sección — úsala por defecto cuando el change vaya a tocar código real.

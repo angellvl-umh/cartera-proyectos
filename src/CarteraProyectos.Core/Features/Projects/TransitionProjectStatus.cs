@@ -34,7 +34,9 @@ public sealed class TransitionProjectStatusHandler(IAppDbContext db)
                 throw new InvalidOperationException("No se puede finalizar el proyecto: tiene tareas que no están en estado Done o Discarded.");
         }
 
+        var oldStatus = project.Status;
         project.TransitionTo(request.NewStatus);
+        db.ProjectStatusHistories.Add(ProjectStatusHistory.Create(project, oldStatus, request.NewStatus, request.RequestingPersonId));
         await db.SaveChangesAsync(cancellationToken);
     }
 }

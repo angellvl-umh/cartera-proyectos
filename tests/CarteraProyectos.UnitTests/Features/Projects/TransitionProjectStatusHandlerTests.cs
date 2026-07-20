@@ -223,4 +223,80 @@ public class TransitionProjectStatusHandlerTests
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(cmd, CancellationToken.None));
     }
+
+    // --- ProjectStatusHistory ---
+
+    [Fact]
+    public async Task TransitionProjectStatus_RecordsHistoryEntry()
+    {
+        var (db, project, gestor) = await SetupProjectWithGestor();
+        await using var _ = db;
+
+        var handler = new TransitionProjectStatusHandler(db);
+        await handler.Handle(
+            new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, gestor.Id),
+            CancellationToken.None);
+
+        var history = await db.ProjectStatusHistories.Where(h => h.ProjectId == project.Id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBe(ProjectStatus.Stopped);
+        history[0].ToStatus.ShouldBe(ProjectStatus.PlanningWithClient);
+        history[0].ChangedById.ShouldBe(gestor.Id);
+    }
+
+    [Fact]
+    public async Task TransitionProjectStatus_InvalidTransition_DoesNotRecordHistory()
+    {
+        var (db, project, gestor) = await SetupProjectWithGestor();
+        await using var _ = db;
+
+        // Avanzar a Completed por ruta válida para poder probar una transición inválida
+        project.TransitionTo(ProjectStatus.PlanningWithClient);
+        project.TransitionTo(ProjectStatus.PlanningSprint);
+        project.TransitionTo(ProjectStatus.InSprint);
+        project.TransitionTo(ProjectStatus.InTesting);
+        project.TransitionTo(ProjectStatus.Completed);
+        await db.SaveChangesAsync();
+
+        var handler = new TransitionProjectStatusHandler(db);
+        // Desde Completed no se puede ir a ningún estado
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => handler.Handle(
+                new TransitionProjectStatusCommand(project.Id, ProjectStatus.Stopped, gestor.Id),
+                CancellationToken.None));
+
+        // No debe haber entrada de histórico para la transición fallida (solo la de creación)
+        var history = await db.ProjectStatusHistories.Where(h => h.ProjectId == project.Id).ToListAsync();
+        history.ShouldBeEmpty(); // Ninguna porque Completed es terminal y no tenemos histórico previo en esta prueba
+    }
+
+    [Fact]
+    public async Task TransitionProjectStatus_MultipleTransitions_RecordsAllHistoryEntries()
+    {
+        var (db, project, gestor) = await SetupProjectWithGestor();
+        await using var _ = db;
+
+        var handler = new TransitionProjectStatusHandler(db);
+
+        // Primera transición
+        await handler.Handle(
+            new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, gestor.Id),
+            CancellationToken.None);
+
+        // Segunda transición
+        await handler.Handle(
+            new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, gestor.Id),
+            CancellationToken.None);
+
+        var history = await db.ProjectStatusHistories
+            .Where(h => h.ProjectId == project.Id)
+            .OrderBy(h => h.ChangedAt)
+            .ToListAsync();
+
+        history.Count.ShouldBe(2);
+        history[0].FromStatus.ShouldBe(ProjectStatus.Stopped);
+        history[0].ToStatus.ShouldBe(ProjectStatus.PlanningWithClient);
+        history[1].FromStatus.ShouldBe(ProjectStatus.PlanningWithClient);
+        history[1].ToStatus.ShouldBe(ProjectStatus.PlanningSprint);
+    }
 }

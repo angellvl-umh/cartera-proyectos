@@ -23,9 +23,10 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
-      # Hostname frontend fijo + backchannel dinámico: el navegador ve localhost:8080
+      # Hostname frontend fijo + backchannel dinámico: el navegador ve KEYCLOAK_PUBLIC_URL
       # y los contenedores (open-webui, backend) hablan con keycloak:8080 (ver infra/KEYCLOAK.md)
-      KC_HOSTNAME: http://localhost:8080
+      # Config por entorno (local/Tailscale/producción) via .env: ver infra/KEYCLOAK.md#config-por-entorno
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       # Persistencia en PostgreSQL (BD propia `keycloak`; ver infra/docker/initdb)
       KC_DB: postgres
@@ -37,6 +38,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-google-client-secret-pendiente}
       KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-cartera-admin-secret}
       OPENWEBUI_CLIENT_SECRET: ${OPENWEBUI_CLIENT_SECRET:-cartera-openwebui-secret}
+      # Origen público del frontend, para redirectUris/webOrigins del cliente cartera-frontend
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost}
     ports:
       - "8080:8080"
     volumes:
@@ -60,11 +63,12 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: "Host=db;Database=cartera_app;Username=postgres;Password=postgres"
       Auth__Authority: "http://keycloak:8080/realms/cartera"
-      Auth__ValidIssuer: "http://localhost:8080/realms/cartera"
+      Auth__ValidIssuer: "${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/cartera"
       Auth__Audience: "account"
       Cors__Origins__0: "http://localhost"
       Cors__Origins__1: "http://localhost:4200"
       Cors__Origins__2: "http://localhost:3000"
+      Cors__Origins__3: "${PUBLIC_URL:-http://localhost}"
       Admin__InitialGestorEmails__0: "gestor@universidad.es"
       Agent__ApiKey: ${AGENT_API_KEY:-cartera-agent-key}
       Keycloak__BaseUrl: "http://keycloak:8080"
@@ -93,6 +97,9 @@ services:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
+    environment:
+      # Authority OIDC público inyectado en runtime (env.js) — ver infra/KEYCLOAK.md#config-por-entorno
+      KEYCLOAK_AUTHORITY: "${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/cartera"
     ports:
       - "80:80"
     depends_on:

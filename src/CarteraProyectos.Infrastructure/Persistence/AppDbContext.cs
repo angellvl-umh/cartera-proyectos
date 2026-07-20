@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkItem> WorkItems => Set<WorkItem>();
     public DbSet<WorkItemStatusHistory> WorkItemStatusHistories => Set<WorkItemStatusHistory>();
     public DbSet<SprintStatusHistory> SprintStatusHistories => Set<SprintStatusHistory>();
+    public DbSet<ProjectStatusHistory> ProjectStatusHistories => Set<ProjectStatusHistory>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<WorkItemEmbedding> WorkItemEmbeddings => Set<WorkItemEmbedding>();
     public DbSet<Promoter> Promoters => Set<Promoter>();
@@ -141,6 +142,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(h => h.Sprint).WithMany().HasForeignKey(h => h.SprintId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(h => h.ChangedBy).WithMany().HasForeignKey(h => h.ChangedById).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(h => h.SprintId);
+        });
+
+        modelBuilder.Entity<ProjectStatusHistory>(e =>
+        {
+            e.HasKey(h => h.Id);
+            e.Property(h => h.FromStatus).HasConversion<string>();
+            e.Property(h => h.ToStatus).HasConversion<string>().IsRequired();
+            e.HasOne(h => h.Project).WithMany().HasForeignKey(h => h.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(h => h.ChangedBy).WithMany().HasForeignKey(h => h.ChangedById).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(h => h.ProjectId);
         });
 
         modelBuilder.Entity<Comment>(e =>

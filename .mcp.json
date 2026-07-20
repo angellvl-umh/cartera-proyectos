@@ -4,7 +4,9 @@
       "type": "stdio",
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest"
+        "@playwright/mcp@latest",
+        "--executable-path",
+        "/home/angel/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome"
       ],
       "env": {}
     }

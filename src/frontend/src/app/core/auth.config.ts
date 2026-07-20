@@ -1,8 +1,14 @@
 import { PassedInitialConfig } from 'angular-auth-oidc-client';
 
+declare global {
+  interface Window {
+    __env?: { keycloakAuthority?: string };
+  }
+}
+
 export const authConfig: PassedInitialConfig = {
   config: {
-    authority: 'http://localhost:8080/realms/cartera',
+    authority: window.__env?.keycloakAuthority || 'http://localhost:8080/realms/cartera',
     redirectUrl: window.location.origin + '/callback',
     postLogoutRedirectUri: window.location.origin,
     clientId: 'cartera-frontend',

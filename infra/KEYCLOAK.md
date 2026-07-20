@@ -49,14 +49,37 @@ Variables (en `docker-compose.yml`, servicio `open-webui`): `ENABLE_OAUTH_SIGNUP
 
 ### Hostname dual (`KC_HOSTNAME` + backchannel dinámico)
 
-El contenedor open-webui descarga el discovery document por la red interna (`http://keycloak:8080`), pero el navegador necesita `authorization_endpoint` en `http://localhost:8080`. Por eso Keycloak fija:
+El contenedor open-webui descarga el discovery document por la red interna (`http://keycloak:8080`), pero el navegador necesita `authorization_endpoint` en la URL pública de Keycloak. Por eso Keycloak fija:
 
 ```yaml
-KC_HOSTNAME: http://localhost:8080          # URLs frontend (navegador) e issuer
-KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"     # token/jwks/userinfo según el host de la request
+KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}   # URLs frontend (navegador) e issuer
+KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"                       # token/jwks/userinfo según el host de la request
 ```
 
-Con esto el `issuer` es estable (`http://localhost:8080/realms/cartera`, coincide con el `ValidIssuer` del backend) y los endpoints backchannel se resuelven en `keycloak:8080` para los contenedores. En producción, `KC_HOSTNAME` pasa a ser la URL pública y el backchannel dinámico puede mantenerse para la red interna.
+Con esto el `issuer` es estable (coincide con el `Auth__ValidIssuer` del backend) y los endpoints backchannel se resuelven en `keycloak:8080` para los contenedores. `KC_HOSTNAME` es un único valor fijo por instancia — no soporta "cualquier hostname válido" simultáneamente, así que cada entorno (local, Tailscale, producción) se levanta con su propio `.env`.
+
+### Config por entorno
+
+Dos variables en `.env` (ver `.env.example`) parametrizan todo el flujo de login para que el mismo stack funcione accedido por `localhost`, por un hostname de Tailscale, o por un dominio de producción, **sin rebuild de imágenes**:
+
+| Variable | Qué controla | Default |
+|----------|--------------|---------|
+| `PUBLIC_URL` | Origen del **frontend** visto por el navegador → `redirectUris`/`webOrigins` del cliente `cartera-frontend` en el realm, y un origen extra de CORS del backend (`Cors__Origins__3`) | `http://localhost` |
+| `KEYCLOAK_PUBLIC_URL` | Origen de **Keycloak** visto por el navegador → `KC_HOSTNAME`, `Auth__ValidIssuer` del backend, y el `authority` OIDC que resuelve el frontend en runtime | `http://localhost:8080` |
+
+El frontend no lleva el `authority` hardcodeado: nginx genera `env.js` en el arranque del contenedor (`docker-entrypoint.d/15-envsubst-env.sh`, via `envsubst` sobre `public/env.template.js`) a partir de `KEYCLOAK_AUTHORITY` (calculada en `docker-compose.yml` desde `KEYCLOAK_PUBLIC_URL`), y `src/app/core/auth.config.ts` lo lee de `window.__env` en runtime — el mismo build sirve para los tres entornos.
+
+**Aplicar un cambio de entorno:**
+```bash
+# .env
+PUBLIC_URL=http://mipc.tailnet-xxxx.ts.net
+KEYCLOAK_PUBLIC_URL=http://mipc.tailnet-xxxx.ts.net:8080
+
+docker compose up -d --force-recreate keycloak backend frontend
+```
+`KC_HOSTNAME`, `Auth__ValidIssuer` y `env.js` se recalculan en cada arranque del contenedor — no requieren reimportar el realm.
+
+**Excepción — `redirectUris`/`webOrigins` del cliente `cartera-frontend`:** esos valores vienen del **import** de `cartera-realm.json`, que (como se explica arriba) solo ocurre una vez. Si tu volumen `pgdata` ya tiene el realm importado, cambiar `PUBLIC_URL` en `.env` **no actualiza** la allowlist de Keycloak — hay que aplicarlo a mano una vez desde la consola admin (*Clients → cartera-frontend → Settings*: añadir `${PUBLIC_URL}/*` a Valid redirect URIs y `${PUBLIC_URL}` a Web origins) o vía Admin REST API. En un volumen nuevo (o el stack E2E), el import ya lo incluye automáticamente.
 
 ### Ciclo de vida de cuentas
 

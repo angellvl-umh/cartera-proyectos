@@ -18,6 +18,15 @@ import {
   UpsertWeeklyUpdateDto,
 } from './project.model';
 
+export interface ProjectStatusHistoryEntry {
+  id: number;
+  fromStatus: ProjectStatus | null;
+  toStatus: ProjectStatus;
+  changedById: number;
+  changedByName: string;
+  changedAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProjectsService {
   private readonly http = inject(HttpClient);
@@ -61,6 +70,10 @@ export class ProjectsService {
 
   transitionStatus(id: number, status: ProjectStatus): Observable<void> {
     return this.http.post<void>(`${this.base}/${id}/status`, { status });
+  }
+
+  getStatusHistory(id: number): Observable<ProjectStatusHistoryEntry[]> {
+    return this.http.get<ProjectStatusHistoryEntry[]>(`${this.base}/${id}/status-history`);
   }
 
   assignTeam(id: number, teamId: number, isPrimary: boolean): Observable<void> {

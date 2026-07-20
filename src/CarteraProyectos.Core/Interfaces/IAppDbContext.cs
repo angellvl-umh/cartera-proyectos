@@ -15,6 +15,7 @@ public interface IAppDbContext
     DbSet<WorkItem> WorkItems { get; }
     DbSet<WorkItemStatusHistory> WorkItemStatusHistories { get; }
     DbSet<SprintStatusHistory> SprintStatusHistories { get; }
+    DbSet<ProjectStatusHistory> ProjectStatusHistories { get; }
     DbSet<Comment> Comments { get; }
     DbSet<WorkItemEmbedding> WorkItemEmbeddings { get; }
     DbSet<Promoter> Promoters { get; }

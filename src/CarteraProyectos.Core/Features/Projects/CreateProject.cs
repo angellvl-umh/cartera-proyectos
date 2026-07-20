@@ -71,6 +71,7 @@ public sealed class CreateProjectHandler(IAppDbContext db) : IRequestHandler<Cre
         }
 
         db.Projects.Add(project);
+        db.ProjectStatusHistories.Add(ProjectStatusHistory.Create(project, null, project.Status, request.RequestingPersonId));
         await db.SaveChangesAsync(cancellationToken);
         return project.Id;
     }

@@ -140,6 +140,14 @@ public static class ProjectEndpoints
         .WithName("UpsertProjectWeeklyUpdate")
         .WithDescription("Crea o actualiza la actualización semanal del proyecto para la semana actual. Gestor, JefeEquipo del proyecto o Desarrollador en equipo asignado.");
 
+        group.MapGet("/{id:int}/status-history", async (int id, IMediator mediator, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await mediator.Send(new GetProjectStatusHistoryQuery(id), ct)); }
+            catch (KeyNotFoundException) { return Results.NotFound(); }
+        })
+        .WithName("GetProjectStatusHistory")
+        .WithDescription("Devuelve el histórico de cambios de estado del proyecto, ordenado cronológicamente.");
+
         return app;
     }
 }

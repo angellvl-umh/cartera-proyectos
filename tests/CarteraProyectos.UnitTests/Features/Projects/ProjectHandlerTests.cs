@@ -16,16 +16,26 @@ public class ProjectHandlerTests
         return new AppDbContext(options);
     }
 
+    private static async Task<(AppDbContext db, Person gestor)> DbWithGestor()
+    {
+        var db = CreateDb();
+        var gestor = Person.CreateFromClaims("sub-gestor", "Gestor", "gestor@test.com", PersonRole.Gestor);
+        db.Persons.Add(gestor);
+        await db.SaveChangesAsync();
+        return (db, gestor);
+    }
+
     // --- CreateProject ---
 
     [Fact]
     public async Task CreateProject_ValidCommand_CreatesProjectWithStoppedStatus()
     {
-        await using var db = CreateDb();
+        var (db, gestor) = await DbWithGestor();
         var handler = new CreateProjectHandler(db);
 
         var id = await handler.Handle(
-            new CreateProjectCommand("Portal Alumno", null, "RRHH", ProjectComplexity.Medium, 2026, null, null),
+            new CreateProjectCommand("Portal Alumno", null, "RRHH", ProjectComplexity.Medium, 2026, null, null,
+                RequestingPersonId: gestor.Id),
             CancellationToken.None);
 
         id.ShouldBeGreaterThan(0);
@@ -40,7 +50,7 @@ public class ProjectHandlerTests
     [Fact]
     public async Task CreateProject_WithNewFields_StoresAllFields()
     {
-        await using var db = CreateDb();
+        var (db, gestor) = await DbWithGestor();
         var handler = new CreateProjectHandler(db);
 
         var id = await handler.Handle(
@@ -51,7 +61,8 @@ public class ProjectHandlerTests
                 GroupPriority: 3,
                 SiptGroup: SiptGroup.Academico,
                 SpecificationsUrl: "https://drive.google.com/doc",
-                EpicUrl: "https://jira.umh.es/epic/1"),
+                EpicUrl: "https://jira.umh.es/epic/1",
+                RequestingPersonId: gestor.Id),
             CancellationToken.None);
 
         var project = await db.Projects.FindAsync(id);
@@ -160,5 +171,25 @@ public class ProjectHandlerTests
         result.Total.ShouldBe(3);
         result.Items.Count.ShouldBe(2);
         result.Page.ShouldBe(1);
+    }
+
+    // --- ProjectStatusHistory ---
+
+    [Fact]
+    public async Task CreateProject_RecordsInitialStatusHistory()
+    {
+        var (db, gestor) = await DbWithGestor();
+
+        var handler = new CreateProjectHandler(db);
+        var id = await handler.Handle(
+            new CreateProjectCommand("Proyecto Test", null, "TIC", ProjectComplexity.Small, 2026, null, null,
+                RequestingPersonId: gestor.Id),
+            CancellationToken.None);
+
+        var history = await db.ProjectStatusHistories.Where(h => h.ProjectId == id).ToListAsync();
+        history.Count.ShouldBe(1);
+        history[0].FromStatus.ShouldBeNull();
+        history[0].ToStatus.ShouldBe(ProjectStatus.Stopped);
+        history[0].ChangedById.ShouldBe(gestor.Id);
     }
 }

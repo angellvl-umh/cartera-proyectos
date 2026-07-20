@@ -13,11 +13,11 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": ["http://localhost/*", "http://localhost:4200/*"],
-      "webOrigins": ["http://localhost", "http://localhost:4200"],
+      "redirectUris": ["http://localhost/*", "http://localhost:4200/*", "${PUBLIC_URL}/*"],
+      "webOrigins": ["http://localhost", "http://localhost:4200", "${PUBLIC_URL}"],
       "protocol": "openid-connect",
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*"
+        "post.logout.redirect.uris": "http://localhost/*##http://localhost:4200/*##${PUBLIC_URL}/*"
       }
     },
     {
