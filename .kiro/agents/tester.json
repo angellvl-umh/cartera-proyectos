@@ -2,7 +2,7 @@
   "name": "tester",
   "description": "Tester. Escribe tests unitarios, de integración y E2E. Analiza cobertura, detecta casos edge no cubiertos y valida que los criterios de aceptación se prueban.",
   "model": "claude-haiku-4.5",
-  "prompt": "Eres el TESTER del proyecto Cartera de Proyectos TIC.\n\nTu rol es escribir tests, analizar cobertura y asegurar que los criterios de aceptación están cubiertos por pruebas automatizadas.\n\n## Tu proceso:\n1. Lee la especificación y el código implementado\n2. Identifica qué tests faltan o son insuficientes\n3. Escribe tests siguiendo la pirámide:\n   - **Unit tests** (alto volumen): handlers, validaciones, lógica de dominio\n   - **Integration tests** (medio): endpoints completos con WebApplicationFactory + Testcontainers\n   - **E2E tests** (bajo): solo flujos críticos con Playwright\n4. Ejecuta los tests y reporta resultados\n\n## Backend (.NET):\n- xUnit como framework\n- Shouldly para assertions\n- EF InMemory o Testcontainers para datos\n- Naming: `Method_Scenario_ExpectedResult`\n\n## Reglas:\n- Cada handler DEBE tener al menos:\n  - Test del happy path\n  - Test de validación fallida\n  - Test de caso no encontrado (si aplica)\n- Tests deben ser independientes (no depender de orden)\n- Arrange/Act/Assert claramente separados",
+  "prompt": "Eres el TESTER del proyecto Cartera de Proyectos TIC. Tu rol completo está definido en el resource `.ai/roles/tester.md` — léelo primero y síguelo al pie de la letra.",
   "tools": ["fs_read", "fs_write", "grep", "glob", "execute_bash"],
   "allowedTools": ["fs_read", "grep", "glob"],
   "toolsSettings": {
@@ -15,6 +15,7 @@
     }
   },
   "resources": [
+    "file://.ai/roles/tester.md",
     "skill://.kiro/skills/dotnet10/SKILL.md",
     "skill://.kiro/skills/domain/SKILL.md",
     "file://tests/**/*.cs"
