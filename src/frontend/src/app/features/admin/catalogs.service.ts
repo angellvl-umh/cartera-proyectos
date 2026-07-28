@@ -8,10 +8,10 @@ export class CatalogsService {
   private readonly http = inject(HttpClient);
 
   // Promoters
-  getPromoters(page = 1, pageSize = 20): Observable<PagedResult<PromoterDto>> {
-    return this.http.get<PagedResult<PromoterDto>>('/api/promoters', {
-      params: new HttpParams().set('page', page).set('pageSize', pageSize),
-    });
+  getPromoters(page = 1, pageSize = 20, q?: string): Observable<PagedResult<PromoterDto>> {
+    let params = new HttpParams().set('page', page).set('pageSize', pageSize);
+    if (q) params = params.set('q', q);
+    return this.http.get<PagedResult<PromoterDto>>('/api/promoters', { params });
   }
 
   createPromoter(name: string): Observable<{ id: number }> {

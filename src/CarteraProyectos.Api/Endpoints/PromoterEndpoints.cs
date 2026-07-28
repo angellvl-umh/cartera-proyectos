@@ -10,10 +10,10 @@ public static class PromoterEndpoints
     {
         var group = app.MapGroup("/api/promoters").RequireAuthorization();
 
-        group.MapGet("/", async (IMediator mediator, CancellationToken ct, int page = 1, int pageSize = 20) =>
-            Results.Ok(await mediator.Send(new GetPromotersQuery(page, pageSize), ct)))
+        group.MapGet("/", async (IMediator mediator, CancellationToken ct, string? q = null, int page = 1, int pageSize = 20) =>
+            Results.Ok(await mediator.Send(new GetPromotersQuery(q, page, pageSize), ct)))
             .WithName("GetPromoters")
-            .WithDescription("Lista todos los promotores paginados.");
+            .WithDescription("Lista todos los promotores paginados. Filtrable por nombre con el parámetro 'q' (búsqueda parcial).");
 
         group.MapPost("/", async (CreatePromoterCommand cmd, HttpContext ctx, IAppDbContext db, IMediator mediator, CancellationToken ct) =>
         {

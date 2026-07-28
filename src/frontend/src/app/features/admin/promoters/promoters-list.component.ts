@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Observable } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { Observable, Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzModalModule } from 'ng-zorro-antd/modal';
@@ -18,7 +20,7 @@ import { PromoterDto } from '../../projects/project.model';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ReactiveFormsModule,
+    ReactiveFormsModule, FormsModule,
     NzTableModule, NzButtonModule, NzModalModule, NzFormModule,
     NzInputModule, NzPopconfirmModule, NzIconModule, NzSpinModule,
   ],
@@ -29,6 +31,14 @@ import { PromoterDto } from '../../projects/project.model';
         <button nz-button nzType="primary" (click)="openCreate()">
           <nz-icon nzType="plus" /> Nuevo promotor
         </button>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <nz-input-group [nzPrefix]="searchIcon" style="max-width:300px">
+          <input nz-input placeholder="Buscar por nombre..." 
+            [ngModel]="searchText()" (ngModelChange)="onSearchChange($event)" />
+        </nz-input-group>
+        <ng-template #searchIcon><span nz-icon nzType="search"></span></ng-template>
       </div>
 
       <nz-table [nzData]="promoters()" [nzLoading]="loading()" [nzFrontPagination]="false"
@@ -85,20 +95,37 @@ export class PromotersListComponent {
   total = signal(0);
   page = signal(1);
   readonly pageSize = signal(20);
+  searchText = signal('');
+
+  private readonly searchSubject = new Subject<string>();
 
   form = this.fb.group({ name: ['', [Validators.required, Validators.maxLength(200)]] });
 
-  constructor() { this.load(); }
+  constructor() {
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged()
+    ).subscribe(q => {
+      this.page.set(1);
+      this.load(1, q);
+    });
+    this.load();
+  }
 
-  load(page = 1): void {
+  load(page = 1, q?: string): void {
     this.loading.set(true);
-    this.svc.getPromoters(page, this.pageSize()).subscribe({
+    this.svc.getPromoters(page, this.pageSize(), q).subscribe({
       next: r => { this.promoters.set(r.items); this.total.set(r.total); this.page.set(page); this.loading.set(false); },
       error: () => { this.loading.set(false); this.msg.error('Error al cargar promotores'); },
     });
   }
 
-  loadPage(p: number): void { this.load(p); }
+  onSearchChange(text: string): void {
+    this.searchText.set(text);
+    this.searchSubject.next(text);
+  }
+
+  loadPage(p: number): void { this.load(p, this.searchText()); }
 
   openCreate(): void { this.editing.set(null); this.form.reset(); this.modalVisible.set(true); }
 
@@ -113,14 +140,14 @@ export class PromotersListComponent {
     const e = this.editing();
     const obs = (e ? this.svc.updatePromoter(e.id, name) : this.svc.createPromoter(name)) as Observable<unknown>;
     obs.subscribe({
-      next: () => { this.saving.set(false); this.msg.success(e ? 'Actualizado' : 'Creado'); this.closeModal(); this.load(this.page()); },
+      next: () => { this.saving.set(false); this.msg.success(e ? 'Actualizado' : 'Creado'); this.closeModal(); this.load(this.page(), this.searchText()); },
       error: () => { this.saving.set(false); this.msg.error('Error al guardar'); },
     });
   }
 
   delete(id: number): void {
     this.svc.deletePromoter(id).subscribe({
-      next: () => { this.msg.success('Eliminado'); this.load(this.page()); },
+      next: () => { this.msg.success('Eliminado'); this.load(this.page(), this.searchText()); },
       error: () => this.msg.error('No se puede eliminar (tiene proyectos asignados)'),
     });
   }

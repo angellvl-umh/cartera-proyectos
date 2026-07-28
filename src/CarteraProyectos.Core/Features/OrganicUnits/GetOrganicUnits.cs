@@ -16,18 +16,43 @@ public sealed class GetOrganicUnitsHandler(IAppDbContext db) : IRequestHandler<G
         var pageSize = Math.Min(request.PageSize, 100);
         var page = Math.Max(request.Page, 1);
 
-        var query = db.OrganicUnits.AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Q))
-            query = query.Where(u => u.Name.Contains(request.Q) || (u.Code != null && u.Code.Contains(request.Q)));
+        {
+            // Filtro normalizado en memoria: insensible a mayúsculas/minúsculas y acentos.
+            // Criterio: Name contiene q O Code contiene q (cada campo normalizado independientemente).
+            var qNorm = TextSearchNormalizer.Normalize(request.Q);
 
-        query = query.OrderBy(u => u.Name);
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(u => new OrganicUnitDto(u.Id, u.Name, u.Code))
-            .ToListAsync(cancellationToken);
+            var all = await db.OrganicUnits
+                .OrderBy(u => u.Name)
+                .Select(u => new OrganicUnitDto(u.Id, u.Name, u.Code))
+                .ToListAsync(cancellationToken);
 
-        return new PagedResult<OrganicUnitDto>(items, total, page, pageSize);
+            var filtered = all
+                .Where(u =>
+                    TextSearchNormalizer.Normalize(u.Name).Contains(qNorm, StringComparison.Ordinal) ||
+                    (u.Code != null && TextSearchNormalizer.Normalize(u.Code).Contains(qNorm, StringComparison.Ordinal)))
+                .ToList();
+
+            var total = filtered.Count;
+            var items = filtered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return new PagedResult<OrganicUnitDto>(items, total, page, pageSize);
+        }
+        else
+        {
+            // Sin búsqueda: orden + paginación en SQL (camino original, sin coste añadido).
+            var query = db.OrganicUnits.OrderBy(u => u.Name);
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new OrganicUnitDto(u.Id, u.Name, u.Code))
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<OrganicUnitDto>(items, total, page, pageSize);
+        }
     }
 }

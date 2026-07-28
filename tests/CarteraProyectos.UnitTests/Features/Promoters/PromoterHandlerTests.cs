@@ -37,11 +37,121 @@ public class PromoterHandlerTests
         db.Promoters.AddRange(Promoter.Create("Beta"), Promoter.Create("Alpha"));
         await db.SaveChangesAsync();
 
-        var result = await new GetPromotersHandler(db).Handle(new GetPromotersQuery(1, 10), CancellationToken.None);
+        var result = await new GetPromotersHandler(db).Handle(new GetPromotersQuery(null, 1, 10), CancellationToken.None);
 
         result.Total.ShouldBe(2);
         result.Items[0].Name.ShouldBe("Alpha"); // ordered by name
         result.Items[1].Name.ShouldBe("Beta");
+    }
+
+    [Fact]
+    public async Task GetPromoters_WithSearchQuery_FiltersPartialMatch()
+    {
+        await using var db = CreateDb();
+        db.Promoters.AddRange(
+            Promoter.Create("Rectorado"),
+            Promoter.Create("Vicerrectorado de Investigación"),
+            Promoter.Create("Rectorado Adjunto"));
+        await db.SaveChangesAsync();
+
+        // Búsqueda insensible a mayúsculas: "rector" (minúsculas) debe encontrar las tres
+        // entradas porque todas contienen "rector" ignorando capitalización.
+        var result = await new GetPromotersHandler(db).Handle(new GetPromotersQuery("rector", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(3);
+        result.Items.Select(x => x.Name)
+            .ShouldBe(new[] { "Rectorado", "Rectorado Adjunto", "Vicerrectorado de Investigación" });
+    }
+
+    [Fact]
+    public async Task GetPromoters_WithSearchQuery_NoMatches_ReturnsEmpty()
+    {
+        await using var db = CreateDb();
+        db.Promoters.AddRange(
+            Promoter.Create("Rectorado"),
+            Promoter.Create("Vicerrectorado"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetPromotersHandler(db).Handle(new GetPromotersQuery("Inexistente", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(0);
+        result.Items.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetPromoters_WithEmptySearchQuery_ReturnsAll()
+    {
+        await using var db = CreateDb();
+        db.Promoters.AddRange(Promoter.Create("Beta"), Promoter.Create("Alpha"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetPromotersHandler(db).Handle(new GetPromotersQuery("", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(2); // Empty string is treated as null/whitespace
+    }
+
+    [Fact]
+    public async Task GetPromoters_SearchWithAccent_FindsAccentedNames()
+    {
+        // "promocion" (sin tilde) debe encontrar "Vicerrectorado de Promoción" (con tilde)
+        await using var db = CreateDb();
+        db.Promoters.AddRange(
+            Promoter.Create("Vicerrectorado de Promoción"),
+            Promoter.Create("Rectorado"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetPromotersHandler(db).Handle(
+            new GetPromotersQuery("promocion", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Vicerrectorado de Promoción");
+    }
+
+    [Fact]
+    public async Task GetPromoters_SearchIsCaseInsensitive()
+    {
+        await using var db = CreateDb();
+        db.Promoters.AddRange(
+            Promoter.Create("Investigación e Innovación"),
+            Promoter.Create("Rectorado"));
+        await db.SaveChangesAsync();
+
+        // "INVESTIGACION" en mayúsculas y sin tilde debe encontrar "Investigación e Innovación"
+        var result = await new GetPromotersHandler(db).Handle(
+            new GetPromotersQuery("INVESTIGACION", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Investigación e Innovación");
+    }
+
+    [Fact]
+    public async Task GetPromoters_SearchWithQ_OrderByNameAndPaginates()
+    {
+        // Con Q presente, el orden por Name y la paginación deben funcionar correctamente.
+        await using var db = CreateDb();
+        db.Promoters.AddRange(
+            Promoter.Create("Vicerrectorado C"),
+            Promoter.Create("Vicerrectorado A"),
+            Promoter.Create("Vicerrectorado B"),
+            Promoter.Create("Rectorado"));
+        await db.SaveChangesAsync();
+
+        // Página 1, tamaño 2: los dos primeros "Vicerrectorado" en orden alfabético
+        var page1 = await new GetPromotersHandler(db).Handle(
+            new GetPromotersQuery("vicerrectorado", 1, 2), CancellationToken.None);
+
+        page1.Total.ShouldBe(3);
+        page1.Items.Count.ShouldBe(2);
+        page1.Items[0].Name.ShouldBe("Vicerrectorado A");
+        page1.Items[1].Name.ShouldBe("Vicerrectorado B");
+
+        // Página 2, tamaño 2: el tercero
+        var page2 = await new GetPromotersHandler(db).Handle(
+            new GetPromotersQuery("vicerrectorado", 2, 2), CancellationToken.None);
+
+        page2.Total.ShouldBe(3);
+        page2.Items.Count.ShouldBe(1);
+        page2.Items[0].Name.ShouldBe("Vicerrectorado C");
     }
 
     // --- CreatePromoter ---

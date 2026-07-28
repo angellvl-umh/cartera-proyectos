@@ -56,11 +56,126 @@ public class OrganicUnitHandlerTests
             OrganicUnit.Create("Biblioteca", "BIB"));
         await db.SaveChangesAsync();
 
+        // Búsqueda por Code exacto (case-insensitive: "TIC" es el código)
         var result = await new GetOrganicUnitsHandler(db).Handle(
             new GetOrganicUnitsQuery("TIC", 1, 10), CancellationToken.None);
 
         result.Total.ShouldBe(1);
         result.Items[0].Name.ShouldBe("Servicio TIC");
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchByNameWithAccent_FindsAccentedNames()
+    {
+        // "promocion" (sin tilde) debe encontrar "Dirección de Promoción" (con tilde)
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Dirección de Promoción", "DPR"),
+            OrganicUnit.Create("Servicio TIC", "TIC"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("promocion", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Dirección de Promoción");
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchByCodeWithAccent_FindsAccentedCodes()
+    {
+        // El código también puede tener acentos; la búsqueda debe encontrarlo normalizado.
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Unidad de Gestión", "GESTIÓN"),
+            OrganicUnit.Create("Servicio TIC", "TIC"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("gestion", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Unidad de Gestión");
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchIsCaseInsensitive_ByName()
+    {
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Investigación e Innovación", "I+D"),
+            OrganicUnit.Create("Servicio TIC", "TIC"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("INVESTIGACION", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Investigación e Innovación");
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchIsCaseInsensitive_ByCode()
+    {
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Servicio TIC", "TIC"),
+            OrganicUnit.Create("Biblioteca", "BIB"));
+        await db.SaveChangesAsync();
+
+        // "tic" en minúsculas debe encontrar el Code "TIC"
+        var result = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("tic", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(1);
+        result.Items[0].Name.ShouldBe("Servicio TIC");
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchMatchesNameOrCode()
+    {
+        // Una búsqueda que coincide por Name en uno y por Code en otro debe devolver ambos.
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Unidad TIC", "UTI"),
+            OrganicUnit.Create("Otro Servicio", "TIC"),
+            OrganicUnit.Create("Biblioteca", "BIB"));
+        await db.SaveChangesAsync();
+
+        var result = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("TIC", 1, 10), CancellationToken.None);
+
+        result.Total.ShouldBe(2);
+        result.Items.Select(x => x.Name)
+            .ShouldBe(new[] { "Otro Servicio", "Unidad TIC" }); // orden por Name
+    }
+
+    [Fact]
+    public async Task GetOrganicUnits_SearchWithQ_OrderByNameAndPaginates()
+    {
+        // Con Q presente, el orden por Name y la paginación deben funcionar correctamente.
+        await using var db = CreateDb();
+        db.OrganicUnits.AddRange(
+            OrganicUnit.Create("Servicio C", "SC"),
+            OrganicUnit.Create("Servicio A", "SA"),
+            OrganicUnit.Create("Servicio B", "SB"),
+            OrganicUnit.Create("Biblioteca", "BIB"));
+        await db.SaveChangesAsync();
+
+        var page1 = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("servicio", 1, 2), CancellationToken.None);
+
+        page1.Total.ShouldBe(3);
+        page1.Items.Count.ShouldBe(2);
+        page1.Items[0].Name.ShouldBe("Servicio A");
+        page1.Items[1].Name.ShouldBe("Servicio B");
+
+        var page2 = await new GetOrganicUnitsHandler(db).Handle(
+            new GetOrganicUnitsQuery("servicio", 2, 2), CancellationToken.None);
+
+        page2.Total.ShouldBe(3);
+        page2.Items.Count.ShouldBe(1);
+        page2.Items[0].Name.ShouldBe("Servicio C");
     }
 
     // --- CreateOrganicUnit ---
