@@ -47,7 +47,7 @@ Secuencial, no paralelo: **Backend → Frontend → Tests**, salvo que el usuari
 
 ## Paso 4 — Elegir modelo por capa
 
-Los agentes `.kiro/agents/{backend-dev,frontend-dev,tester}.json` ya usan `claude-haiku-4.5` por defecto. Sube a `claude-sonnet-4.6` solo si el grupo de tasks de esa capa cumple alguna señal de la tabla de complejidad de `CLAUDE.md` (máquina de estados nueva, refactor transversal, frontend con varios ficheros y contratos TS entre ellos). Documenta la elección en una línea antes de lanzar la capa: `Modelo: claude-haiku-4.5 — tasks de CRUD estándar sobre patrón existente.`
+Los tres agentes `.kiro/agents/{backend-dev,frontend-dev,tester}.json` ya traen `claude-sonnet-4.6` por defecto — es el suelo mínimo, no bajes a `claude-haiku-4.5`. Sube a `claude-opus-4.6` solo si el grupo de tasks de esa capa es excepcionalmente complejo (arquitectura nueva, refactor muy transversal que toca muchos archivos a la vez) — decídelo caso a caso. Documenta la elección en una línea antes de lanzar la capa: `Modelo: claude-sonnet-4.6 — default del agente.`
 
 ## Paso 5 — Construir el spec para kiro
 
@@ -104,9 +104,9 @@ Mismo formato de salida que `/opsx:apply`:
 **Progreso:** N/M tasks completas
 
 ### Por capa
-- Backend (backend-dev, claude-haiku-4.5): 4/4 ✓ — pane cerrada
-- Frontend (frontend-dev, claude-haiku-4.5): 3/3 ✓ — pane cerrada
-- Tests (tester, claude-haiku-4.5): 1/1 ✓ — pane cerrada
+- Backend (backend-dev, claude-sonnet-4.6): 4/4 ✓ — pane cerrada
+- Frontend (frontend-dev, claude-sonnet-4.6): 3/3 ✓ — pane cerrada
+- Tests (tester, claude-sonnet-4.6): 1/1 ✓ — pane cerrada
 
 Todas las tasks completas. Puedes archivar con `/opsx:archive`.
 ```

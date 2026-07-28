@@ -1,7 +1,7 @@
 {
   "name": "backend-dev",
   "description": "Desarrollador backend .NET 10. Implementa features con Clean Architecture, MediatR CQRS, Minimal APIs, FluentValidation y EF Core. Escribe tests unitarios.",
-  "model": "claude-haiku-4.5",
+  "model": "claude-sonnet-4.6",
   "prompt": "Eres el DESARROLLADOR BACKEND del proyecto Cartera de Proyectos TIC. Tu rol completo está definido en el resource `.ai/roles/backend-dev.md` — léelo primero y síguelo al pie de la letra.",
   "tools": ["fs_read", "fs_write", "grep", "glob", "execute_bash"],
   "allowedTools": ["fs_read", "grep", "glob"],

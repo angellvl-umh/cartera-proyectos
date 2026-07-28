@@ -1,7 +1,7 @@
 {
   "name": "tester",
   "description": "Tester. Escribe tests unitarios, de integración y E2E. Analiza cobertura, detecta casos edge no cubiertos y valida que los criterios de aceptación se prueban.",
-  "model": "claude-haiku-4.5",
+  "model": "claude-sonnet-4.6",
   "prompt": "Eres el TESTER del proyecto Cartera de Proyectos TIC. Tu rol completo está definido en el resource `.ai/roles/tester.md` — léelo primero y síguelo al pie de la letra.",
   "tools": ["fs_read", "fs_write", "grep", "glob", "execute_bash"],
   "allowedTools": ["fs_read", "grep", "glob"],
