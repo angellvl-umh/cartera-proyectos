@@ -34,6 +34,7 @@ import { NzAvatarModule } from 'ng-zorro-antd/avatar';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { HttpClient } from '@angular/common/http';
 import { ProjectsService, ProjectStatusHistoryEntry } from '../projects.service';
 import { EpicsService, Epic, CreateEpicDto } from '../epics.service';
@@ -62,6 +63,7 @@ import {
   RISK_STATUS_COLORS,
   CreateRiskDto,
   UpdateRiskDto,
+  Team,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
@@ -110,7 +112,7 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
     NzPopconfirmModule, NzSpaceModule, NzDividerModule, NzIconModule,
     NzSpinModule, NzTabsModule, NzTagModule, NzModalModule, NzFormModule,
     NzInputModule, NzInputNumberModule, NzSelectModule, NzDatePickerModule,
-    NzListModule, NzAvatarModule, NzRadioModule, NzEmptyModule, NzProgressModule,
+    NzListModule, NzAvatarModule, NzRadioModule, NzEmptyModule, NzProgressModule, NzSwitchModule,
     RouterLink, ProjectStatusBadgeComponent, ComplexityIndicatorComponent, ProjectFormComponent,
     ProductBacklogComponent, WorkItemDrawerComponent,
   ],
@@ -187,7 +189,6 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
               <nz-descriptions nzBordered [nzColumn]="2">
                 <nz-descriptions-item nzTitle="Promotor">{{ project()!.promoterName ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Unidad orgánica">{{ project()!.organicUnitName ?? '—' }}</nz-descriptions-item>
-                <nz-descriptions-item nzTitle="Grupo SIPT">{{ project()!.siptGroup ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Prioridad estratégica">{{ project()!.groupPriority ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Orden UOR">{{ project()!.uorOrder ?? '—' }}</nz-descriptions-item>
                 <nz-descriptions-item nzTitle="Nº beneficiarios">{{ project()!.beneficiaryCount ?? '—' }}</nz-descriptions-item>
@@ -211,6 +212,22 @@ const SPRINT_STATUS_COLORS: Record<string, string> = {
             </nz-card>
 
             <nz-card nzTitle="Equipos asignados">
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+                <nz-select [ngModel]="selectedTeamToAssign()" (ngModelChange)="selectedTeamToAssign.set($event)"
+                  nzAllowClear nzPlaceHolder="Seleccionar equipo" style="width:220px">
+                  @for (t of assignableTeams(); track t.id) {
+                    <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
+                  }
+                </nz-select>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                  <nz-switch [ngModel]="assignAsPrimary()" (ngModelChange)="assignAsPrimary.set($event)"></nz-switch>
+                  Primario
+                </label>
+                <button nz-button nzType="primary" nzSize="small"
+                  [disabled]="selectedTeamToAssign() === null" (click)="assignTeam()">
+                  Asignar
+                </button>
+              </div>
               <nz-table [nzData]="project()!.teams" nzBordered nzSize="small" [nzShowPagination]="false">
                 <thead><tr><th>Equipo</th><th>Primario</th><th>Acción</th></tr></thead>
                 <tbody>
@@ -1097,6 +1114,19 @@ export class ProjectDetailComponent {
     this.http.get<{ id: number; name: string; role: string }>('/api/me')
   );
 
+  availableTeams = signal<Team[]>([]);
+  selectedTeamToAssign = signal<number | null>(null);
+  assignAsPrimary = signal(false);
+
+  assignableTeams = computed(() => {
+    const assignedIds = new Set((this.project()?.teams ?? []).map(t => t.teamId));
+    return this.availableTeams().filter(t => !assignedIds.has(t.id));
+  });
+
+  constructor() {
+    this.service.getTeams().subscribe(r => this.availableTeams.set(r.items));
+  }
+
   formVisible = signal(false);
   epicModalVisible = signal(false);
   sprintModalVisible = signal(false);
@@ -1397,6 +1427,20 @@ export class ProjectDetailComponent {
     this.service.removeTeam(this.projectId, team.teamId).subscribe({
       next: () => { this.message.success(`Equipo "${team.teamName}" desasignado`); this.refresh$.next(); },
       error: () => this.message.error('Error al desasignar el equipo'),
+    });
+  }
+
+  assignTeam(): void {
+    const teamId = this.selectedTeamToAssign();
+    if (teamId === null) return;
+    this.service.assignTeam(this.projectId, teamId, this.assignAsPrimary()).subscribe({
+      next: () => {
+        this.message.success('Equipo asignado');
+        this.refresh$.next();
+        this.selectedTeamToAssign.set(null);
+        this.assignAsPrimary.set(false);
+      },
+      error: () => this.message.error('Error al asignar el equipo'),
     });
   }
 

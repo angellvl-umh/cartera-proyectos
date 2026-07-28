@@ -13,7 +13,7 @@ public record AgentCreateProjectCommand(
     int PersonId, string Title, string? Description, string? RequestingUnit,
     string Complexity, int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate,
     int? BeneficiaryCount, int? PromoterId, int? OrganicUnitId, int? GroupPriority,
-    string? SiptGroup, DateOnly? DesiredDeploymentDate, string? SpecificationsUrl,
+    DateOnly? DesiredDeploymentDate, string? SpecificationsUrl,
     string? EpicUrl, decimal? EstimatedBudget, int? BusinessValue) : IRequest<int>, IAgentAuditable
 {
     public int RequestingPersonId => PersonId;
@@ -23,7 +23,7 @@ public record AgentUpdateProjectCommand(
     int PersonId, int ProjectId, string? Title, string? Description, string? RequestingUnit,
     string? Complexity, int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate,
     int? BeneficiaryCount, int? PromoterId, int? OrganicUnitId, int? GroupPriority,
-    string? SiptGroup, DateOnly? DesiredDeploymentDate, string? SpecificationsUrl,
+    DateOnly? DesiredDeploymentDate, string? SpecificationsUrl,
     string? EpicUrl, decimal? EstimatedBudget, int? BusinessValue) : IRequest, IAgentAuditable
 {
     public int RequestingPersonId => PersonId;
@@ -40,15 +40,6 @@ public sealed class AgentCreateProjectHandler(ISender sender)
         if (!Enum.TryParse<ProjectComplexity>(request.Complexity, out var complexity))
             throw new InvalidOperationException("Complejidad no válida. Valores aceptados: VerySmall, Small, Medium, Large, VeryLarge.");
 
-        // Parsear SiptGroup (opcional)
-        SiptGroup? siptGroup = null;
-        if (request.SiptGroup is not null)
-        {
-            if (!Enum.TryParse<SiptGroup>(request.SiptGroup, out var parsed))
-                throw new InvalidOperationException("Grupo SIPT no válido. Valores aceptados: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico.");
-            siptGroup = parsed;
-        }
-
         // Delegar al command core
         var result = await sender.Send(
             new CreateProjectCommand(
@@ -61,7 +52,6 @@ public sealed class AgentCreateProjectHandler(ISender sender)
                 OrganicUnitId: request.OrganicUnitId,
                 UorOrder: null,
                 GroupPriority: request.GroupPriority,
-                SiptGroup: siptGroup,
                 DesiredDeploymentDate: request.DesiredDeploymentDate,
                 SpecificationsUrl: request.SpecificationsUrl,
                 EpicUrl: request.EpicUrl,
@@ -115,19 +105,6 @@ public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
             complexity = parsed;
         }
 
-        // Parsear SiptGroup (si viene especificada en el request)
-        SiptGroup? siptGroup;
-        if (request.SiptGroup is null)
-        {
-            siptGroup = project.SiptGroup;
-        }
-        else
-        {
-            if (!Enum.TryParse<SiptGroup>(request.SiptGroup, out var parsed))
-                throw new InvalidOperationException("Grupo SIPT no válido. Valores aceptados: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico.");
-            siptGroup = parsed;
-        }
-
         // Delegar al command core con todos los valores finales
         await sender.Send(
             new UpdateProjectCommand(
@@ -141,7 +118,6 @@ public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
                 OrganicUnitId: organicUnitId,
                 UorOrder: project.UorOrder,
                 GroupPriority: groupPriority,
-                SiptGroup: siptGroup,
                 DesiredDeploymentDate: desiredDeploymentDate,
                 SpecificationsUrl: specificationsUrl,
                 EpicUrl: epicUrl,

@@ -56,7 +56,7 @@ public record AgentReindexResultDto(int Indexed, int Failed);
 // ─── Queries / Commands ───────────────────────────────────────────────────────
 
 public record AgentGetMyTasksQuery(int PersonId) : IRequest<AgentMyTasksDto>;
-public record AgentGetProjectsQuery(int PersonId, string? SiptGroup = null, string? Status = null) : IRequest<IReadOnlyList<AgentProjectSummaryDto>>;
+public record AgentGetProjectsQuery(int PersonId, string? Status = null) : IRequest<IReadOnlyList<AgentProjectSummaryDto>>;
 public record AgentGetProjectDetailQuery(int ProjectId) : IRequest<AgentProjectDetailDto>;
 public record AgentGetCapacityQuery : IRequest<AgentCapacityDto>;
 public record AgentSearchTasksQuery(string Q, int PersonId, int TopN = 5) : IRequest<IReadOnlyList<AgentSearchResultDto>>;
@@ -159,10 +159,6 @@ public sealed class AgentGetProjectsHandler(IAppDbContext db)
 
             baseQuery = db.Projects.Where(p => myProjectIds.Contains(p.Id));
         }
-
-        if (!string.IsNullOrWhiteSpace(request.SiptGroup) &&
-            Enum.TryParse<SiptGroup>(request.SiptGroup, out var siptGroup))
-            baseQuery = baseQuery.Where(p => p.SiptGroup == siptGroup);
 
         if (!string.IsNullOrWhiteSpace(request.Status) &&
             Enum.TryParse<ProjectStatus>(request.Status, out var status))

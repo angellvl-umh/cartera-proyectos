@@ -87,7 +87,7 @@ sequenceDiagram
 - Pregunta ejemplo: "¿Cómo va el proyecto de migración de LDAP?"
 - El agente responde con: estado, % avance, tareas pendientes, equipo asignado
 - Si hay ambigüedad, el agente pregunta a cuál proyecto se refiere
-- Para listar proyectos (`get_projects`), el agente admite filtrar opcionalmente por grupo SIPT (`siptGroup`) y/o por estado (`status`)
+- Para listar proyectos (`get_projects`), el agente admite filtrar opcionalmente por estado (`status`)
 - Funciona desde Open WebUI
 
 ---
@@ -241,7 +241,7 @@ sequenceDiagram
 **para** compartirlo o trabajarlo fuera de la plataforma.
 
 **Criterios de aceptación:**
-- Tool `export_projects_excel`, con los mismos filtros opcionales que `get_projects` (`siptGroup`, `status`)
+- Tool `export_projects_excel`, con los mismos filtros opcionales que `get_projects` (`status`)
 - No aplica paginación: el Excel incluye todos los proyectos que cumplen el filtro
 - Columnas: ID, Título, Estado, Unidad solicitante, Equipo principal, Tareas totales, Tareas hechas, Sprints activos
 - El fichero se genera en la tool de Open WebUI (Python + openpyxl) a partir de la misma query JSON que `get_projects`, no en el backend

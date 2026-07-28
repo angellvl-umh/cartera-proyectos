@@ -113,7 +113,7 @@ El equipo de desarrollo gestiona el detalle diario en su propia herramienta exte
 |---------|-------------|
 | **Person** | Id, SubjectId? (SSO sub, unique; null hasta el primer login si fue pre-registrada), Name, Email (unique), Role (Desarrollador/Gestor; JefeEquipo legacy), IsActive (baja lógica) |
 | **Team** | Id, Name, Description?, LeadPersonId? (FK→Person) |
-| **Project** | Id, Title, Description?, RequestingUnit?, Complexity (VerySmall/Small/Medium/Large/VeryLarge), Status, PortfolioYear?, StartDate?, EndDate?, PreviousReferenceId?, BeneficiaryCount?, PromoterId?, OrganicUnitId?, UorOrder?, GroupPriority?, SiptGroup?, DesiredDeploymentDate?, SpecificationsUrl?, EpicUrl?, EstimatedBudget? |
+| **Project** | Id, Title, Description?, RequestingUnit?, Complexity (VerySmall/Small/Medium/Large/VeryLarge), Status, PortfolioYear?, StartDate?, EndDate?, PreviousReferenceId?, BeneficiaryCount?, PromoterId?, OrganicUnitId?, UorOrder?, GroupPriority?, DesiredDeploymentDate?, SpecificationsUrl?, EpicUrl?, EstimatedBudget? |
 | **Epic** | Id, ProjectId, Title, Priority, SortOrder |
 | **WorkItem** | Id, ProjectId, EpicId?, SprintId?, Title, Description?, Status (Backlog/ToDo/InProgress/Blocked/Done/Discarded), Priority, Type (Task/UserStory), SortOrder, EstimationHours?, EstimationPoints?, IsHito (bool, default false), HitoDate?, DueDate?, Assignees (N:M con Person) |
 | **Sprint** | Id, ProjectId, Name, Goal?, StartDate?, EndDate?, Status (Planning/Active/Completed), Capacity? |

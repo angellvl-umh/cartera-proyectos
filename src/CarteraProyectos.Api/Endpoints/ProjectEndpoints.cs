@@ -17,16 +17,15 @@ public static class ProjectEndpoints
         group.MapGet("/", async (
             IMediator mediator, CancellationToken ct,
             string? status, int? year, int? teamId, string? complexity, string? q,
-            int? tagId, [FromQuery(Name = "tagIds")] int[]? tagIds, string? siptGroup, int? promoterId,
+            int? tagId, [FromQuery(Name = "tagIds")] int[]? tagIds, int? promoterId,
             int page = 1, int pageSize = 20) =>
         {
             ProjectStatus? st = status is not null && Enum.TryParse<ProjectStatus>(status, out var s) ? s : null;
             ProjectComplexity? cx = complexity is not null && Enum.TryParse<ProjectComplexity>(complexity, out var c) ? c : null;
-            SiptGroup? sg = siptGroup is not null && Enum.TryParse<SiptGroup>(siptGroup, out var g) ? g : null;
-            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, tagId, tagIds, sg, promoterId, page, pageSize), ct));
+            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, tagId, tagIds, promoterId, page, pageSize), ct));
         })
         .WithName("GetProjects")
-        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q, tagId, siptGroup, promoterId. Soporta paginación.");
+        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q, tagId, promoterId. Soporta paginación.");
 
         group.MapGet("/{id:int}", async (int id, IMediator mediator, CancellationToken ct) =>
         {

@@ -48,7 +48,7 @@ public class AgentProjectsHandlerTests
             new AgentCreateProjectCommand(
                 gestor.Id, "Nuevo Proyecto", "Descripción del proyecto", "Unidad Solicitante",
                 "Medium", 2024, new DateOnly(2024, 1, 1), new DateOnly(2024, 3, 1),
-                100, null, null, 3, "RRHH", null, null, null, 50000m, 4),
+                100, null, null, 3, null, null, null, 50000m, 4),
             CancellationToken.None);
 
         var created = await db.Projects.FindAsync(id);
@@ -56,7 +56,6 @@ public class AgentProjectsHandlerTests
         created.Title.ShouldBe("Nuevo Proyecto");
         created.Description.ShouldBe("Descripción del proyecto");
         created.Complexity.ShouldBe(ProjectComplexity.Medium);
-        created.SiptGroup.ShouldBe(SiptGroup.RRHH);
         created.BusinessValue.ShouldBe(4);
         created.Status.ShouldBe(ProjectStatus.Stopped);
     }
@@ -73,7 +72,7 @@ public class AgentProjectsHandlerTests
             handler.Handle(
                 new AgentCreateProjectCommand(
                     dev.Id, "Nuevo Proyecto", null, null, "Medium", null, null, null,
-                    null, null, null, null, null, null, null, null, null, null),
+                    null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
     }
 
@@ -89,7 +88,7 @@ public class AgentProjectsHandlerTests
             handler.Handle(
                 new AgentCreateProjectCommand(
                     gestor.Id, "Nuevo Proyecto", null, null, "Gigante", null, null, null,
-                    null, null, null, null, null, null, null, null, null, null),
+                    null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
     }
 
@@ -102,8 +101,7 @@ public class AgentProjectsHandlerTests
         // Crear un proyecto con valores iniciales
         var project = Project.Create(
             "Proyecto Original", "Descripción original", "Unidad 1",
-            ProjectComplexity.Small, 2024, null, null,
-            null, null, null, null, null, null, null, null, null, null, null);
+            ProjectComplexity.Small, 2024, null, null);
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
@@ -123,7 +121,6 @@ public class AgentProjectsHandlerTests
                 null,                    // PromoterId
                 null,                    // OrganicUnitId
                 null,                    // GroupPriority
-                null,                    // SiptGroup
                 null,                    // DesiredDeploymentDate
                 null,                    // SpecificationsUrl
                 null,                    // EpicUrl
@@ -150,7 +147,7 @@ public class AgentProjectsHandlerTests
             handler.Handle(
                 new AgentUpdateProjectCommand(
                     gestor.Id, 9999, "Nuevo Titulo", null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null),
+                    null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
     }
 
@@ -173,7 +170,7 @@ public class AgentProjectsHandlerTests
                 new AgentUpdateProjectCommand(
                     dev.Id, project.Id, 
                     "Nuevo Titulo", null, null, null, null, null, null,
-                    null, null, null, null, null, null, null, null, null, null),
+                    null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
     }
 }

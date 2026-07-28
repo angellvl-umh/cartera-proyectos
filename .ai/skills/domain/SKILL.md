@@ -81,7 +81,6 @@ Catalog entity. CRUD is Gestor-only (`/api/tags`). Joined to Project via `Projec
 | OrganicUnitId | int? | FK → OrganicUnit |
 | UorOrder | int? | Internal priority order set by the requesting unit |
 | GroupPriority | int? | Institutional strategic priority |
-| SiptGroup | enum? | WebTransversal / RRHH / Academico / Sede / Observatorio / InvestigacionEconomico |
 | DesiredDeploymentDate | DateOnly? | Target go-live date |
 | SpecificationsUrl | string? | max 500, link to specs doc |
 | EpicUrl | string? | max 500, link to external epic/Jira |

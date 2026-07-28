@@ -22,8 +22,6 @@ public enum ProjectComplexity
     VeryLarge, // MUY GRANDE (> 4 meses, > 4 personas)
 }
 
-public enum SiptGroup { WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico }
-
 public class Project
 {
     public int Id { get; private set; }
@@ -43,7 +41,6 @@ public class Project
     public int? OrganicUnitId { get; private set; }
     public int? UorOrder { get; private set; }
     public int? GroupPriority { get; private set; }
-    public SiptGroup? SiptGroup { get; private set; }
     public DateOnly? DesiredDeploymentDate { get; private set; }
     public string? SpecificationsUrl { get; private set; }
     public string? EpicUrl { get; private set; }
@@ -95,7 +92,7 @@ public class Project
         ProjectComplexity complexity, int? portfolioYear, DateOnly? startDate, DateOnly? endDate,
         int? previousReferenceId = null, int? beneficiaryCount = null,
         int? promoterId = null, int? organicUnitId = null, int? uorOrder = null,
-        int? groupPriority = null, SiptGroup? siptGroup = null,
+        int? groupPriority = null,
         DateOnly? desiredDeploymentDate = null,
         string? specificationsUrl = null, string? epicUrl = null,
         decimal? estimatedBudget = null, int? businessValue = null)
@@ -113,7 +110,6 @@ public class Project
         OrganicUnitId = organicUnitId;
         UorOrder = uorOrder;
         GroupPriority = groupPriority;
-        SiptGroup = siptGroup;
         DesiredDeploymentDate = desiredDeploymentDate;
         SpecificationsUrl = specificationsUrl;
         EpicUrl = epicUrl;
@@ -126,7 +122,7 @@ public class Project
         ProjectComplexity complexity, int? portfolioYear, DateOnly? startDate, DateOnly? endDate,
         int? previousReferenceId = null, int? beneficiaryCount = null,
         int? promoterId = null, int? organicUnitId = null, int? uorOrder = null,
-        int? groupPriority = null, SiptGroup? siptGroup = null,
+        int? groupPriority = null,
         DateOnly? desiredDeploymentDate = null,
         string? specificationsUrl = null, string? epicUrl = null,
         decimal? estimatedBudget = null, int? businessValue = null)
@@ -145,7 +141,6 @@ public class Project
             OrganicUnitId = organicUnitId,
             UorOrder = uorOrder,
             GroupPriority = groupPriority,
-            SiptGroup = siptGroup,
             DesiredDeploymentDate = desiredDeploymentDate,
             SpecificationsUrl = specificationsUrl,
             EpicUrl = epicUrl,

@@ -47,7 +47,6 @@ export class ProjectsService {
         params = params.append('tagIds', id.toString());
       }
     }
-    if (filters?.siptGroup) params = params.set('siptGroup', filters.siptGroup);
     if (filters?.promoterId) params = params.set('promoterId', filters.promoterId.toString());
     return this.http.get<PagedResult<Project>>(this.base, { params });
   }

@@ -15,7 +15,6 @@ public record GetProjectsQuery(
     string? Q = null,
     int? TagId = null,
     int[]? TagIds = null,
-    SiptGroup? SiptGroup = null,
     int? PromoterId = null,
     int Page = 1,
     int PageSize = 20) : IRequest<PagedResult<ProjectListDto>>;
@@ -30,7 +29,6 @@ public record ProjectListDto(
     DateOnly? StartDate,
     DateOnly? EndDate,
     int? GroupPriority,
-    string? SiptGroup,
     int? PromoterId,
     string? PromoterName,
     int? BusinessValue,
@@ -72,9 +70,6 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
         else if (request.TagId.HasValue)
             query = query.Where(p => p.Tags.Any(t => t.Id == request.TagId.Value));
 
-        if (request.SiptGroup.HasValue)
-            query = query.Where(p => p.SiptGroup == request.SiptGroup.Value);
-
         if (request.PromoterId.HasValue)
             query = query.Where(p => p.PromoterId == request.PromoterId.Value);
 
@@ -91,7 +86,7 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
                 p.Id, p.Title, p.RequestingUnit,
                 p.Complexity.ToString(), p.Status.ToString(),
                 p.PortfolioYear, p.StartDate, p.EndDate,
-                p.GroupPriority, p.SiptGroup?.ToString(),
+                p.GroupPriority,
                 p.PromoterId, p.Promoter?.Name,
                 p.BusinessValue,
                 p.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList())).ToList(),

@@ -21,9 +21,9 @@ public class GetWeeklyPortfolioReportHandlerTests
     private static Person MakePerson(string name = "Alice")
         => Person.CreateFromClaims(Guid.NewGuid().ToString(), name, $"{name.ToLower()}@test.com", PersonRole.Desarrollador);
 
-    private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.InSprint, int? year = 2026, SiptGroup? siptGroup = null)
+    private static Project MakeProject(string title = "Proyecto Test", ProjectStatus status = ProjectStatus.InSprint, int? year = 2026)
     {
-        var p = Project.Create(title, null, "TIC", ProjectComplexity.VerySmall, year, null, null, siptGroup: siptGroup);
+        var p = Project.Create(title, null, "TIC", ProjectComplexity.VerySmall, year, null, null);
         AdvanceProjectTo(p, status);
         return p;
     }
@@ -271,30 +271,6 @@ public class GetWeeklyPortfolioReportHandlerTests
         result.AtRiskProjects[0].IsAtRisk.ShouldBeTrue();
         result.AtRiskProjects[0].LatestSummary.ShouldBeNull();
         result.AtRiskProjects[0].HasUpdateThisWeek.ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task FiltroPorSiptGroup_SoloIncluyeProyectosDeEseGrupo()
-    {
-        await using var db = CreateDb();
-        var person = MakePerson();
-        var projectRRHH = MakeProject("Proyecto RRHH", siptGroup: SiptGroup.RRHH);
-        var projectAcademico = MakeProject("Proyecto Academico", siptGroup: SiptGroup.Academico);
-
-        db.Persons.Add(person);
-        db.Projects.AddRange(projectRRHH, projectAcademico);
-        await db.SaveChangesAsync();
-
-        var update1 = MakeUpdate(projectRRHH.Id, person.Id, ProjectHealthStatus.OnTrack);
-        var update2 = MakeUpdate(projectAcademico.Id, person.Id, ProjectHealthStatus.OnTrack);
-        db.ProjectWeeklyUpdates.AddRange(update1, update2);
-        await db.SaveChangesAsync();
-
-        var handler = new GetWeeklyPortfolioReportHandler(db);
-        var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(SiptGroup: "RRHH"), CancellationToken.None);
-
-        result.OtherProjects.Count.ShouldBe(1);
-        result.OtherProjects[0].Title.ShouldBe("Proyecto RRHH");
     }
 
     [Fact]

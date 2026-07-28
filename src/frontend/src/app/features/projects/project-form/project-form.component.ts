@@ -6,6 +6,7 @@ import {
   OnChanges,
   OnInit,
   Output,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -32,9 +33,8 @@ import {
   ProjectDetail,
   ProjectStatus,
   PromoterDto,
-  SIPT_GROUP_LABELS,
-  SiptGroup,
   TagDto,
+  Team,
 } from '../project.model';
 
 @Component({
@@ -158,11 +158,24 @@ import {
             </nz-form-item>
 
             <nz-form-item>
-              <nz-form-label>Grupo SIPT</nz-form-label>
+              <nz-form-label>Equipos</nz-form-label>
               <nz-form-control>
-                <nz-select formControlName="siptGroup" nzPlaceHolder="Grupo SIPT" nzAllowClear style="width:100%">
-                  @for (opt of siptOptions; track opt.value) {
-                    <nz-option [nzValue]="opt.value" [nzLabel]="opt.label" />
+                <nz-select formControlName="teamIds" nzMode="multiple"
+                  nzPlaceHolder="Seleccionar equipos" nzAllowClear style="width:100%">
+                  @for (t of teams(); track t.id) {
+                    <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
+                  }
+                </nz-select>
+              </nz-form-control>
+            </nz-form-item>
+
+            <nz-form-item>
+              <nz-form-label>Equipo primario</nz-form-label>
+              <nz-form-control>
+                <nz-select formControlName="primaryTeamId" nzPlaceHolder="Equipo primario"
+                  nzAllowClear style="width:100%">
+                  @for (t of selectedTeams(); track t.id) {
+                    <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
                   }
                 </nz-select>
               </nz-form-control>
@@ -278,6 +291,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
   promoters = signal<PromoterDto[]>([]);
   organicUnits = signal<OrganicUnitDto[]>([]);
   tags = signal<TagDto[]>([]);
+  teams = signal<Team[]>([]);
 
   readonly complexityOptions = (Object.keys(PROJECT_COMPLEXITY_LABELS) as ProjectComplexity[]).map(v => ({
     value: v, label: PROJECT_COMPLEXITY_LABELS[v],
@@ -287,9 +301,10 @@ export class ProjectFormComponent implements OnChanges, OnInit {
     value: v, label: PROJECT_STATUS_LABELS[v],
   }));
 
-  readonly siptOptions = (Object.keys(SIPT_GROUP_LABELS) as SiptGroup[]).map(v => ({
-    value: v, label: SIPT_GROUP_LABELS[v],
-  }));
+  selectedTeams = computed(() => {
+    const ids = this.form.get('teamIds')!.value ?? [];
+    return this.teams().filter(t => ids.includes(t.id));
+  });
 
   form = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(150)] }),
@@ -305,19 +320,29 @@ export class ProjectFormComponent implements OnChanges, OnInit {
     organicUnitId: new FormControl<number | null>(null),
     uorOrder: new FormControl<number | null>(null),
     groupPriority: new FormControl<number | null>(null),
-    siptGroup: new FormControl<SiptGroup | null>(null),
     desiredDeploymentDate: new FormControl<Date | null>(null),
     specificationsUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
     epicUrl: new FormControl<string | null>(null, Validators.maxLength(500)),
     estimatedBudget: new FormControl<number | null>(null),
     businessValue: new FormControl<number | null>(null),
     tagIds: new FormControl<number[]>([]),
+    teamIds: new FormControl<number[]>([]),
+    primaryTeamId: new FormControl<number | null>(null),
   });
 
   ngOnInit(): void {
     this.service.getPromoters().subscribe(r => this.promoters.set(r.items));
     this.service.getOrganicUnits().subscribe(r => this.organicUnits.set(r.items));
     this.service.getTags().subscribe(t => this.tags.set(t));
+    this.service.getTeams().subscribe(r => this.teams.set(r.items));
+
+    this.form.get('teamIds')!.valueChanges.subscribe((ids) => {
+      const primaryControl = this.form.get('primaryTeamId')!;
+      const current = primaryControl.value;
+      if (current !== null && !(ids ?? []).includes(current)) {
+        primaryControl.setValue(null);
+      }
+    });
   }
 
   ngOnChanges(): void {
@@ -337,16 +362,17 @@ export class ProjectFormComponent implements OnChanges, OnInit {
         organicUnitId: p.organicUnitId ?? null,
         uorOrder: p.uorOrder ?? null,
         groupPriority: p.groupPriority ?? null,
-        siptGroup: p.siptGroup ?? null,
         desiredDeploymentDate: p.desiredDeploymentDate ? new Date(p.desiredDeploymentDate) : null,
         specificationsUrl: p.specificationsUrl ?? null,
         epicUrl: p.epicUrl ?? null,
         estimatedBudget: p.estimatedBudget ?? null,
         businessValue: p.businessValue ?? null,
         tagIds: p.tags.map(t => t.id),
+        teamIds: p.teams.map(t => t.teamId),
+        primaryTeamId: p.teams.find(t => t.isPrimary)?.teamId ?? null,
       });
     } else if (this.visible && !this.project) {
-      this.form.reset({ complexity: 'Small', tagIds: [] });
+      this.form.reset({ complexity: 'Small', tagIds: [], teamIds: [] });
     }
   }
 
@@ -374,13 +400,14 @@ export class ProjectFormComponent implements OnChanges, OnInit {
       organicUnitId: raw.organicUnitId || null,
       uorOrder: raw.uorOrder || null,
       groupPriority: raw.groupPriority || null,
-      siptGroup: raw.siptGroup || null,
       desiredDeploymentDate: this.toDateStr(raw.desiredDeploymentDate),
       specificationsUrl: raw.specificationsUrl || null,
       epicUrl: raw.epicUrl || null,
       estimatedBudget: raw.estimatedBudget ?? null,
       businessValue: raw.businessValue ?? null,
       tagIds: raw.tagIds ?? [],
+      teamIds: raw.teamIds ?? [],
+      primaryTeamId: raw.primaryTeamId ?? null,
     };
 
     this.saving.set(true);
@@ -402,7 +429,7 @@ export class ProjectFormComponent implements OnChanges, OnInit {
   }
 
   cancel(): void {
-    this.form.reset({ complexity: 'Small', tagIds: [] });
+    this.form.reset({ complexity: 'Small', tagIds: [], teamIds: [] });
     this.cancelled.emit();
   }
 

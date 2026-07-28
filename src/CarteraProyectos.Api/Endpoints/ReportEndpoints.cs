@@ -70,11 +70,11 @@ public static class ReportEndpoints
 
         // Informe semanal de seguimiento de cartera
         app.MapGet("/api/reports/weekly-portfolio",
-            async (IMediator mediator, CancellationToken ct, int? year = null, int? teamId = null, string? siptGroup = null) =>
-                Results.Ok(await mediator.Send(new GetWeeklyPortfolioReportQuery(year, teamId, siptGroup), ct)))
+            async (IMediator mediator, CancellationToken ct, int? year = null, int? teamId = null) =>
+                Results.Ok(await mediator.Send(new GetWeeklyPortfolioReportQuery(year, teamId), ct)))
             .RequireAuthorization()
             .WithName("GetWeeklyPortfolioReport")
-            .WithDescription("Informe semanal de seguimiento de cartera: proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT.");
+            .WithDescription("Informe semanal de seguimiento de cartera: proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año y equipo.");
 
         // Velocity por proyecto
         app.MapGet("/api/projects/{projectId:int}/velocity",

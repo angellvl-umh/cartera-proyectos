@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Reports;
 
-public record GetWeeklyPortfolioReportQuery(int? Year = null, int? TeamId = null, string? SiptGroup = null) : IRequest<WeeklyPortfolioReportDto>;
+public record GetWeeklyPortfolioReportQuery(int? Year = null, int? TeamId = null) : IRequest<WeeklyPortfolioReportDto>;
 
 public record WeeklyPortfolioReportDto(
     IReadOnlyList<WeeklyPortfolioProjectDto> AtRiskProjects,
@@ -38,11 +38,6 @@ public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
         // Filtro por TeamId
         if (request.TeamId.HasValue)
             query = query.Where(p => p.Teams.Any(t => t.TeamId == request.TeamId.Value));
-
-        // Filtro por SiptGroup
-        if (!string.IsNullOrEmpty(request.SiptGroup) &&
-            Enum.TryParse<SiptGroup>(request.SiptGroup, out var siptGroupEnum))
-            query = query.Where(p => p.SiptGroup == siptGroupEnum);
 
         var projects = await query.OrderBy(p => p.Title).ToListAsync(ct);
         var projectIds = projects.Select(p => p.Id).ToList();

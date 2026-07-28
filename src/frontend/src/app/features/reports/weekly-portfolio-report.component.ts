@@ -78,17 +78,6 @@ const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
               }
             </nz-select>
           </div>
-          <div>
-            <div style="font-size:12px;color:#595959;margin-bottom:4px">Grupo SIPT</div>
-            <nz-select [(ngModel)]="filterSiptGroup" nzAllowClear nzPlaceHolder="Todos los grupos" style="width:220px">
-              <nz-option nzValue="WebTransversal" nzLabel="Web Transversal" />
-              <nz-option nzValue="RRHH" nzLabel="RRHH" />
-              <nz-option nzValue="Academico" nzLabel="Académico" />
-              <nz-option nzValue="Sede" nzLabel="Sede" />
-              <nz-option nzValue="Observatorio" nzLabel="Observatorio" />
-              <nz-option nzValue="InvestigacionEconomico" nzLabel="Investigación / Económico" />
-            </nz-select>
-          </div>
           <button nz-button nzType="primary" [nzLoading]="loading()" (click)="generate()">
             <span nz-icon nzType="file-text"></span> Generar informe semanal
           </button>
@@ -192,7 +181,6 @@ export class WeeklyPortfolioReportComponent {
 
   filterYear: number | null = null;
   filterTeamId: number | null = null;
-  filterSiptGroup: string | null = null;
 
   readonly years = YEARS;
   readonly loading = signal(false);
@@ -206,7 +194,6 @@ export class WeeklyPortfolioReportComponent {
     let params = new HttpParams();
     if (this.filterYear) params = params.set('year', this.filterYear.toString());
     if (this.filterTeamId) params = params.set('teamId', this.filterTeamId.toString());
-    if (this.filterSiptGroup) params = params.set('siptGroup', this.filterSiptGroup);
 
     this.loading.set(true);
     this.http.get<WeeklyPortfolioReportDto>('/api/reports/weekly-portfolio', { params }).subscribe({

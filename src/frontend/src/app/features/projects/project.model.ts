@@ -67,17 +67,6 @@ export const PROJECT_STATUS_PILL_COLORS: Record<ProjectStatus, StatusPillColor> 
   PostponedByClient: { bg: '#FBE9E7', fg: '#A8401F', dot: '#D35F3A' },
 };
 
-export type SiptGroup = 'WebTransversal' | 'RRHH' | 'Academico' | 'Sede' | 'Observatorio' | 'InvestigacionEconomico';
-
-export const SIPT_GROUP_LABELS: Record<SiptGroup, string> = {
-  WebTransversal: 'Web Transversal',
-  RRHH: 'RRHH',
-  Academico: 'Académico',
-  Sede: 'Sede',
-  Observatorio: 'Observatorio',
-  InvestigacionEconomico: 'Investigación / Económico',
-};
-
 export interface TagDto {
   id: number;
   name: string;
@@ -143,7 +132,6 @@ export interface Project {
   startDate: string | null;
   endDate: string | null;
   groupPriority: number | null;
-  siptGroup: SiptGroup | null;
   promoterId: number | null;
   promoterName: string | null;
   estimatedBudget: number | null;
@@ -186,13 +174,14 @@ export interface CreateProjectDto {
   organicUnitId?: number | null;
   uorOrder?: number | null;
   groupPriority?: number | null;
-  siptGroup?: SiptGroup | null;
   desiredDeploymentDate?: string | null;
   specificationsUrl?: string | null;
   epicUrl?: string | null;
   estimatedBudget?: number | null;
   businessValue?: number | null;
   tagIds?: number[];
+  teamIds?: number[];
+  primaryTeamId?: number | null;
 }
 
 // ── Risks ──────────────────────────────────────────────────────────────────────
@@ -269,7 +258,6 @@ export interface ProjectFilters {
   q?: string;
   tagId?: number;
   tagIds?: number[];
-  siptGroup?: SiptGroup;
   promoterId?: number;
   page?: number;
   pageSize?: number;

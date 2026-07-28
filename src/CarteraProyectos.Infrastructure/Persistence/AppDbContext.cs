@@ -65,7 +65,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(p => p.RequestingUnit).HasMaxLength(200);
             e.Property(p => p.Status).HasConversion<string>();
             e.Property(p => p.Complexity).HasConversion<string>();
-            e.Property(p => p.SiptGroup).HasConversion<string>();
             e.Property(p => p.SpecificationsUrl).HasMaxLength(500);
             e.Property(p => p.EpicUrl).HasMaxLength(500);
             e.Property(p => p.EstimatedBudget).HasColumnType("decimal(18,2)");

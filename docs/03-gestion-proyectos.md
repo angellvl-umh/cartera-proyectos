@@ -32,7 +32,6 @@ erDiagram
         int OrganicUnitId
         int UorOrder
         int GroupPriority
-        enum SiptGroup
         date DesiredDeploymentDate
         string SpecificationsUrl
         string EpicUrl
@@ -71,7 +70,6 @@ erDiagram
 |------|---------|
 | `ProjectStatus` | `Stopped` (Parado), `PlanningWithClient` (Planificando con cliente), `WaitingForDevelopers` (Esperando desarrolladores), `PlanningSprint` (Planificando sprint), `InSprint` (En sprint), `DevelopmentOutsideSprint` (Desarrollo fuera de sprint), `InTesting` (En pruebas), `Completed` (Finalizado), `PostponedByClient` (Pospuesto por cliente) |
 | `ProjectComplexity` | `VerySmall` (Muy pequeño), `Small` (Pequeño), `Medium` (Medio), `Large` (Grande), `VeryLarge` (Muy grande) |
-| `SiptGroup` | `WebTransversal`, `RRHH`, `Academico`, `Sede`, `Observatorio`, `InvestigacionEconomico` |
 
 > El estado del proyecto **no sigue una máquina de estados restrictiva**: cualquier estado puede transicionar a cualquier otro. La única restricción es de rol (ver HU-PR-04).
 
@@ -158,7 +156,7 @@ Ninguno de los tres catálogos puede eliminarse mientras tenga proyectos asociad
 **para** encontrar rápidamente la información que necesito.
 
 **Criterios de aceptación:**
-- Filtros combinables: año de cartera (`year`), estado (`status`), equipo (`teamId`), complejidad (`complexity`), grupo SIPT (`siptGroup`), promotor (`promoterId`), etiqueta — una (`tagId`) o varias (`tagIds`)
+- Filtros combinables: año de cartera (`year`), estado (`status`), equipo (`teamId`), complejidad (`complexity`), promotor (`promoterId`), etiqueta — una (`tagId`) o varias (`tagIds`)
 - Búsqueda por texto libre (`q`) en título y descripción
 - Resultado paginado (`page`, `pageSize`, máx. 100)
 - Los filtros se mantienen al navegar y volver

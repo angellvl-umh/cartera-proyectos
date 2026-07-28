@@ -22,13 +22,14 @@ public record UpdateProjectCommand(
     int? OrganicUnitId = null,
     int? UorOrder = null,
     int? GroupPriority = null,
-    SiptGroup? SiptGroup = null,
     DateOnly? DesiredDeploymentDate = null,
     string? SpecificationsUrl = null,
     string? EpicUrl = null,
     decimal? EstimatedBudget = null,
     int? BusinessValue = null,
-    IReadOnlyList<int>? TagIds = null) : IRequest;
+    IReadOnlyList<int>? TagIds = null,
+    IReadOnlyList<int>? TeamIds = null,
+    int? PrimaryTeamId = null) : IRequest;
 
 public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectCommand>
 {
@@ -41,6 +42,9 @@ public sealed class UpdateProjectValidator : AbstractValidator<UpdateProjectComm
         RuleFor(x => x.SpecificationsUrl).MaximumLength(500).When(x => x.SpecificationsUrl is not null);
         RuleFor(x => x.EpicUrl).MaximumLength(500).When(x => x.EpicUrl is not null);
         RuleFor(x => x.BusinessValue).InclusiveBetween(1, 5).When(x => x.BusinessValue.HasValue);
+        RuleFor(x => x.PrimaryTeamId)
+            .Must((cmd, id) => id is null || (cmd.TeamIds ?? Array.Empty<int>()).Contains(id.Value))
+            .WithMessage("El equipo primario debe estar entre los equipos asignados.");
     }
 }
 
@@ -66,7 +70,7 @@ public sealed class UpdateProjectHandler(IAppDbContext db) : IRequestHandler<Upd
             request.Complexity, request.PortfolioYear, request.StartDate, request.EndDate,
             request.PreviousReferenceId, request.BeneficiaryCount,
             request.PromoterId, request.OrganicUnitId, request.UorOrder,
-            request.GroupPriority, request.SiptGroup,
+            request.GroupPriority,
             request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl,
             request.EstimatedBudget, request.BusinessValue);
 
@@ -79,6 +83,20 @@ public sealed class UpdateProjectHandler(IAppDbContext db) : IRequestHandler<Upd
                 var tags = db.Tags.Where(t => request.TagIds.Contains(t.Id)).ToList();
                 foreach (var tag in tags)
                     existingTags.Add(tag);
+            }
+        }
+
+        if (request.TeamIds is not null)
+        {
+            var existingAssignments = await db.ProjectTeamAssignments
+                .Where(a => a.ProjectId == request.Id)
+                .ToListAsync(cancellationToken);
+            db.ProjectTeamAssignments.RemoveRange(existingAssignments);
+
+            foreach (var teamId in request.TeamIds)
+            {
+                db.ProjectTeamAssignments.Add(
+                    ProjectTeamAssignment.Create(request.Id, teamId, isPrimary: teamId == request.PrimaryTeamId));
             }
         }
 

@@ -78,4 +78,4 @@ docker compose exec -T db psql -U postgres -d cartera_app < infra/seed.sql
 
 - **Usuario gestor**: el seed NO incluye la persona del gestor. Es el único caso de auto-provisión que queda: en el primer login el backend crea la fila con el UUID real de Keycloak y rol `Gestor` porque `gestor@universidad.es` está en `Admin__InitialGestorEmails` (bootstrap). Cualquier otro usuario debe estar pre-registrado por un Gestor o recibirá `403` al entrar.
 - **DataSeeder.cs**: el backend también carga estos mismos datos automáticamente al arrancar en modo `Development` (si la tabla `Projects` está vacía). El seed SQL es útil cuando se quiere cargar datos sin arrancar el backend, o para entornos de CI.
-- **Enums almacenados como strings**: `Status`, `Complexity`, `SiptGroup` y `Role` se guardan como texto en PostgreSQL. Los valores válidos están documentados en `CLAUDE.md`.
+- **Enums almacenados como strings**: `Status`, `Complexity` y `Role` se guardan como texto en PostgreSQL. Los valores válidos están documentados en `CLAUDE.md`.

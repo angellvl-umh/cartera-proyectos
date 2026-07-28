@@ -1,6 +1,7 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Infrastructure.Persistence;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
 
@@ -59,7 +60,6 @@ public class ProjectHandlerTests
                 PreviousReferenceId: 42,
                 BeneficiaryCount: 500,
                 GroupPriority: 3,
-                SiptGroup: SiptGroup.Academico,
                 SpecificationsUrl: "https://drive.google.com/doc",
                 EpicUrl: "https://jira.umh.es/epic/1",
                 RequestingPersonId: gestor.Id),
@@ -70,9 +70,154 @@ public class ProjectHandlerTests
         project.PreviousReferenceId.ShouldBe(42);
         project.BeneficiaryCount.ShouldBe(500);
         project.GroupPriority.ShouldBe(3);
-        project.SiptGroup.ShouldBe(SiptGroup.Academico);
         project.SpecificationsUrl.ShouldBe("https://drive.google.com/doc");
         project.EpicUrl.ShouldBe("https://jira.umh.es/epic/1");
+    }
+
+    // --- CreateProject con TeamIds ---
+
+    [Fact]
+    public async Task CreateProject_ConTeamIds_CreaAsignacionesDeEquipo()
+    {
+        var (db, gestor) = await DbWithGestor();
+        var team1 = Team.Create("Equipo A", null, null);
+        var team2 = Team.Create("Equipo B", null, null);
+        db.Teams.AddRange(team1, team2);
+        await db.SaveChangesAsync();
+
+        var handler = new CreateProjectHandler(db);
+        var id = await handler.Handle(
+            new CreateProjectCommand("Proyecto Test", null, null, ProjectComplexity.Small, 2026, null, null,
+                RequestingPersonId: gestor.Id,
+                TeamIds: [team1.Id, team2.Id],
+                PrimaryTeamId: team1.Id),
+            CancellationToken.None);
+
+        var assignments = await db.ProjectTeamAssignments
+            .Where(a => a.ProjectId == id)
+            .ToListAsync();
+
+        assignments.Count.ShouldBe(2);
+        assignments.Single(a => a.TeamId == team1.Id).IsPrimary.ShouldBeTrue();
+        assignments.Single(a => a.TeamId == team2.Id).IsPrimary.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CreateProject_SinTeamIds_NoCreaAsignaciones()
+    {
+        var (db, gestor) = await DbWithGestor();
+        var handler = new CreateProjectHandler(db);
+
+        var id = await handler.Handle(
+            new CreateProjectCommand("Proyecto Sin Equipos", null, null, ProjectComplexity.Small, 2026, null, null,
+                RequestingPersonId: gestor.Id),
+            CancellationToken.None);
+
+        var assignments = await db.ProjectTeamAssignments
+            .Where(a => a.ProjectId == id)
+            .ToListAsync();
+
+        assignments.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateProject_PrimaryTeamIdFueraDeTeamIds_FallaValidacion()
+    {
+        var validator = new CreateProjectValidator();
+
+        var cmd = new CreateProjectCommand(
+            "Proyecto", null, null, ProjectComplexity.Small, null, null, null,
+            TeamIds: [1, 2],
+            PrimaryTeamId: 99); // 99 no está en [1, 2]
+
+        var result = await validator.ValidateAsync(cmd);
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == "PrimaryTeamId");
+    }
+
+    [Fact]
+    public async Task UpdateProject_PrimaryTeamIdFueraDeTeamIds_FallaValidacion()
+    {
+        var validator = new UpdateProjectValidator();
+
+        var cmd = new UpdateProjectCommand(
+            1, "Proyecto", null, null, ProjectComplexity.Small, null, null, null,
+            TeamIds: [1, 2],
+            PrimaryTeamId: 99); // 99 no está en [1, 2]
+
+        var result = await validator.ValidateAsync(cmd);
+
+        result.IsValid.ShouldBeFalse();
+        result.Errors.ShouldContain(e => e.PropertyName == "PrimaryTeamId");
+    }
+
+    // --- UpdateProject con TeamIds ---
+
+    [Fact]
+    public async Task UpdateProject_ConTeamIds_ReemplazaAsignacionesExistentes()
+    {
+        var (db, gestor) = await DbWithGestor();
+        var team1 = Team.Create("Equipo 1", null, null);
+        var team2 = Team.Create("Equipo 2", null, null);
+        var team3 = Team.Create("Equipo 3", null, null);
+        db.Teams.AddRange(team1, team2, team3);
+
+        var project = Project.Create("Proyecto", null, null, ProjectComplexity.Small, 2026, null, null);
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        // Asignar equipos 1 y 2 inicialmente
+        db.ProjectTeamAssignments.AddRange(
+            ProjectTeamAssignment.Create(project.Id, team1.Id, true),
+            ProjectTeamAssignment.Create(project.Id, team2.Id, false));
+        await db.SaveChangesAsync();
+
+        var handler = new UpdateProjectHandler(db);
+        await handler.Handle(
+            new UpdateProjectCommand(project.Id, "Proyecto", null, null, ProjectComplexity.Small, 2026, null, null,
+                TeamIds: [team2.Id, team3.Id],
+                PrimaryTeamId: team2.Id),
+            CancellationToken.None);
+
+        var assignments = await db.ProjectTeamAssignments
+            .Where(a => a.ProjectId == project.Id)
+            .ToListAsync();
+
+        assignments.Count.ShouldBe(2);
+        assignments.ShouldContain(a => a.TeamId == team2.Id);
+        assignments.ShouldContain(a => a.TeamId == team3.Id);
+        assignments.ShouldNotContain(a => a.TeamId == team1.Id);
+        assignments.Single(a => a.TeamId == team2.Id).IsPrimary.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateProject_SinTeamIds_NoModificaAsignacionesExistentes()
+    {
+        var (db, gestor) = await DbWithGestor();
+        var team1 = Team.Create("Equipo 1", null, null);
+        db.Teams.Add(team1);
+
+        var project = Project.Create("Proyecto", null, null, ProjectComplexity.Small, 2026, null, null);
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        db.ProjectTeamAssignments.Add(
+            ProjectTeamAssignment.Create(project.Id, team1.Id, true));
+        await db.SaveChangesAsync();
+
+        var handler = new UpdateProjectHandler(db);
+        // TeamIds es null → no tocar equipos
+        await handler.Handle(
+            new UpdateProjectCommand(project.Id, "Título Nuevo", null, null, ProjectComplexity.Small, 2026, null, null),
+            CancellationToken.None);
+
+        var assignments = await db.ProjectTeamAssignments
+            .Where(a => a.ProjectId == project.Id)
+            .ToListAsync();
+
+        assignments.Count.ShouldBe(1);
+        assignments[0].TeamId.ShouldBe(team1.Id);
     }
 
     // --- UpdateProject ---

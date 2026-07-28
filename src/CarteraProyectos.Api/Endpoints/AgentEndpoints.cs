@@ -33,17 +33,17 @@ public static class AgentEndpoints
 
         // ── HU-IA-01: Lista de proyectos ──────────────────────────────────────
         group.MapGet("/projects", async (HttpContext http, IAppDbContext db, ISender sender,
-            string? siptGroup, string? status) =>
+            string? status) =>
         {
             var person = await ResolvePersonAsync(http, db);
             var guardResult = Guard(person);
             if (guardResult is not null) return guardResult;
-            var result = await sender.Send(new AgentGetProjectsQuery(person!.Id, siptGroup, status));
+            var result = await sender.Send(new AgentGetProjectsQuery(person!.Id, status));
             return Results.Ok(result);
         })
         .WithName("get_projects")
         .WithSummary("Listar proyectos del usuario")
-        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado, equipo principal (primaryTeamName) y progreso de tareas. Filtra opcionalmente por siptGroup (WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico) y/o status (Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient). Usa este endpoint cuando el usuario pregunte por sus proyectos o el estado general de la cartera.");
+        .WithDescription("Devuelve los proyectos asociados a los equipos del usuario con su estado, equipo principal (primaryTeamName) y progreso de tareas. Filtra opcionalmente por status (Stopped, PlanningWithClient, WaitingForDevelopers, PlanningSprint, InSprint, DevelopmentOutsideSprint, InTesting, Completed, PostponedByClient). Usa este endpoint cuando el usuario pregunte por sus proyectos o el estado general de la cartera.");
 
         // ── HU-IA-01: Detalle de proyecto ─────────────────────────────────────
         group.MapGet("/projects/{id:int}", async (int id, ISender sender) =>
@@ -148,14 +148,14 @@ public static class AgentEndpoints
         .WithDescription("Registra (o actualiza si ya existe uno esta semana) el avance semanal del usuario en un proyecto. healthStatus debe ser OnTrack (en curso), AtRisk (en riesgo) o Blocked (bloqueado). Solo se permite un registro por persona y proyecto por semana ISO; un segundo registro la misma semana actualiza el anterior. Úsalo cuando el usuario quiera reportar cómo va un proyecto esta semana.");
 
         // ── HU-IA-09: Informe semanal de cartera ───────────────────────────────
-        group.MapGet("/weekly-portfolio-report", async (ISender sender, int? year = null, int? teamId = null, string? siptGroup = null) =>
+        group.MapGet("/weekly-portfolio-report", async (ISender sender, int? year = null, int? teamId = null) =>
         {
-            var result = await sender.Send(new GetWeeklyPortfolioReportQuery(year, teamId, siptGroup));
+            var result = await sender.Send(new GetWeeklyPortfolioReportQuery(year, teamId));
             return Results.Ok(result);
         })
         .WithName("get_weekly_portfolio_report")
         .WithSummary("Informe semanal de seguimiento de cartera")
-        .WithDescription("Devuelve proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año, equipo y grupo SIPT. Usa este endpoint cuando necesites un resumen del estado de la cartera esta semana.");
+        .WithDescription("Devuelve proyectos en riesgo y otros clasificados por estado de actualización de esta semana. Filtrable por año y equipo. Usa este endpoint cuando necesites un resumen del estado de la cartera esta semana.");
 
         // ── Gestión de Personas ───────────────────────────────────────────────
 
@@ -237,13 +237,13 @@ public static class AgentEndpoints
                 person!.Id, req.Title, req.Description, req.RequestingUnit,
                 req.Complexity, req.PortfolioYear, req.StartDate, req.EndDate,
                 req.BeneficiaryCount, req.PromoterId, req.OrganicUnitId, req.GroupPriority,
-                req.SiptGroup, req.DesiredDeploymentDate, req.SpecificationsUrl,
+                req.DesiredDeploymentDate, req.SpecificationsUrl,
                 req.EpicUrl, req.EstimatedBudget, req.BusinessValue));
             return Results.Created($"/api/projects/{id}", new { id, message = $"Proyecto '{req.Title}' creado con ID {id}." });
         })
         .WithName("create_project")
         .WithSummary("Crear un nuevo proyecto en la cartera")
-        .WithDescription("Crea un nuevo proyecto en la cartera. Solo el Gestor puede hacerlo. complexity: VerySmall, Small, Medium, Large, VeryLarge. siptGroup opcional: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico. Fechas en formato yyyy-MM-dd. businessValue (valor de negocio) y groupPriority entre 1 y 5. El proyecto se crea en estado Stopped; usa update_project_status para moverlo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+        .WithDescription("Crea un nuevo proyecto en la cartera. Solo el Gestor puede hacerlo. complexity: VerySmall, Small, Medium, Large, VeryLarge. Fechas en formato yyyy-MM-dd. businessValue (valor de negocio) y groupPriority entre 1 y 5. El proyecto se crea en estado Stopped; usa update_project_status para moverlo. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
         // ── 5b. POST /projects/{id:int} (actualizar proyecto) ──────────────────
         group.MapPost("/projects/{id:int}", async (int id, AgentProjectUpdateRequest req, HttpContext http, IAppDbContext db, ISender sender) =>
@@ -255,13 +255,13 @@ public static class AgentEndpoints
                 person!.Id, id, req.Title, req.Description, req.RequestingUnit,
                 req.Complexity, req.PortfolioYear, req.StartDate, req.EndDate,
                 req.BeneficiaryCount, req.PromoterId, req.OrganicUnitId, req.GroupPriority,
-                req.SiptGroup, req.DesiredDeploymentDate, req.SpecificationsUrl,
+                req.DesiredDeploymentDate, req.SpecificationsUrl,
                 req.EpicUrl, req.EstimatedBudget, req.BusinessValue));
             return Results.Ok(new { message = $"Proyecto {id} actualizado." });
         })
         .WithName("update_project")
         .WithSummary("Modificar los datos de un proyecto")
-        .WithDescription("Actualización parcial de un proyecto: solo se modifican los campos enviados; los omitidos conservan su valor actual (no es posible vaciar un campo con esta tool). Solo el Gestor puede hacerlo. No cambia el estado del proyecto: para eso usa update_project_status. complexity: VerySmall, Small, Medium, Large, VeryLarge. siptGroup: WebTransversal, RRHH, Academico, Sede, Observatorio, InvestigacionEconomico. Fechas en formato yyyy-MM-dd. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
+        .WithDescription("Actualización parcial de un proyecto: solo se modifican los campos enviados; los omitidos conservan su valor actual (no es posible vaciar un campo con esta tool). Solo el Gestor puede hacerlo. No cambia el estado del proyecto: para eso usa update_project_status. complexity: VerySmall, Small, Medium, Large, VeryLarge. Fechas en formato yyyy-MM-dd. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.");
 
         // ── 6. GET /projects/{id:int}/risks (listar riesgos) ────────────────
         group.MapGet("/projects/{id:int}/risks", async (int id, ISender sender) =>
@@ -469,13 +469,13 @@ public record AgentDependencyRequest(int DependsOnProjectId, string? Description
 public record AgentProjectCreateRequest(
     string Title, string? Description, string? RequestingUnit, string Complexity,
     int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate, int? BeneficiaryCount,
-    int? PromoterId, int? OrganicUnitId, int? GroupPriority, string? SiptGroup,
+    int? PromoterId, int? OrganicUnitId, int? GroupPriority,
     DateOnly? DesiredDeploymentDate, string? SpecificationsUrl, string? EpicUrl,
     decimal? EstimatedBudget, int? BusinessValue);
 
 public record AgentProjectUpdateRequest(
     string? Title, string? Description, string? RequestingUnit, string? Complexity,
     int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate, int? BeneficiaryCount,
-    int? PromoterId, int? OrganicUnitId, int? GroupPriority, string? SiptGroup,
+    int? PromoterId, int? OrganicUnitId, int? GroupPriority,
     DateOnly? DesiredDeploymentDate, string? SpecificationsUrl, string? EpicUrl,
     decimal? EstimatedBudget, int? BusinessValue);

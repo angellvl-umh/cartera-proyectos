@@ -20,13 +20,14 @@ public record CreateProjectCommand(
     int? OrganicUnitId = null,
     int? UorOrder = null,
     int? GroupPriority = null,
-    SiptGroup? SiptGroup = null,
     DateOnly? DesiredDeploymentDate = null,
     string? SpecificationsUrl = null,
     string? EpicUrl = null,
     decimal? EstimatedBudget = null,
     int? BusinessValue = null,
-    IReadOnlyList<int>? TagIds = null) : IRequest<int>;
+    IReadOnlyList<int>? TagIds = null,
+    IReadOnlyList<int>? TeamIds = null,
+    int? PrimaryTeamId = null) : IRequest<int>;
 
 public sealed class CreateProjectValidator : AbstractValidator<CreateProjectCommand>
 {
@@ -39,6 +40,9 @@ public sealed class CreateProjectValidator : AbstractValidator<CreateProjectComm
         RuleFor(x => x.SpecificationsUrl).MaximumLength(500).When(x => x.SpecificationsUrl is not null);
         RuleFor(x => x.EpicUrl).MaximumLength(500).When(x => x.EpicUrl is not null);
         RuleFor(x => x.BusinessValue).InclusiveBetween(1, 5).When(x => x.BusinessValue.HasValue);
+        RuleFor(x => x.PrimaryTeamId)
+            .Must((cmd, id) => id is null || (cmd.TeamIds ?? Array.Empty<int>()).Contains(id.Value))
+            .WithMessage("El equipo primario debe estar entre los equipos asignados.");
     }
 }
 
@@ -59,7 +63,7 @@ public sealed class CreateProjectHandler(IAppDbContext db) : IRequestHandler<Cre
             request.Complexity, request.PortfolioYear, request.StartDate, request.EndDate,
             request.PreviousReferenceId, request.BeneficiaryCount,
             request.PromoterId, request.OrganicUnitId, request.UorOrder,
-            request.GroupPriority, request.SiptGroup,
+            request.GroupPriority,
             request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl,
             request.EstimatedBudget, request.BusinessValue);
 
@@ -73,6 +77,17 @@ public sealed class CreateProjectHandler(IAppDbContext db) : IRequestHandler<Cre
         db.Projects.Add(project);
         db.ProjectStatusHistories.Add(ProjectStatusHistory.Create(project, null, project.Status, request.RequestingPersonId));
         await db.SaveChangesAsync(cancellationToken);
+
+        if (request.TeamIds is { Count: > 0 })
+        {
+            foreach (var teamId in request.TeamIds)
+            {
+                db.ProjectTeamAssignments.Add(
+                    ProjectTeamAssignment.Create(project.Id, teamId, isPrimary: teamId == request.PrimaryTeamId));
+            }
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         return project.Id;
     }
 }
