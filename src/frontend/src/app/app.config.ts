@@ -19,7 +19,7 @@ import {
   PieChartOutline, ThunderboltOutline, LayoutOutline,
   AppstoreOutline, WarningOutline, CheckCircleOutline,
   ClockCircleOutline, UserAddOutline, LinkOutline, CommentOutline,
-  UserDeleteOutline,
+  UserDeleteOutline, MessageOutline, SendOutline,
 } from '@ant-design/icons-angular/icons';
 import { routes } from './app.routes';
 import { authConfig } from './core/auth.config';
@@ -34,7 +34,7 @@ const icons = [
   PieChartOutline, ThunderboltOutline, LayoutOutline,
   AppstoreOutline, WarningOutline, CheckCircleOutline,
   ClockCircleOutline, UserAddOutline, LinkOutline, CommentOutline,
-  UserDeleteOutline,
+  UserDeleteOutline, MessageOutline, SendOutline,
 ];
 
 export const appConfig: ApplicationConfig = {
