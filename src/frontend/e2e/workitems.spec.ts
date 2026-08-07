@@ -196,6 +196,45 @@ test.describe('Work Items (gestor)', () => {
     await expect(page.locator('.ant-message-error')).toHaveCount(0);
   });
 
+  test('alta rápida sigue siendo visible cuando el backlog llena una página', async ({ page }) => {
+    // Regresión: la alta rápida calculaba el sortOrder de la nueva tarea
+    // solo a partir de las tareas cargadas en la página actual, y no
+    // navegaba a la página donde quedaba la tarea nueva. Con un backlog que
+    // llena la página, la tarea nueva podía caer en la página siguiente sin
+    // que el usuario lo supiera y parecer "no guardada". Reproducimos ese
+    // escenario con tamaño de página 10 y 10 tareas de relleno: la 11ª tarea
+    // cae inevitablemente en la página 2 (10/página, 11 tareas), pero la app
+    // debe navegar allí automáticamente para que sea visible sin buscarla.
+    const ts = Date.now();
+    const projectTitle = `WI Pagination E2E ${ts}`;
+    const detailUrl = await createProjectAndGetUrl(page, projectTitle);
+    await navigateToBacklog(page, detailUrl);
+
+    // Con el backlog vacío el pie de paginación de nz-table no se renderiza,
+    // así que primero creamos las tareas de relleno (con el tamaño de página
+    // por defecto, 25, todas caben en la página 1) y luego reducimos el
+    // tamaño de página al mínimo disponible (10) para forzar que la página 1
+    // quede completamente llena.
+    for (let i = 1; i <= 10; i++) {
+      await createTask(page, `Filler ${ts}-${i}`);
+    }
+
+    await page.locator('.ant-pagination-options-size-changer').click();
+    await page.locator('.cdk-overlay-container nz-option-item').filter({ hasText: '10 / página' }).click();
+    await page.waitForTimeout(300);
+
+    // La tabla debe seguir en página 1, ahora llena (10 filas de relleno).
+    await expect(page.locator('.ant-pagination-item-active')).toHaveText('1');
+    await expect(page.getByText('10 tareas')).toBeVisible();
+
+    // La 11ª tarea añadida con la página 1 llena cae en la página 2 — la app
+    // debe navegar ahí sola. createTask() ya comprueba que el título quede
+    // visible en la tabla; aquí además confirmamos que aterrizó en página 2.
+    const newTaskTitle = `Nueva tarea visible ${ts}`;
+    await createTask(page, newTaskTitle);
+    await expect(page.locator('.ant-pagination-item-active')).toHaveText('2');
+  });
+
   test('descartar la tarea y verificar estado Descartada', async ({ page }) => {
     await goToBacklog(page);
 

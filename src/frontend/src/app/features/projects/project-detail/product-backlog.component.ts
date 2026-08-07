@@ -12,7 +12,7 @@ import {
   SimpleChanges,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Observable, Subject, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import {
   CdkDrag,
   CdkDragDrop,
@@ -304,6 +304,7 @@ const TERMINAL_STATUSES: WorkItemStatus[] = ['Done', 'Discarded'];
               <input nz-input nzSize="small" [(ngModel)]="quickAddTitle"
                 placeholder="Añadir tarea de alto nivel…"
                 style="width:100%"
+                [disabled]="quickAdding()"
                 (keydown.enter)="quickAdd()" />
             </td>
             <td colspan="7"></td>
@@ -582,25 +583,35 @@ export class ProductBacklogComponent implements OnChanges {
   }
 
   // ── Quick add ─────────────────────────────────────────────────────────────
+  // this.items() solo contiene la página actualmente cargada, así que el
+  // sortOrder de la nueva tarea no puede calcularse a partir de ella (el bug
+  // original: "max(página actual)+10" podía caer detrás de tareas de otras
+  // páginas, o incluso quedar por delante de ellas, según en qué página
+  // estuviera el usuario). En su lugar se pide al backend el sortOrder real
+  // más alto del backlog completo, y tras crear la tarea se navega a la
+  // página donde ha quedado, para que sea visible sin que el usuario tenga
+  // que buscarla.
   quickAdd(): void {
     const title = this.quickAddTitle.trim();
     if (!title) return;
 
-    const maxSortOrder = this.items().reduce((m, w) => Math.max(m, w.sortOrder), 0);
-
     this.quickAdding.set(true);
-    this.workItemsService.createWorkItem(this.projectId, {
-      title,
-      type: this.quickAddType,
-      priority: 'Medium',
-      sortOrder: maxSortOrder + 10,
-      isHito: false,
-      assigneeIds: [],
-    }).subscribe({
-      next: () => {
+
+    this.fetchMaxBacklogSortOrder().pipe(
+      switchMap(([maxSortOrder, total]) => this.workItemsService.createWorkItem(this.projectId, {
+        title,
+        type: this.quickAddType,
+        priority: 'Medium',
+        sortOrder: maxSortOrder + 10,
+        isHito: false,
+        assigneeIds: [],
+      }).pipe(map(() => total))),
+    ).subscribe({
+      next: total => {
         this.quickAddTitle = '';
         this.quickAdding.set(false);
         this.message.success('Tarea añadida');
+        this.page.set(Math.max(1, Math.ceil((total + 1) / this.pageSize())));
         this.loadItems();
         this.refreshRequested.emit();
       },
@@ -609,6 +620,17 @@ export class ProductBacklogComponent implements OnChanges {
         this.message.error('Error al crear la tarea');
       },
     });
+  }
+
+  // sortOrder de la última tarea del backlog completo (ignorando filtros de UI) + su total.
+  private fetchMaxBacklogSortOrder(): Observable<[number, number]> {
+    return this.workItemsService.searchWorkItems(this.projectId, { backlogOnly: true, page: 1, pageSize: 1 }).pipe(
+      switchMap(first => {
+        if (first.total <= 1) return of<[number, number]>([first.items[0]?.sortOrder ?? 0, first.total]);
+        return this.workItemsService.searchWorkItems(this.projectId, { backlogOnly: true, page: first.total, pageSize: 1 })
+          .pipe(map(last => [last.items[0]?.sortOrder ?? 0, first.total] as [number, number]));
+      }),
+    );
   }
 
   // ── Display helpers ───────────────────────────────────────────────────────
