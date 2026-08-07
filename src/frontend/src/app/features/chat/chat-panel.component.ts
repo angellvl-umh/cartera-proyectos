@@ -23,12 +23,15 @@ import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { marked } from 'marked';
 import { ChatService, ConversationSummaryDto, ChatMessageResponseDto } from './chat.service';
 
 interface VisibleMessage {
   id: number;
   role: 'user' | 'assistant';
   content: string;
+  /** HTML parseado de markdown (solo mensajes assistant). */
+  contentHtml: string;
   createdAt: string;
   toolAction?: boolean; // indica que justo antes hubo mensajes tool
 }
@@ -129,18 +132,44 @@ interface VisibleMessage {
       border-radius: 12px;
       font-size: 13.5px;
       line-height: 1.55;
-      white-space: pre-wrap;
       word-break: break-word;
     }
     .msg-row.user .msg-bubble {
       background: #1890ff;
       color: #fff;
       border-bottom-right-radius: 3px;
+      white-space: pre-wrap;
     }
     .msg-row.assistant .msg-bubble {
       background: #f0f0f0;
       color: #262626;
       border-bottom-left-radius: 3px;
+    }
+    /* Estilos básicos para el HTML parseado del asistente */
+    .msg-row.assistant .msg-bubble p { margin: 0 0 8px; }
+    .msg-row.assistant .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-row.assistant .msg-bubble ul,
+    .msg-row.assistant .msg-bubble ol { margin: 4px 0 8px 16px; padding: 0; }
+    .msg-row.assistant .msg-bubble li { margin-bottom: 2px; }
+    .msg-row.assistant .msg-bubble strong { font-weight: 700; }
+    .msg-row.assistant .msg-bubble em { font-style: italic; }
+    .msg-row.assistant .msg-bubble code {
+      background: #e0e0e0;
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 12.5px;
+      font-family: monospace;
+    }
+    .msg-row.assistant .msg-bubble pre {
+      background: #e0e0e0;
+      border-radius: 6px;
+      padding: 8px 10px;
+      overflow-x: auto;
+      margin: 6px 0;
+    }
+    .msg-row.assistant .msg-bubble pre code {
+      background: none;
+      padding: 0;
     }
     .msg-time {
       font-size: 10px;
@@ -227,9 +256,11 @@ interface VisibleMessage {
                   <nz-empty nzNotFoundContent="Selecciona o crea una conversación" [nzNotFoundImage]="'simple'" />
                 </div>
               } @else {
-                <nz-spin [nzSpinning]="loadingMsgs()">
-                  <div class="messages-container" #messagesContainer>
-                    @if (visibleMessages().length === 0 && !loadingMsgs()) {
+                <div class="messages-container" #messagesContainer>
+                  @if (loadingMsgs()) {
+                    <div style="text-align:center;padding:40px"><nz-spin /></div>
+                  } @else {
+                    @if (visibleMessages().length === 0) {
                       <div style="text-align:center;padding:20px">
                         <nz-empty nzNotFoundContent="Sin mensajes todavía" [nzNotFoundImage]="'simple'" />
                       </div>
@@ -239,7 +270,11 @@ interface VisibleMessage {
                         <div class="tool-indicator">🔧 acción ejecutada</div>
                       }
                       <div class="msg-row" [class]="msg.role">
-                        <div class="msg-bubble">{{ msg.content }}</div>
+                        @if (msg.role === 'assistant') {
+                          <div class="msg-bubble" [innerHTML]="msg.contentHtml"></div>
+                        } @else {
+                          <div class="msg-bubble">{{ msg.content }}</div>
+                        }
                         <div class="msg-time">{{ formatTime(msg.createdAt) }}</div>
                       </div>
                     }
@@ -250,8 +285,8 @@ interface VisibleMessage {
                         </div>
                       </div>
                     }
-                  </div>
-                </nz-spin>
+                  }
+                </div>
 
                 <div class="input-bar">
                   <textarea
@@ -312,10 +347,14 @@ export class ChatPanelComponent {
         continue;
       }
       if (msg.role === 'user' || msg.role === 'assistant') {
+        const content = msg.content ?? '';
         result.push({
           id: msg.id,
           role: msg.role,
-          content: msg.content ?? '',
+          content,
+          contentHtml: msg.role === 'assistant'
+            ? (marked.parse(content, { async: false }) as string)
+            : '',
           createdAt: msg.createdAt,
           toolAction: pendingToolAction,
         });

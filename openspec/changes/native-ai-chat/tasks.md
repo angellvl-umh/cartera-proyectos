@@ -54,3 +54,8 @@
 - [x] 8.3 Verificar `dotnet build` y la suite completa de tests unitarios en verde.
 - [x] 8.4 Levantar el stack (`docker compose up`, o el stack E2E efímero) y validar manualmente una conversación real con al menos un tool call de escritura y una de solo lectura.
 - [x] 8.5 Verificar `ng build`/`tsc --noEmit` del frontend en verde.
+
+## 9. Correcciones post-validación manual
+
+- [x] 9.1 El scroll interno del panel de mensajes no funciona: `.messages-container` (flex:1 1 auto; overflow-y:auto) queda anidado dentro de `<nz-spin [nzSpinning]="loadingMsgs()">`, cuyos wrappers (`.ant-spin-nested-loading`/`.ant-spin-container`) no son contenedores flex, rompiendo la cadena de altura. Quitar ese `nz-spin` envolvente y mostrar el estado de carga con un spinner condicional dentro del propio `.messages-container` (que vuelve a ser hijo directo de `.chat-area`).
+- [x] 9.2 El markdown de las respuestas del asistente no se renderiza (se ve `**texto**` literal): `{{ msg.content }}` es interpolación de texto plano. Añadir `marked` como dependencia, parsear el markdown de los mensajes `role: assistant` (los de `role: user` se dejan como texto plano, tal cual escribe el usuario) y pintarlo con `[innerHTML]` sobre un string plano (nunca `bypassSecurityTrustHtml`, para que el sanitizador automático de Angular siga limpiando el HTML resultante).
