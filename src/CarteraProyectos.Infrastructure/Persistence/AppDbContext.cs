@@ -27,6 +27,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AgentActionLog> AgentActionLogs => Set<AgentActionLog>();
     public DbSet<ProjectRisk> ProjectRisks => Set<ProjectRisk>();
     public DbSet<ProjectDependency> ProjectDependencies => Set<ProjectDependency>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -242,6 +244,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(d => d.DependsOnProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Conversation>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Title).IsRequired().HasMaxLength(300);
+            e.HasOne(c => c.Person)
+                .WithMany()
+                .HasForeignKey(c => c.PersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.PersonId);
+        });
+
+        modelBuilder.Entity<ChatMessage>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Role).HasConversion<string>();
+            e.Property(m => m.Content).HasMaxLength(65536);
+            e.Property(m => m.ToolCallsJson).HasMaxLength(65536);
+            e.Property(m => m.ToolName).HasMaxLength(200);
+            e.Property(m => m.ToolCallId).HasMaxLength(200);
+            e.HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(m => m.ConversationId);
         });
     }
 }

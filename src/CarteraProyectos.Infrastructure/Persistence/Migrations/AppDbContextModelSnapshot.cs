@@ -51,6 +51,76 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.ToTable("AgentActionLogs");
                 });
 
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ChatMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(65536)
+                        .HasColumnType("character varying(65536)");
+
+                    b.Property<string>("ToolCallsJson")
+                        .HasMaxLength(65536)
+                        .HasColumnType("character varying(65536)");
+
+                    b.Property<string>("ToolName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ToolCallId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Conversation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.ToTable("Conversations");
+                });
+
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Comment", b =>
                 {
                     b.Property<int>("Id")
@@ -816,7 +886,27 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
                     b.Navigation("WorkItem");
                 });
 
-            modelBuilder.Entity("CarteraProyectos.Core.Domain.Epic", b =>
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.ChatMessage", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Conversation", b =>
+                {
+                    b.HasOne("CarteraProyectos.Core.Domain.Person", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Person");
+                });            modelBuilder.Entity("CarteraProyectos.Core.Domain.Epic", b =>
                 {
                     b.HasOne("CarteraProyectos.Core.Domain.Project", "Project")
                         .WithMany("Epics")
@@ -1094,6 +1184,11 @@ namespace CarteraProyectos.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Epic", b =>
                 {
                     b.Navigation("WorkItems");
+                });
+
+            modelBuilder.Entity("CarteraProyectos.Core.Domain.Conversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("CarteraProyectos.Core.Domain.Project", b =>

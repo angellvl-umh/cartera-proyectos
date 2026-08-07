@@ -1,6 +1,6 @@
 # Cartera de Proyectos TIC
 
-Plataforma web universitaria de gestión de cartera de proyectos TIC con integración de agente IA (lenguaje natural via Open WebUI + LiteLLM → AWS Bedrock).
+Plataforma web universitaria de gestión de cartera de proyectos TIC con integración de agente IA (chat nativo en la propia app, lenguaje natural via LiteLLM → AWS Bedrock).
 
 ## Organización de la programación agéntica
 
@@ -42,7 +42,7 @@ A diferencia de los roles, **no** se porta a mano al patrón `.ai/`: el propio C
 | Base de datos | PostgreSQL 18 + pgvector |
 | Auth | Keycloak 26 como identity broker: cuentas locales + Google + SSO SAML2 universitario (pendiente de metadata) — ver `infra/KEYCLOAK.md` |
 | Frontend | Angular 21 zoneless + signals + standalone, NG-ZORRO 21, Angular CDK |
-| IA | Open WebUI + LiteLLM → AWS Bedrock (Claude/Nova) |
+| IA | Chat nativo (backend .NET, SDK `OpenAI`) + LiteLLM → AWS Bedrock (Claude/Nova) |
 | Tests | xUnit + NSubstitute + Shouldly + Testcontainers / Vitest + Playwright |
 | Infra | Docker Compose |
 
@@ -67,7 +67,7 @@ docs/                                # Specs funcionales por módulo
 ## Estado actual (2026-07-02)
 
 **Implementado:**
-- Infraestructura: Docker Compose (db + keycloak + backend + frontend + litellm + open-webui)
+- Infraestructura: Docker Compose (db + keycloak + backend + frontend + litellm)
 - Backend CRUD completo: Teams, Projects (+ máquina de estados), Persons, Epics, WorkItems, Sprints (+ máquina de estados), Comments
 - WorkItems: múltiples asignados, tipo (Task/UserStory), estimación horas + story points, IsHito, DueDate, SprintId, histórico de estados
 - Cartera ampliada: Promoter, OrganicUnit, Tags, ProjectNote, ProjectWeeklyUpdate (semáforo semanal) + informe semanal de cartera
@@ -80,10 +80,9 @@ docs/                                # Specs funcionales por módulo
 - Cartera (`/portfolio`): vista global filtrable por año y estado con stats clickables
 - Perfil de persona (`/persons/:id`): datos, equipos, carga de trabajo y tareas activas
 - Endpoints API: `/api/dashboard`, `/api/projects/{id}/report`, `/api/me/workitems`, `/api/capacity`, `/api/portfolio`, `/api/persons/{id}/profile`
-- **Agente IA (Open WebUI Tool Server):** `GET|POST /api/agent/*` — mis tareas, proyectos, detalle proyecto, capacidad, búsqueda semántica, cambiar estado de tarea (delega en `TransitionWorkItemStatusCommand`: permisos + histórico), crear tarea, comentarios, notas, avance semanal, informe de cartera, reindexar embeddings; CRUD de personas (`get_persons`/`create_person`/`update_person`/`set_person_active`, solo Gestor), `create_project`/`update_project` (solo Gestor; update parcial — solo cambia campos enviados, sin tocar estado ni tags), `update_project_status`, riesgos (`get/add/update_project_risk`) y dependencias (`get/add_project_dependency`) — wrappers `IAgentAuditable` que delegan via `ISender` en los comandos core; usuarios inactivos rechazados (403)
+- **Agente IA (chat nativo):** panel de chat integrado en la app (`/api/chat/*`: crear/listar conversaciones, mensajes, envío con bucle de tool-calling); mismas capacidades que antes — mis tareas, proyectos, detalle proyecto, capacidad, búsqueda semántica, cambiar estado de tarea (delega en `TransitionWorkItemStatusCommand`: permisos + histórico), crear tarea, comentarios, notas, avance semanal, informe de cartera, reindexar embeddings, CRUD de personas (solo Gestor), `create_project`/`update_project` (solo Gestor; update parcial), `update_project_status`, riesgos y dependencias — ahora como `ChatToolCatalog` (`Core/Features/Chat/Tools`) que delega via `ISender` en los mismos comandos core (`Core/Features/Agent/*`, sin cambios); identidad resuelta del JWT de la petición (`CurrentUser.ResolveAsync`), nunca de un parámetro del modelo; modelo configurado por la app (`Chat:Model`), no elegible por el usuario; conversaciones/mensajes persistidos (`Conversation`/`ChatMessage`) por usuario; auditoría vía `AgentActionLog`/`AgentAuditBehavior` sin cambios
 - **Embeddings semánticos:** `IEmbeddingService` → `BedrockEmbeddingService` (amazon.titan-embed-text-v2:0), `WorkItemEmbedding` entity + migración `AddWorkItemEmbeddings`
-- **LiteLLM:** proxy OpenAI-compatible → AWS Bedrock; config en `infra/litellm/config.yaml`
-- **Open WebUI:** conectado a LiteLLM; Tool Server apunta a `http://backend:8080/api/agent` con API key; SSO OIDC contra Keycloak (cliente `cartera-openwebui`, alta en `pending` + merge por email, `KC_HOSTNAME` fijo con backchannel dinámico) — ver `infra/KEYCLOAK.md`
+- **LiteLLM:** proxy OpenAI-compatible → AWS Bedrock; config en `infra/litellm/config.yaml`; consumido directamente por el backend (`IChatCompletionClient` → SDK `OpenAI`) para el chat nativo
 - **Métricas ágiles:** snapshot de puntos comprometidos (al activar) y entregados (al completar) por sprint (migración `AddSprintPointsSnapshot`); cierre de sprint con carry-over obligatorio si hay tareas sin terminar (a backlog o a otro sprint en Planning); endpoints `GET /api/projects/{id}/velocity`, `GET /api/projects/{projectId}/sprints/{id}/burndown`, `GET /api/projects/{id}/cycle-time` (calculados desde `WorkItemStatusHistory`)
 - Gráficos SVG propios (sin librería de charts): `shared/charts/bar-chart` y `line-chart`; velocity, burndown y cycle/lead time en el informe de proyecto; modal de carry-over y comprometido-vs-capacidad en el detalle de proyecto
 - **Gobernanza de cartera:** `Project.BusinessValue` (1-5, nz-rate en formulario) + matriz valor/esfuerzo 5×5 en `/portfolio`; entidades `ProjectRisk` (probabilidad × impacto = severidad, estados Open/Mitigated/Closed) y `ProjectDependency` (sin auto/duplicados/ciclos directos) con CRUD y pestañas en detalle (migración `AddRisksDependenciesAndBusinessValue`); `GET /api/portfolio/roadmap` + vista `/roadmap` (timeline anual CSS grid por equipo con hitos); `GET /api/capacity/forecast` + vista `/capacity/forecast` (demanda vs capacidad por trimestre, heurística persona-mes por complejidad en `methodologyNote`)
@@ -192,7 +191,7 @@ Para completar un sprint: todas sus tareas Done o Discarded.
 2. Un proyecto puede tener múltiples equipos (uno es primario)
 3. Cualquier persona activa puede ser asignada a una tarea (incluidos Gestores, aunque no pertenezcan al equipo); las personas inactivas no pueden recibir asignaciones
 4. **Sin auto-provisión en login**: las personas las pre-registra un Gestor (`POST /api/persons`); en el primer login SSO se vinculan por email (`SubjectId` ← claim `sub`). Si quien hace login no existe como Person o está desactivada → `403` en `/api/me` y pantalla "Sin acceso" (`/access-denied`). Única excepción bootstrap: los emails de `Admin:InitialGestorEmails` se auto-crean como Gestor en su primer login
-5. Agente IA: permisos del usuario via `X-Open-WebUI-User-Email` header
+5. Agente IA: permisos del usuario resueltos del JWT de la petición (`CurrentUser.ResolveAsync`), igual que el resto de la API — nunca de un parámetro que el modelo pueda rellenar
 6. Equipo no puede eliminarse si tiene proyectos activos
 7. Equipos autogestionados: cualquier miembro de un equipo asignado al proyecto puede gestionarlo (regla única de `ProjectAuthorization`); no existe jefe de equipo en la práctica
 8. Hitos = WorkItems con `IsHito = true` y `HitoDate` opcional; aparecen en informes agrupados en alcanzados (Done) y próximos (no Done)

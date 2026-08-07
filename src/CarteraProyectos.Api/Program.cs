@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.RateLimiting;
 using CarteraProyectos.Api.Endpoints;
 using CarteraProyectos.Core.Common;
 using CarteraProyectos.Core.Interfaces;
@@ -53,6 +52,9 @@ builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IAppDbContext>(
 // Embedding service (Bedrock)
 builder.Services.AddSingleton<IEmbeddingService, BedrockEmbeddingService>();
 
+// Chat completion client (LiteLLM)
+builder.Services.AddSingleton<IChatCompletionClient, LiteLlmChatCompletionClient>();
+
 // Identity Provider service (Keycloak Admin API)
 builder.Services.AddHttpClient<CarteraProyectos.Infrastructure.Identity.KeycloakAdminService>();
 builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IIdentityProviderService,
@@ -94,34 +96,6 @@ builder.Services.AddOpenApi(options =>
     });
 });
 
-// OpenAPI (agent — Tool Server para Open WebUI)
-builder.Services.AddOpenApi("agent", options =>
-{
-    options.ShouldInclude = (desc) => desc.GroupName == "agent";
-
-    options.AddDocumentTransformer((document, context, ct) =>
-    {
-        document.Info.Title       = "Cartera de Proyectos TIC — Agent Tool Server";
-        document.Info.Description = "Endpoints que el agente IA puede invocar para consultar y actualizar la plataforma de gestión de proyectos TIC universitaria.";
-
-        // Forzar la URL del servidor a la dirección interna de Docker para que
-        // Open WebUI pueda alcanzar el backend desde dentro de la red de contenedores.
-        var agentServerUrl = context.ApplicationServices
-            .GetRequiredService<IConfiguration>()["Agent:ServerUrl"] ?? "http://backend:8080";
-        document.Servers = [new OpenApiServer { Url = agentServerUrl }];
-
-        document.Components ??= new OpenApiComponents();
-        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-        document.Components.SecuritySchemes["ApiKey"] = new OpenApiSecurityScheme
-        {
-            Type        = SecuritySchemeType.Http,
-            Scheme      = "bearer",
-            Description = "API Key configurada en Open WebUI al registrar el Tool Server.",
-        };
-        return Task.CompletedTask;
-    });
-});
-
 // CORS
 builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
@@ -132,17 +106,6 @@ builder.Services.AddCors(options =>
 // Health checks
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.AddFixedWindowLimiter("agent", o =>
-    {
-        o.PermitLimit = 60;
-        o.Window = TimeSpan.FromMinutes(1);
-        o.QueueLimit = 0;
-    });
-    options.RejectionStatusCode = 429;
-});
 
 var app = builder.Build();
 
@@ -177,7 +140,6 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseRateLimiter();
 
 // OpenAPI + Scalar
 app.MapOpenApi();  // sirve /openapi/v1.json y /openapi/agent.json automáticamente
@@ -197,12 +159,11 @@ app.MapWorkItemEndpoints();
 app.MapCommentEndpoints();
 app.MapDashboardEndpoints();
 app.MapReportEndpoints();
-app.MapAgentEndpoints();
+app.MapChatEndpoints();
 app.MapPromoterEndpoints();
 app.MapOrganicUnitEndpoints();
 app.MapTagEndpoints();
 app.MapProjectRiskEndpoints();
 app.MapProjectDependencyEndpoints();
-app.MapAgentChartEndpoints();
 
 app.Run();

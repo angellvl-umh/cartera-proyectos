@@ -10,6 +10,7 @@ import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { ChatPanelComponent } from './features/chat/chat-panel.component';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
 const SIDEBAR_BREAKPOINT = '(max-width: 992px)';
@@ -36,7 +37,7 @@ const ROUTE_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NzLayoutModule, NzMenuModule, NzIconModule, NzButtonModule, NzTooltipModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NzLayoutModule, NzMenuModule, NzIconModule, NzButtonModule, NzTooltipModule, ChatPanelComponent],
   template: `
     <div style="display:flex;height:100vh;overflow:hidden">
       @if (!denied()) {
@@ -126,6 +127,9 @@ const ROUTE_LABELS: Record<string, string> = {
                 <span style="font-size:13px;color:var(--ink-700)">{{ me()!.name }}</span>
                 <span style="width:1px;height:20px;background:var(--border-strong-alt)"></span>
               }
+              <button nz-button nzType="text" (click)="toggleChat()" class="logout-btn" nz-tooltip nzTooltipTitle="Chat IA">
+                <span nz-icon nzType="message"></span>
+              </button>
               <button nz-button nzType="text" (click)="logout()" class="logout-btn">
                 <span nz-icon nzType="logout"></span> Salir
               </button>
@@ -137,6 +141,8 @@ const ROUTE_LABELS: Record<string, string> = {
         </main>
       </div>
     </div>
+
+    <app-chat-panel [open]="chatOpen()" (closed)="chatOpen.set(false)" />
   `,
   styles: [`
     .sidebar-nav-item {
@@ -183,6 +189,8 @@ export class AppComponent {
   // Set to true when /api/me responds with 403, so sidebar/header are hidden.
   denied = signal(false);
 
+  chatOpen = signal(false);
+
   constructor() {
     this.breakpointObserver
       .observe(SIDEBAR_BREAKPOINT)
@@ -201,6 +209,10 @@ export class AppComponent {
 
   toggleCollapsed(): void {
     this.collapsed.set(!this.collapsed());
+  }
+
+  toggleChat(): void {
+    this.chatOpen.set(!this.chatOpen());
   }
 
   // Espera a que el token OIDC esté disponible antes de llamar a /api/me,

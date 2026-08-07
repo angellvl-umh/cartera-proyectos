@@ -26,6 +26,8 @@ public interface IAppDbContext
     DbSet<AgentActionLog> AgentActionLogs { get; }
     DbSet<ProjectRisk> ProjectRisks { get; }
     DbSet<ProjectDependency> ProjectDependencies { get; }
+    DbSet<Conversation> Conversations { get; }
+    DbSet<ChatMessage> ChatMessages { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -8,8 +8,6 @@ Keycloak 26 es el **identity broker** permanente de la plataforma: la app (front
 | Google | ✅ (requiere OAuth client propio) | Identity Provider `google` del realm |
 | SSO universitario (SAML2) | 🔜 pendiente de metadata | Identity Provider SAML a añadir (ver abajo) |
 
-Además de la app, **Open WebUI también hace login contra el realm** (cliente `cartera-openwebui`, ver abajo): la misma identidad para la plataforma y para el chat del agente.
-
 **El gate de acceso es de la aplicación, no de Keycloak**: da igual con qué IdP se autentique alguien — si no existe como `Person` pre-registrada (por email) o está desactivada, `/api/me` devuelve 403 y el frontend muestra `/access-denied`. La vinculación `Person ↔ sub` se hace por email en el primer login.
 
 ---
@@ -41,15 +39,9 @@ Sin variables configuradas el stack arranca igual: el botón de Google aparece p
 
 Comportamiento: `trustEmail: true` — el email verificado de Google se acepta sin re-verificación. Cualquier cuenta de Google podrá autenticarse en Keycloak, pero **solo entra en la app quien esté pre-registrado** con ese email. Si ya existe un usuario Keycloak con el mismo email (p. ej. cuenta local), el flujo "first broker login" ofrece vincular ambas identidades en un único usuario (mismo `sub`).
 
-## SSO de Open WebUI (`cartera-openwebui`)
-
-Open WebUI ofrece el botón **«SSO Cartera»** además de su formulario local (fallback): flujo OIDC estándar contra el realm `cartera` con el cliente confidencial `cartera-openwebui` (callback `http://localhost:3000/oauth/oidc/callback`). Ventaja clave: el header `X-Open-WebUI-User-Email` que el Tool Server envía al backend pasa a llevar el email verificado por Keycloak, así los permisos del agente se alinean solos con la Person pre-registrada.
-
-Variables (en `docker-compose.yml`, servicio `open-webui`): `ENABLE_OAUTH_SIGNUP`, `OAUTH_MERGE_ACCOUNTS_BY_EMAIL`, `OAUTH_CLIENT_ID/SECRET`, `OPENID_PROVIDER_URL`, `OPENID_REDIRECT_URI`, `OAUTH_PROVIDER_NAME`, `DEFAULT_USER_ROLE`. El secret del cliente viene de `OPENWEBUI_CLIENT_SECRET` (default dev `cartera-openwebui-secret` — **cambiar fuera de local**).
-
 ### Hostname dual (`KC_HOSTNAME` + backchannel dinámico)
 
-El contenedor open-webui descarga el discovery document por la red interna (`http://keycloak:8080`), pero el navegador necesita `authorization_endpoint` en la URL pública de Keycloak. Por eso Keycloak fija:
+El backend valida los JWT contra el discovery document por la red interna (`http://keycloak:8080`, `Auth__Authority`), pero el navegador necesita `authorization_endpoint` en la URL pública de Keycloak para el login OIDC del frontend. Por eso Keycloak fija:
 
 ```yaml
 KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}   # URLs frontend (navegador) e issuer
@@ -81,20 +73,6 @@ docker compose up -d --force-recreate keycloak backend frontend
 
 **Excepción — `redirectUris`/`webOrigins` del cliente `cartera-frontend`:** esos valores vienen del **import** de `cartera-realm.json`, que (como se explica arriba) solo ocurre una vez. Si tu volumen `pgdata` ya tiene el realm importado, cambiar `PUBLIC_URL` en `.env` **no actualiza** la allowlist de Keycloak — hay que aplicarlo a mano una vez desde la consola admin (*Clients → cartera-frontend → Settings*: añadir `${PUBLIC_URL}/*` a Valid redirect URIs y `${PUBLIC_URL}` a Web origins) o vía Admin REST API. En un volumen nuevo (o el stack E2E), el import ya lo incluye automáticamente.
 
-### Ciclo de vida de cuentas
-
-- **Alta por SSO** (`ENABLE_OAUTH_SIGNUP` + `DEFAULT_USER_ROLE=pending`): la cuenta Open WebUI se crea al primer login pero queda **pendiente de aprobación** por el admin de Open WebUI (Admin → Users). Necesario porque con el IdP de Google cualquier cuenta de Google pasa el login de Keycloak; el Tool Server ya rechaza emails no registrados (403), pero sin este freno consumirían chat LLM.
-- **Merge por email** (`OAUTH_MERGE_ACCOUNTS_BY_EMAIL`): si ya existe una cuenta local de Open WebUI con el mismo email (p. ej. el admin actual), el login SSO se vincula a ella conservando su rol. Aceptable aquí porque los emails del realm son de confianza (locales creados por el Gestor + Google con `trustEmail`).
-
-### Realm ya importado (volumen `pgdata` existente)
-
-Como con el Google IdP, el `--import-realm` no re-aplica cambios sobre un realm existente. Crear el cliente una vez desde la consola admin (`http://localhost:8080`, realm `cartera`):
-
-1. *Clients → Create client*: Client ID `cartera-openwebui`, tipo OpenID Connect.
-2. *Capability config*: **Client authentication ON**, Standard flow ✅, Direct access grants ❌.
-3. *Login settings*: Valid redirect URIs `http://localhost:3000/oauth/oidc/callback`, Web origins `http://localhost:3000`.
-4. *Credentials*: poner como Client Secret el valor de `OPENWEBUI_CLIENT_SECRET` (default `cartera-openwebui-secret`) — o copiar el generado al `.env`.
-
 ## SSO universitario (SAML2) — pendiente
 
 Cuando la universidad facilite el metadata XML de su IdP SAML:
@@ -117,6 +95,6 @@ Al pre-registrar una Person, el Gestor puede marcar «Crear credenciales locales
 ## Producción — checklist
 
 - `start` (no `start-dev`), HTTPS (`KC_HOSTNAME`, certificados), `KC_BOOTSTRAP_ADMIN_*` con credenciales fuertes y rotadas.
-- Secrets (`GOOGLE_CLIENT_SECRET`, `KC_ADMIN_CLIENT_SECRET`, `OPENWEBUI_CLIENT_SECRET`) via gestor de secretos, nunca defaults.
-- Redirect URIs de los clientes (incluido `cartera-openwebui` → callback público de Open WebUI) y del OAuth client de Google con las URLs públicas reales; `OPENID_PROVIDER_URL`/`OPENID_REDIRECT_URI` de Open WebUI con la URL pública del Keycloak.
+- Secrets (`GOOGLE_CLIENT_SECRET`, `KC_ADMIN_CLIENT_SECRET`) via gestor de secretos, nunca defaults.
+- Redirect URIs del cliente `cartera-frontend` y del OAuth client de Google con las URLs públicas reales.
 - Backup de la BD `keycloak` junto con la de la app.

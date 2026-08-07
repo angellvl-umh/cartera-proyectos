@@ -24,7 +24,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_HTTP_PORT: 8080
       # Hostname frontend fijo + backchannel dinámico: el navegador ve KEYCLOAK_PUBLIC_URL
-      # y los contenedores (open-webui, backend) hablan con keycloak:8080 (ver infra/KEYCLOAK.md)
+      # y los contenedores (backend) hablan con keycloak:8080 (ver infra/KEYCLOAK.md)
       # Config por entorno (local/Tailscale/producción) via .env: ver infra/KEYCLOAK.md#config-por-entorno
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
@@ -37,7 +37,6 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-google-client-id-pendiente}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-google-client-secret-pendiente}
       KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:-cartera-admin-secret}
-      OPENWEBUI_CLIENT_SECRET: ${OPENWEBUI_CLIENT_SECRET:-cartera-openwebui-secret}
       # Origen público del frontend, para redirectUris/webOrigins del cliente cartera-frontend
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost}
     ports:
@@ -70,7 +69,6 @@ services:
       Cors__Origins__2: "http://localhost:3000"
       Cors__Origins__3: "${PUBLIC_URL:-http://localhost}"
       Admin__InitialGestorEmails__0: "gestor@universidad.es"
-      Agent__ApiKey: ${AGENT_API_KEY:-cartera-agent-key}
       Keycloak__BaseUrl: "http://keycloak:8080"
       Keycloak__Realm: "cartera"
       Keycloak__AdminClientId: "cartera-admin"
@@ -80,12 +78,17 @@ services:
       Aws__SecretAccessKey: ${AWS_SECRET_ACCESS_KEY:-}
       Aws__SessionToken: ${AWS_SESSION_TOKEN:-}
       Aws__Region: ${AWS_REGION:-us-east-1}
+      LiteLlm__BaseUrl: "http://litellm:4000"
+      LiteLlm__ApiKey: "sk-cartera-litellm-key"
+      Chat__Model: "claude-sonnet"
     ports:
       - "5000:8080"
     depends_on:
       db:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      litellm:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -126,40 +129,5 @@ services:
       retries: 5
       start_period: 20s
 
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    environment:
-      # LLM backend via LiteLLM
-      OPENAI_API_BASE_URL: "http://litellm:4000"
-      OPENAI_API_KEY: "sk-cartera-litellm-key"
-      # Disable Ollama (not used)
-      ENABLE_OLLAMA_API: "false"
-      # Security
-      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-cartera-webui-secret-change-in-prod}
-      # SSO via Keycloak (OIDC) — ver infra/KEYCLOAK.md
-      ENABLE_OAUTH_SIGNUP: "true"
-      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "true"
-      OAUTH_CLIENT_ID: "cartera-openwebui"
-      OAUTH_CLIENT_SECRET: ${OPENWEBUI_CLIENT_SECRET:-cartera-openwebui-secret}
-      OPENID_PROVIDER_URL: "http://keycloak:8080/realms/cartera/.well-known/openid-configuration"
-      OPENID_REDIRECT_URI: "http://localhost:3000/oauth/oidc/callback"
-      OAUTH_PROVIDER_NAME: "SSO Cartera"
-      # Alta SSO en pending: el admin de Open WebUI aprueba cada cuenta nueva
-      DEFAULT_USER_ROLE: "pending"
-      # Tool Server: registrar manualmente en Admin → Settings → Tools → Add Tool Server
-      # URL: http://backend:8080/openapi/agent.json  |  Auth: Bearer cartera-agent-key
-    ports:
-      - "3000:8080"
-    volumes:
-      - openwebui_data:/app/backend/data
-    depends_on:
-      litellm:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-
 volumes:
   pgdata:
-  openwebui_data:

@@ -229,7 +229,7 @@ Done is terminal — a task in Done cannot go back. Reopen by creating a new tas
 5. Any active person can be assigned to a task (including Gestores who don't belong to the project's teams); inactive persons cannot receive assignments. A task can have multiple assignees
 6. User provisioning is automatic from SSO JWT claims (sub, name, email)
 7. Default role on first login: Desarrollador
-8. AI agent actions respect user permissions via X-Open-WebUI-User-Email header
+8. AI agent actions respect user permissions resolved from the request's JWT (`CurrentUser.ResolveAsync`), same as the rest of the API — never from a model-supplied parameter
 9. Semantic search uses pgvector embeddings over WorkItems (generated async via Bedrock Titan embeddings, graceful degradation if unavailable)
 10. Project status changes are free-form (any value → any value); only role authorization is checked, there is no transition table
 11. Sprint status follows a strict one-directional FSM: Planning → Active → Completed
