@@ -9,6 +9,15 @@ namespace CarteraProyectos.Core.Features.Agent;
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
+public record AgentAssignProjectTeamCommand(
+    int PersonId,
+    int ProjectId,
+    int TeamId,
+    bool IsPrimary) : IRequest, IAgentAuditable
+{
+    public int RequestingPersonId => PersonId;
+}
+
 public record AgentCreateProjectCommand(
     int PersonId, string Title, string? Description, string? RequestingUnit,
     string Complexity, int? PortfolioYear, DateOnly? StartDate, DateOnly? EndDate,
@@ -126,4 +135,18 @@ public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
                 TagIds: null),
             ct);
     }
+}
+
+
+public sealed class AgentAssignProjectTeamHandler(ISender sender)
+    : IRequestHandler<AgentAssignProjectTeamCommand>
+{
+    public async Task Handle(AgentAssignProjectTeamCommand request, CancellationToken ct)
+        => await sender.Send(
+            new AssignTeamToProjectCommand(
+                request.ProjectId,
+                request.TeamId,
+                request.IsPrimary,
+                request.PersonId),
+            ct);
 }

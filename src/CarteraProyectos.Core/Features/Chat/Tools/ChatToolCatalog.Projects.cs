@@ -132,4 +132,18 @@ public static partial class ChatToolCatalog
                 GetStringOrNull(args, "description")), ct);
             return new { id = depId, message = $"Dependencia creada en el proyecto {GetInt(args, "id")}." };
         });
+
+    private static ChatToolEntry AssignProjectTeam() => new(
+        Name: "assign_project_team",
+        Description: "Asigna un equipo a un proyecto o actualiza si ya estaba asignado. Solo puede hacerlo el Gestor. Solo puede haber un equipo primario por proyecto. IMPORTANTE: confirma siempre con el usuario antes de ejecutar.",
+        ParametersJson: """{"type":"object","properties":{"projectId":{"type":"integer","description":"ID del proyecto."},"teamId":{"type":"integer","description":"ID del equipo."},"isPrimary":{"type":"boolean","description":"Si true, este equipo pasa a ser el equipo primario del proyecto."}},"required":["projectId","teamId","isPrimary"]}""",
+        Execute: async (args, personId, sender, ct) =>
+        {
+            await sender.Send(new AgentAssignProjectTeamCommand(
+                personId,
+                GetInt(args, "projectId"),
+                GetInt(args, "teamId"),
+                GetBool(args, "isPrimary")), ct);
+            return new { message = $"Equipo {GetInt(args, "teamId")} asignado al proyecto {GetInt(args, "projectId")}." };
+        });
 }

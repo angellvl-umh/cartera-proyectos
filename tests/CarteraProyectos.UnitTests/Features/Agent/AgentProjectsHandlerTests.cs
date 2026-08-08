@@ -173,4 +173,96 @@ public class AgentProjectsHandlerTests
                     null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // AgentAssignProjectTeamHandler
+    // ══════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task AgentAssignProjectTeam_Gestor_AsignaEquipoAlProyecto()
+    {
+        await using var db = CreateDb();
+        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+
+        var project = Project.Create("Proyecto Test", null, null, ProjectComplexity.Small, null, null, null);
+        db.Projects.Add(project);
+        var team = Team.Create("Equipo Alpha", null, null);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+        await handler.Handle(
+            new AgentAssignProjectTeamCommand(gestor.Id, project.Id, team.Id, IsPrimary: true),
+            CancellationToken.None);
+
+        var assignment = await db.ProjectTeamAssignments
+            .FirstOrDefaultAsync(a => a.ProjectId == project.Id && a.TeamId == team.Id);
+
+        assignment.ShouldNotBeNull();
+        assignment.IsPrimary.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task AgentAssignProjectTeam_RequestingPersonId_EsElPersonId()
+    {
+        var cmd = new AgentAssignProjectTeamCommand(42, 1, 1, true);
+        cmd.RequestingPersonId.ShouldBe(42);
+    }
+
+    [Fact]
+    public async Task AgentAssignProjectTeam_Desarrollador_LanzaUnauthorized()
+    {
+        await using var db = CreateDb();
+        var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
+
+        var project = Project.Create("Proyecto", null, null, ProjectComplexity.Small, null, null, null);
+        db.Projects.Add(project);
+        var team = Team.Create("Equipo", null, null);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+
+        var ex = await Should.ThrowAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(
+                new AgentAssignProjectTeamCommand(dev.Id, project.Id, team.Id, IsPrimary: false),
+                CancellationToken.None));
+
+        ex.Message.ShouldContain("Gestor");
+    }
+
+    [Fact]
+    public async Task AgentAssignProjectTeam_ProyectoInexistente_LanzaKeyNotFound()
+    {
+        await using var db = CreateDb();
+        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+        var team = Team.Create("Equipo", null, null);
+        db.Teams.Add(team);
+        await db.SaveChangesAsync();
+
+        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+
+        await Should.ThrowAsync<KeyNotFoundException>(() =>
+            handler.Handle(
+                new AgentAssignProjectTeamCommand(gestor.Id, 99999, team.Id, IsPrimary: true),
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AgentAssignProjectTeam_EquipoInexistente_LanzaKeyNotFound()
+    {
+        await using var db = CreateDb();
+        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+
+        var project = Project.Create("Proyecto", null, null, ProjectComplexity.Small, null, null, null);
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+
+        await Should.ThrowAsync<KeyNotFoundException>(() =>
+            handler.Handle(
+                new AgentAssignProjectTeamCommand(gestor.Id, project.Id, 99999, IsPrimary: true),
+                CancellationToken.None));
+    }
 }

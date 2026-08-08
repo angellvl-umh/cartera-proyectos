@@ -50,7 +50,42 @@ public static partial class ChatToolCatalog
         UpdateProjectRisk(),
         GetProjectDependencies(),
         AddProjectDependency(),
+        AssignProjectTeam(),
         ReindexEmbeddings(),
+        // Sprints
+        GetSprints(),
+        GetSprintBurndown(),
+        CreateSprint(),
+        ActivateSprint(),
+        CompleteSprint(),
+        // Épicas
+        GetEpics(),
+        CreateEpic(),
+        UpdateEpic(),
+        // Equipos
+        GetTeams(),
+        GetTeamActivity(),
+        // Backlog
+        ReorderBacklogItem(),
+        BulkAssignToSprint(),
+        // Portfolio / métricas ágiles
+        GetPortfolioRoadmap(),
+        GetCapacityForecast(),
+        GetProjectVelocity(),
+        GetProjectCycleTime(),
+        // Catálogos
+        GetPromoters(),
+        GetOrganicUnits(),
+        GetTags(),
+        // Exports Excel
+        ExportProjectsExcel(),
+        ExportWeeklyPortfolioReportExcel(),
+        // Gráficos SVG
+        ChartTeamCapacity(),
+        ChartProjectProgress(),
+        ChartMyTasksByStatus(),
+        ChartProjectsByStatus(),
+        ChartProjectsByTeam(),
     ];
 
     /// <summary>

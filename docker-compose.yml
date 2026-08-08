@@ -81,6 +81,7 @@ services:
       LiteLlm__BaseUrl: "http://litellm:4000"
       LiteLlm__ApiKey: "sk-cartera-litellm-key"
       Chat__Model: "claude-sonnet"
+      Chat__PublicBaseUrl: "${PUBLIC_URL:-http://localhost}"
     ports:
       - "5000:8080"
     depends_on:

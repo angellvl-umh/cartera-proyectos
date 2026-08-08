@@ -49,6 +49,15 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AgentAuditBeh
 builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IAppDbContext>(
     sp => sp.GetRequiredService<AppDbContext>());
 
+// MemoryCache (necesario para IEphemeralBlobStore y otros servicios singleton)
+builder.Services.AddMemoryCache();
+
+// Almacén efímero de blobs para exports/gráficos generados por el agente IA
+builder.Services.AddSingleton<CarteraProyectos.Core.Interfaces.IEphemeralBlobStore,
+    CarteraProyectos.Infrastructure.Services.MemoryCacheBlobStore>();
+builder.Services.AddSingleton<CarteraProyectos.Core.Interfaces.IPublicUrlProvider,
+    CarteraProyectos.Infrastructure.Services.ConfigPublicUrlProvider>();
+
 // Embedding service (Bedrock)
 builder.Services.AddSingleton<IEmbeddingService, BedrockEmbeddingService>();
 
@@ -160,6 +169,7 @@ app.MapCommentEndpoints();
 app.MapDashboardEndpoints();
 app.MapReportEndpoints();
 app.MapChatEndpoints();
+app.MapChatBlobEndpoints();
 app.MapPromoterEndpoints();
 app.MapOrganicUnitEndpoints();
 app.MapTagEndpoints();
