@@ -1,10 +1,8 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
-using CarteraProyectos.Core.Interfaces;
+using CarteraProyectos.Core.Features.WorkItems;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -19,14 +17,8 @@ public class AgentUpdateTaskStatusHandlerTests
         return new AppDbContext(options);
     }
 
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AgentUpdateTaskStatusCommand).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        var sp = services.BuildServiceProvider();
-        return sp.GetRequiredService<ISender>();
-    }
+    private static AgentUpdateTaskStatusHandler CreateHandler(AppDbContext db)
+        => new AgentUpdateTaskStatusHandler(new WorkItemLifecycleService(db));
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, string email, PersonRole role)
     {
@@ -83,7 +75,7 @@ public class AgentUpdateTaskStatusHandlerTests
         await AssignProjectToTeamAsync(db, project.Id, team.Id);
         var wi = await AddWorkItemAsync(db, project.Id);
 
-        var handler = new AgentUpdateTaskStatusHandler(CreateSender(db));
+        var handler = CreateHandler(db);
         await handler.Handle(
             new AgentUpdateTaskStatusCommand(dev.Id, wi.Id, "InProgress"),
             CancellationToken.None);
@@ -109,12 +101,12 @@ public class AgentUpdateTaskStatusHandlerTests
         var team2 = await AddTeamAsync(db, "Equipo 2");
         await AssignPersonToTeamAsync(db, dev1.Id, team1.Id);
         await AssignPersonToTeamAsync(db, dev2.Id, team2.Id);
-        
+
         var project = await AddProjectAsync(db, "Proyecto 1");
         await AssignProjectToTeamAsync(db, project.Id, team1.Id); // Solo asignado a Equipo 1
         var wi = await AddWorkItemAsync(db, project.Id);
 
-        var handler = new AgentUpdateTaskStatusHandler(CreateSender(db));
+        var handler = CreateHandler(db);
 
         // dev2 está en Equipo 2, que no tiene acceso al proyecto
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>
@@ -134,7 +126,7 @@ public class AgentUpdateTaskStatusHandlerTests
         await AssignProjectToTeamAsync(db, project.Id, team.Id);
         var wi = await AddWorkItemAsync(db, project.Id);
 
-        var handler = new AgentUpdateTaskStatusHandler(CreateSender(db));
+        var handler = CreateHandler(db);
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
@@ -151,8 +143,8 @@ public class AgentUpdateTaskStatusHandlerTests
         var wi = await AddWorkItemAsync(db, project.Id);
 
         // Gestor puede cambiar estado de tareas de sus proyectos
-        var handler = new AgentUpdateTaskStatusHandler(CreateSender(db));
-        
+        var handler = CreateHandler(db);
+
         await handler.Handle(
             new AgentUpdateTaskStatusCommand(gestor.Id, wi.Id, "ToDo"),
             CancellationToken.None);

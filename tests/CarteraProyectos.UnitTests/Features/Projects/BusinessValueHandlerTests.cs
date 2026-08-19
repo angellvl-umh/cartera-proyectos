@@ -23,7 +23,7 @@ public class BusinessValueHandlerTests
     public async Task CreateProject_WithValidBusinessValue_StoresIt()
     {
         await using var db = CreateDb();
-        var handler = new CreateProjectHandler(db);
+        var handler = new CreateProjectHandler(new ProjectLifecycleService(db));
 
         var id = await handler.Handle(
             new CreateProjectCommand("Portal TIC", null, null, ProjectComplexity.Small, 2026, null, null,
@@ -87,7 +87,7 @@ public class BusinessValueHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProjectHandler(db);
+        var handler = new UpdateProjectHandler(new ProjectLifecycleService(db));
         await handler.Handle(
             new UpdateProjectCommand(project.Id, "New", null, null, ProjectComplexity.VerySmall, null, null, null,
                 BusinessValue: 2),

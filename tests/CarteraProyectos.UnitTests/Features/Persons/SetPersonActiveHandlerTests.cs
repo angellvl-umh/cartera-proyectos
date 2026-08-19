@@ -3,6 +3,7 @@ using CarteraProyectos.Core.Features.Persons;
 using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using Shouldly;
 using Xunit;
 
@@ -17,6 +18,9 @@ public class SetPersonActiveHandlerTests
             .Options;
         return new AppDbContext(options);
     }
+
+    private static PersonManagementService BuildService(IAppDbContext db)
+        => new(db, Substitute.For<IIdentityProviderService>());
 
     [Fact]
     public async Task Handle_DeactivatesActivePerson()
@@ -34,7 +38,7 @@ public class SetPersonActiveHandlerTests
             IsActive: false,
             RequestingPersonId: requester.Id);
 
-        var handler = new SetPersonActiveHandler(db);
+        var handler = new SetPersonActiveHandler(BuildService(db));
 
         // Act
         await handler.Handle(command, CancellationToken.None);
@@ -62,7 +66,7 @@ public class SetPersonActiveHandlerTests
             IsActive: true,
             RequestingPersonId: requester.Id);
 
-        var handler = new SetPersonActiveHandler(db);
+        var handler = new SetPersonActiveHandler(BuildService(db));
 
         // Act
         await handler.Handle(command, CancellationToken.None);
@@ -87,7 +91,7 @@ public class SetPersonActiveHandlerTests
             IsActive: false,
             RequestingPersonId: requester.Id);
 
-        var handler = new SetPersonActiveHandler(db);
+        var handler = new SetPersonActiveHandler(BuildService(db));
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(() => handler.Handle(command, CancellationToken.None));
@@ -110,7 +114,7 @@ public class SetPersonActiveHandlerTests
             IsActive: false,
             RequestingPersonId: requester.Id);
 
-        var handler = new SetPersonActiveHandler(db);
+        var handler = new SetPersonActiveHandler(BuildService(db));
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(() => handler.Handle(command, CancellationToken.None));
@@ -131,7 +135,7 @@ public class SetPersonActiveHandlerTests
             IsActive: false,
             RequestingPersonId: requester.Id);
 
-        var handler = new SetPersonActiveHandler(db);
+        var handler = new SetPersonActiveHandler(BuildService(db));
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(() => handler.Handle(command, CancellationToken.None));

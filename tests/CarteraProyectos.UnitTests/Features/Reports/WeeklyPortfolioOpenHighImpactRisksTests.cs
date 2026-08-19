@@ -54,7 +54,7 @@ public class WeeklyPortfolioOpenHighImpactRisksTests
 
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         var projectDto = result.OtherProjects.SingleOrDefault(p => p.ProjectId == project.Id);
@@ -79,7 +79,7 @@ public class WeeklyPortfolioOpenHighImpactRisksTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         var projectDto = result.OtherProjects.SingleOrDefault(p => p.ProjectId == project.Id);
@@ -117,7 +117,7 @@ public class WeeklyPortfolioOpenHighImpactRisksTests
             ProjectWeeklyUpdate.Create(projY.Id, author.Id, monday, "OK", ProjectHealthStatus.OnTrack));
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         var dtoX = result.OtherProjects.Single(p => p.ProjectId == projX.Id);

@@ -36,7 +36,7 @@ public class TransitionProjectStatusHandlerTests
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         // Stopped → PlanningWithClient es una transición válida
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, gestor.Id);
 
@@ -52,7 +52,7 @@ public class TransitionProjectStatusHandlerTests
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
 
         // Avanzar por ruta válida hasta InTesting: Stopped → PlanningWithClient → InTesting no es directo.
         // Ruta: Stopped → PlanningWithClient → PlanningSprint → InSprint → InTesting → Completed
@@ -85,7 +85,7 @@ public class TransitionProjectStatusHandlerTests
         db.Sprints.Add(Sprint.Create(project.Id, "Sprint 1", null, null, null, null));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
 
         await Should.ThrowAsync<InvalidOperationException>(
@@ -107,7 +107,7 @@ public class TransitionProjectStatusHandlerTests
         db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea", null, WorkItemPriority.Medium, null, 0, null, false, null, null));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id);
 
         await Should.ThrowAsync<InvalidOperationException>(
@@ -138,7 +138,7 @@ public class TransitionProjectStatusHandlerTests
         db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, dev.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
@@ -168,7 +168,7 @@ public class TransitionProjectStatusHandlerTests
         db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, otherTeam.Id));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -195,7 +195,7 @@ public class TransitionProjectStatusHandlerTests
         db.PersonTeamMemberships.Add(PersonTeamMembership.Create(jefe.Id, team.Id));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, jefe.Id);
 
         await handler.Handle(cmd, CancellationToken.None);
@@ -217,7 +217,7 @@ public class TransitionProjectStatusHandlerTests
 
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         var cmd = new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, dev.Id);
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -232,7 +232,7 @@ public class TransitionProjectStatusHandlerTests
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         await handler.Handle(
             new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, gestor.Id),
             CancellationToken.None);
@@ -258,7 +258,7 @@ public class TransitionProjectStatusHandlerTests
         project.TransitionTo(ProjectStatus.Completed);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         // Desde Completed no se puede ir a ningún estado
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(
@@ -276,7 +276,7 @@ public class TransitionProjectStatusHandlerTests
         var (db, project, gestor) = await SetupProjectWithGestor();
         await using var _ = db;
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
 
         // Primera transición
         await handler.Handle(

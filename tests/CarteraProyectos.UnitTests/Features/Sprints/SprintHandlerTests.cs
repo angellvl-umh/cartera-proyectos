@@ -43,7 +43,8 @@ public class SprintHandlerTests
     public async Task CreateSprint_ValidData_CreatesAndReturnsId()
     {
         var (db, project) = await DbWithProject();
-        var handler = new CreateSprintHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new CreateSprintHandler(service);
 
         var id = await handler.Handle(
             new CreateSprintCommand(project.Id, "Sprint 1", "Objetivo del sprint",
@@ -62,7 +63,8 @@ public class SprintHandlerTests
     public async Task CreateSprint_ProjectNotFound_ThrowsKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new CreateSprintHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new CreateSprintHandler(service);
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
@@ -171,7 +173,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active), CancellationToken.None);
 
         var updated = await db.Sprints.FindAsync(sprint.Id);
@@ -187,7 +190,8 @@ public class SprintHandlerTests
         db.Sprints.AddRange(active, planning);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(planning.Id, SprintStatus.Active), CancellationToken.None));
     }
@@ -200,7 +204,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed), CancellationToken.None);
 
         var updated = await db.Sprints.FindAsync(sprint.Id);
@@ -217,7 +222,8 @@ public class SprintHandlerTests
         db.WorkItems.Add(WorkItem.Create(project.Id, "Tarea pendiente", null, WorkItemPriority.Medium, null, 0, null, false, null, null, sprint.Id));
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed), CancellationToken.None));
@@ -231,7 +237,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active), CancellationToken.None));
     }
@@ -264,7 +271,8 @@ public class SprintHandlerTests
         db.Persons.Add(creator);
         await db.SaveChangesAsync();
 
-        var handler = new CreateSprintHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new CreateSprintHandler(service);
         var id = await handler.Handle(
             new CreateSprintCommand(project.Id, "Sprint 1", null, null, null, null, RequestingPersonId: creator.Id),
             CancellationToken.None);
@@ -286,7 +294,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active, lead.Id), CancellationToken.None);
 
         var history = await db.SprintStatusHistories.Where(h => h.SprintId == sprint.Id).ToListAsync();
@@ -304,7 +313,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var handler = new TransitionSprintStatusHandler(service);
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active), CancellationToken.None));
 
@@ -324,7 +334,8 @@ public class SprintHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var transitionHandler = new TransitionSprintStatusHandler(db);
+        var service = new SprintLifecycleService(db);
+        var transitionHandler = new TransitionSprintStatusHandler(service);
         await transitionHandler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active, person.Id), CancellationToken.None);
         await transitionHandler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed, person.Id), CancellationToken.None);
 

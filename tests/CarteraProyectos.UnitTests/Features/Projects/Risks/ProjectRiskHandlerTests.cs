@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Features.Projects.Risks;
 using CarteraProyectos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -85,7 +86,8 @@ public class ProjectRiskHandlerTests
         await using var db = CreateDb();
         var (project, gestor, projectId) = await SeedProjectWithGestorAsync(db);
 
-        var handler = new CreateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectRiskHandler(svc);
         var id = await handler.Handle(
             new CreateProjectRiskCommand(projectId, gestor.Id, "Riesgo de integración",
                 RiskLevel.High, RiskLevel.Medium, "Mitigación: pruebas tempranas"),
@@ -116,7 +118,8 @@ public class ProjectRiskHandlerTests
         db.ProjectTeamAssignments.Add(ProjectTeamAssignment.Create(project.Id, team.Id, true));
         await db.SaveChangesAsync();
 
-        var handler = new CreateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectRiskHandler(svc);
         var id = await handler.Handle(
             new CreateProjectRiskCommand(project.Id, dev.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
             CancellationToken.None);
@@ -134,7 +137,8 @@ public class ProjectRiskHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new CreateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectRiskHandler(svc);
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(
                 new CreateProjectRiskCommand(project.Id, outsider.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
@@ -149,7 +153,8 @@ public class ProjectRiskHandlerTests
         db.Persons.Add(gestor);
         await db.SaveChangesAsync();
 
-        var handler = new CreateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectRiskHandler(svc);
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
                 new CreateProjectRiskCommand(999, gestor.Id, "Riesgo", RiskLevel.Low, RiskLevel.Low, null),
@@ -167,7 +172,8 @@ public class ProjectRiskHandlerTests
         db.ProjectRisks.Add(risk);
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new UpdateProjectRiskHandler(svc);
         await handler.Handle(
             new UpdateProjectRiskCommand(projectId, risk.Id, gestor.Id,
                 "Actualizado", RiskLevel.High, RiskLevel.High, "Nueva mitigación", RiskStatus.Mitigated),
@@ -185,7 +191,8 @@ public class ProjectRiskHandlerTests
         await using var db = CreateDb();
         var (project, gestor, projectId) = await SeedProjectWithGestorAsync(db);
 
-        var handler = new UpdateProjectRiskHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new UpdateProjectRiskHandler(svc);
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
                 new UpdateProjectRiskCommand(projectId, 999, gestor.Id,
@@ -244,7 +251,8 @@ public class ProjectRiskHandlerTests
         db.ProjectRisks.AddRange(r1, r2, r3, r4);
         await db.SaveChangesAsync();
 
-        var handler = new GetProjectRisksHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new GetProjectRisksHandler(svc);
         var result = await handler.Handle(new GetProjectRisksQuery(projectId), CancellationToken.None);
 
         result.Total.ShouldBe(4);
@@ -265,7 +273,8 @@ public class ProjectRiskHandlerTests
         db.ProjectRisks.Add(risk);
         await db.SaveChangesAsync();
 
-        var handler = new GetProjectRisksHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new GetProjectRisksHandler(svc);
         var result = await handler.Handle(new GetProjectRisksQuery(projectId), CancellationToken.None);
 
         result.Items[0].Severity.ShouldBe(9);

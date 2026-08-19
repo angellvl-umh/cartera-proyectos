@@ -172,7 +172,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.AddRange(w1, w2, w3);
         await db.SaveChangesAsync();
 
-        var handler = new ReorderWorkItemsHandler(db);
+        var handler = new ReorderWorkItemsHandler(new WorkItemLifecycleService(db));
         // Queremos el orden: w3, w1, w2 → 10, 20, 30
         await handler.Handle(
             new ReorderWorkItemsCommand(project.Id, [w3.Id, w1.Id, w2.Id]),
@@ -195,7 +195,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.AddRange(w1, wOther);
         await db.SaveChangesAsync();
 
-        var handler = new ReorderWorkItemsHandler(db);
+        var handler = new ReorderWorkItemsHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
@@ -211,7 +211,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.Add(w1);
         await db.SaveChangesAsync();
 
-        var handler = new ReorderWorkItemsHandler(db);
+        var handler = new ReorderWorkItemsHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
@@ -235,7 +235,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.AddRange(w1, w2);
         await db.SaveChangesAsync();
 
-        var handler = new BulkAssignWorkItemsToSprintHandler(db);
+        var handler = new BulkAssignWorkItemsToSprintHandler(new WorkItemLifecycleService(db));
         await handler.Handle(
             new BulkAssignWorkItemsToSprintCommand(project.Id, [w1.Id, w2.Id], sprint.Id),
             CancellationToken.None);
@@ -261,7 +261,7 @@ public class BacklogOperationsHandlerTests
         w2.AssignToSprint(sprint.Id);
         await db.SaveChangesAsync();
 
-        var handler = new BulkAssignWorkItemsToSprintHandler(db);
+        var handler = new BulkAssignWorkItemsToSprintHandler(new WorkItemLifecycleService(db));
         await handler.Handle(
             new BulkAssignWorkItemsToSprintCommand(project.Id, [w1.Id, w2.Id], null),
             CancellationToken.None);
@@ -283,7 +283,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.Add(w1);
         await db.SaveChangesAsync();
 
-        var handler = new BulkAssignWorkItemsToSprintHandler(db);
+        var handler = new BulkAssignWorkItemsToSprintHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
@@ -304,7 +304,7 @@ public class BacklogOperationsHandlerTests
         db.WorkItems.AddRange(w1, wOther);
         await db.SaveChangesAsync();
 
-        var handler = new BulkAssignWorkItemsToSprintHandler(db);
+        var handler = new BulkAssignWorkItemsToSprintHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(

@@ -40,7 +40,7 @@ public record AgentUpdateProjectCommand(
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
-public sealed class AgentCreateProjectHandler(ISender sender)
+public sealed class AgentCreateProjectHandler(IProjectLifecycleService service)
     : IRequestHandler<AgentCreateProjectCommand, int>
 {
     public async Task<int> Handle(AgentCreateProjectCommand request, CancellationToken ct)
@@ -49,8 +49,8 @@ public sealed class AgentCreateProjectHandler(ISender sender)
         if (!Enum.TryParse<ProjectComplexity>(request.Complexity, out var complexity))
             throw new InvalidOperationException("Complejidad no válida. Valores aceptados: VerySmall, Small, Medium, Large, VeryLarge.");
 
-        // Delegar al command core
-        var result = await sender.Send(
+        // Delegar al servicio de ciclo de vida
+        return await service.CreateAsync(
             new CreateProjectCommand(
                 request.Title, request.Description, request.RequestingUnit, complexity,
                 request.PortfolioYear, request.StartDate, request.EndDate,
@@ -68,12 +68,10 @@ public sealed class AgentCreateProjectHandler(ISender sender)
                 BusinessValue: request.BusinessValue,
                 TagIds: null),
             ct);
-
-        return result;
     }
 }
 
-public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
+public sealed class AgentUpdateProjectHandler(IAppDbContext db, IProjectLifecycleService service)
     : IRequestHandler<AgentUpdateProjectCommand>
 {
     public async Task Handle(AgentUpdateProjectCommand request, CancellationToken ct)
@@ -114,8 +112,8 @@ public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
             complexity = parsed;
         }
 
-        // Delegar al command core con todos los valores finales
-        await sender.Send(
+        // Delegar al servicio de ciclo de vida con todos los valores finales
+        await service.UpdateAsync(
             new UpdateProjectCommand(
                 request.ProjectId,
                 title, description, requestingUnit, complexity,
@@ -138,11 +136,11 @@ public sealed class AgentUpdateProjectHandler(IAppDbContext db, ISender sender)
 }
 
 
-public sealed class AgentAssignProjectTeamHandler(ISender sender)
+public sealed class AgentAssignProjectTeamHandler(IProjectLifecycleService service)
     : IRequestHandler<AgentAssignProjectTeamCommand>
 {
-    public async Task Handle(AgentAssignProjectTeamCommand request, CancellationToken ct)
-        => await sender.Send(
+    public Task Handle(AgentAssignProjectTeamCommand request, CancellationToken ct)
+        => service.AssignTeamAsync(
             new AssignTeamToProjectCommand(
                 request.ProjectId,
                 request.TeamId,

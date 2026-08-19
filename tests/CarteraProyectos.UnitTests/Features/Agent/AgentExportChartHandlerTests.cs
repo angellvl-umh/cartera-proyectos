@@ -1,11 +1,9 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
+using CarteraProyectos.Core.Features.Reports;
 using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using NSubstitute;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -41,15 +39,6 @@ public class AgentExportChartHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AppDbContext(options);
-    }
-
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(AgentExportProjectsExcelQuery).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        return services.BuildServiceProvider().GetRequiredService<ISender>();
     }
 
     private static async Task<Person> AddGestorAsync(AppDbContext db)
@@ -91,7 +80,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentExportProjectsExcelHandler(CreateSender(db), blob, url);
+        var handler = new AgentExportProjectsExcelHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentExportProjectsExcelQuery(gestor.Id, null),
@@ -111,7 +100,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentExportProjectsExcelHandler(CreateSender(db), blob, url);
+        var handler = new AgentExportProjectsExcelHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentExportProjectsExcelQuery(gestor.Id, null),
@@ -138,7 +127,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentExportWeeklyReportExcelHandler(CreateSender(db), blob, url);
+        var handler = new AgentExportWeeklyReportExcelHandler(new WeeklyPortfolioReportService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentExportWeeklyReportExcelQuery(1, null, null),
@@ -160,7 +149,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentExportWeeklyReportExcelHandler(CreateSender(db), blob, url);
+        var handler = new AgentExportWeeklyReportExcelHandler(new WeeklyPortfolioReportService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentExportWeeklyReportExcelQuery(1, null, null),
@@ -183,7 +172,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartMyTasksByStatusHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartMyTasksByStatusHandler(new MyTasksReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartMyTasksByStatusQuery(dev.Id, "donut"),
@@ -222,7 +211,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartMyTasksByStatusHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartMyTasksByStatusHandler(new MyTasksReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartMyTasksByStatusQuery(dev.Id, "donut"),
@@ -252,7 +241,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectsByTeamHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectsByTeamHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectsByTeamQuery(gestor.Id, "bar"),
@@ -273,7 +262,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectsByTeamHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectsByTeamHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectsByTeamQuery(gestor.Id, "bar"),
@@ -302,7 +291,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectsByTeamHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectsByTeamHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectsByTeamQuery(gestor.Id, "bar"),
@@ -325,7 +314,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartTeamCapacityHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartTeamCapacityHandler(new CapacityReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartTeamCapacityQuery(gestor.Id),
@@ -359,7 +348,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartTeamCapacityHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartTeamCapacityHandler(new CapacityReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartTeamCapacityQuery(dev.Id),
@@ -382,7 +371,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectProgressHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectProgressHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectProgressQuery(gestor.Id),
@@ -401,7 +390,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectProgressHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectProgressHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectProgressQuery(gestor.Id),
@@ -423,7 +412,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectsByStatusHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectsByStatusHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectsByStatusQuery(gestor.Id, null, "pie"),
@@ -442,7 +431,7 @@ public class AgentExportChartHandlerTests
 
         var blob = new FakeBlobStore();
         var url  = new FakeUrlProvider();
-        var handler = new AgentChartProjectsByStatusHandler(CreateSender(db), blob, url);
+        var handler = new AgentChartProjectsByStatusHandler(new ProjectsReadService(db), blob, url);
 
         var result = await handler.Handle(
             new AgentChartProjectsByStatusQuery(gestor.Id, null, "pie"),

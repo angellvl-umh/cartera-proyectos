@@ -7,7 +7,7 @@
   "allowedTools": ["fs_read", "grep", "glob"],
   "toolsSettings": {
     "fs_write": {
-      "allowedPaths": ["src/CarteraProyectos.Core/**", "src/CarteraProyectos.Infrastructure/**", "src/CarteraProyectos.Api/**", "tests/CarteraProyectos.UnitTests/**"]
+      "allowedPaths": ["src/CarteraProyectos.Core/**", "src/CarteraProyectos.Infrastructure/**", "src/CarteraProyectos.Api/**", "tests/CarteraProyectos.UnitTests/**", "tests/CarteraProyectos.ArchTests/**"]
     },
     "execute_bash": {
       "allowedCommands": ["dotnet build", "dotnet test", "dotnet ef"],

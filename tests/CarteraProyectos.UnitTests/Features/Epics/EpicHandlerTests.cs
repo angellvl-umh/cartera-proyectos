@@ -31,7 +31,7 @@ public class EpicHandlerTests
     public async Task CreateEpic_ValidCommand_CreatesEpicAndReturnsId()
     {
         var (db, project) = await DbWithProject();
-        var handler = new CreateEpicHandler(db);
+        var handler = new CreateEpicHandler(new EpicService(db));
 
         var id = await handler.Handle(new CreateEpicCommand(project.Id, "Épica 1", null, 1, 0), CancellationToken.None);
 
@@ -46,7 +46,7 @@ public class EpicHandlerTests
     public async Task CreateEpic_ProjectNotFound_ThrowsKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new CreateEpicHandler(db);
+        var handler = new CreateEpicHandler(new EpicService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(new CreateEpicCommand(999, "Épica X", null, 0, 0), CancellationToken.None));
@@ -62,7 +62,7 @@ public class EpicHandlerTests
         db.Epics.Add(epic);
         await db.SaveChangesAsync();
 
-        var handler = new UpdateEpicHandler(db);
+        var handler = new UpdateEpicHandler(new EpicService(db));
         await handler.Handle(new UpdateEpicCommand(epic.Id, "Título nuevo", "Desc", 2, 1), CancellationToken.None);
 
         var updated = await db.Epics.FindAsync(epic.Id);
@@ -76,7 +76,7 @@ public class EpicHandlerTests
     public async Task UpdateEpic_NotFound_ThrowsKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new UpdateEpicHandler(db);
+        var handler = new UpdateEpicHandler(new EpicService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(new UpdateEpicCommand(999, "X", null, 0, 0), CancellationToken.None));

@@ -188,7 +188,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress), CancellationToken.None);
 
         var updated = await db.WorkItems.FindAsync(wi.Id);
@@ -204,7 +204,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.Blocked), CancellationToken.None);
 
         var updated = await db.WorkItems.FindAsync(wi.Id);
@@ -220,7 +220,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress), CancellationToken.None));
     }
@@ -229,7 +229,7 @@ public class WorkItemHandlerTests
     public async Task TransitionStatus_NotFound_ThrowsKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(new TransitionWorkItemStatusCommand(999, WorkItemStatus.ToDo), CancellationToken.None));
@@ -260,7 +260,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, dev.Id), CancellationToken.None);
 
         var updated = await db.WorkItems.FindAsync(wi.Id);
@@ -280,7 +280,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, outsider.Id), CancellationToken.None));
@@ -381,7 +381,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, gestor.Id), CancellationToken.None);
 
         var history = await db.WorkItemStatusHistories.Where(h => h.WorkItemId == wi.Id).ToListAsync();
@@ -400,7 +400,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionWorkItemStatusHandler(db);
+        var handler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress), CancellationToken.None));
 
@@ -420,7 +420,7 @@ public class WorkItemHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var transitionHandler = new TransitionWorkItemStatusHandler(db);
+        var transitionHandler = new TransitionWorkItemStatusHandler(new WorkItemLifecycleService(db));
         await transitionHandler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.ToDo, person.Id), CancellationToken.None);
         await transitionHandler.Handle(new TransitionWorkItemStatusCommand(wi.Id, WorkItemStatus.InProgress, person.Id), CancellationToken.None);
 

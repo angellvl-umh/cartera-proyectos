@@ -1,8 +1,5 @@
-using CarteraProyectos.Core.Domain;
-using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Epics;
 
@@ -24,17 +21,8 @@ public sealed class CreateEpicValidator : AbstractValidator<CreateEpicCommand>
     }
 }
 
-public sealed class CreateEpicHandler(IAppDbContext db) : IRequestHandler<CreateEpicCommand, int>
+public sealed class CreateEpicHandler(IEpicService service) : IRequestHandler<CreateEpicCommand, int>
 {
-    public async Task<int> Handle(CreateEpicCommand request, CancellationToken cancellationToken)
-    {
-        var projectExists = await db.Projects.AnyAsync(p => p.Id == request.ProjectId, cancellationToken);
-        if (!projectExists) throw new KeyNotFoundException($"Proyecto {request.ProjectId} no encontrado.");
-
-        var epic = Epic.Create(request.ProjectId, request.Title, request.Description,
-            request.Priority, request.SortOrder, request.EstimationHours, request.EstimationPoints);
-        db.Epics.Add(epic);
-        await db.SaveChangesAsync(cancellationToken);
-        return epic.Id;
-    }
+    public Task<int> Handle(CreateEpicCommand request, CancellationToken cancellationToken)
+        => service.CreateAsync(request, cancellationToken);
 }

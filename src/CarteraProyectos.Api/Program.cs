@@ -49,6 +49,40 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(AgentAuditBeh
 builder.Services.AddScoped<CarteraProyectos.Core.Interfaces.IAppDbContext>(
     sp => sp.GetRequiredService<AppDbContext>());
 
+// WorkItem lifecycle service (compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.WorkItems.IWorkItemLifecycleService,
+    CarteraProyectos.Core.Features.WorkItems.WorkItemLifecycleService>();
+
+// Project lifecycle service (compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Projects.IProjectLifecycleService,
+    CarteraProyectos.Core.Features.Projects.ProjectLifecycleService>();
+
+// Project governance service (riesgos y dependencias — compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Projects.IProjectGovernanceService,
+    CarteraProyectos.Core.Features.Projects.ProjectGovernanceService>();
+
+// Sprint lifecycle service (compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Sprints.ISprintLifecycleService,
+    CarteraProyectos.Core.Features.Sprints.SprintLifecycleService>();
+
+// Epic service (compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Epics.IEpicService,
+    CarteraProyectos.Core.Features.Epics.EpicService>();
+
+// Person management service (compartido por handlers de dominio y Agent handlers)
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Persons.IPersonManagementService,
+    CarteraProyectos.Core.Features.Persons.PersonManagementService>();
+
+// Read services compartidos por handlers de Agent, Charts y Exports
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Agent.ICapacityReadService,
+    CarteraProyectos.Core.Features.Agent.CapacityReadService>();
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Agent.IProjectsReadService,
+    CarteraProyectos.Core.Features.Agent.ProjectsReadService>();
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Agent.IMyTasksReadService,
+    CarteraProyectos.Core.Features.Agent.MyTasksReadService>();
+builder.Services.AddScoped<CarteraProyectos.Core.Features.Reports.IWeeklyPortfolioReportService,
+    CarteraProyectos.Core.Features.Reports.WeeklyPortfolioReportService>();
+
 // MemoryCache (necesario para IEphemeralBlobStore y otros servicios singleton)
 builder.Services.AddMemoryCache();
 

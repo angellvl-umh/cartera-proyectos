@@ -1,11 +1,8 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
 using CarteraProyectos.Core.Features.Projects;
-using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -20,14 +17,8 @@ public class AgentProjectsHandlerTests
         return new AppDbContext(options);
     }
 
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AgentCreateProjectCommand).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        var sp = services.BuildServiceProvider();
-        return sp.GetRequiredService<ISender>();
-    }
+    private static ProjectLifecycleService CreateService(AppDbContext db)
+        => new ProjectLifecycleService(db);
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, string email, PersonRole role)
     {
@@ -43,7 +34,7 @@ public class AgentProjectsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentCreateProjectHandler(CreateSender(db));
+        var handler = new AgentCreateProjectHandler(CreateService(db));
         var id = await handler.Handle(
             new AgentCreateProjectCommand(
                 gestor.Id, "Nuevo Proyecto", "Descripción del proyecto", "Unidad Solicitante",
@@ -66,7 +57,7 @@ public class AgentProjectsHandlerTests
         await using var db = CreateDb();
         var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
 
-        var handler = new AgentCreateProjectHandler(CreateSender(db));
+        var handler = new AgentCreateProjectHandler(CreateService(db));
 
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>
             handler.Handle(
@@ -82,7 +73,7 @@ public class AgentProjectsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentCreateProjectHandler(CreateSender(db));
+        var handler = new AgentCreateProjectHandler(CreateService(db));
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
@@ -105,11 +96,11 @@ public class AgentProjectsHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new AgentUpdateProjectHandler(db, CreateSender(db));
+        var handler = new AgentUpdateProjectHandler(db, CreateService(db));
         // Actualizar solo Title y BusinessValue, enviando null para Complexity
         await handler.Handle(
             new AgentUpdateProjectCommand(
-                gestor.Id, project.Id, 
+                gestor.Id, project.Id,
                 "Proyecto Modificado",  // Title
                 null,                    // Description
                 null,                    // RequestingUnit
@@ -141,7 +132,7 @@ public class AgentProjectsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentUpdateProjectHandler(db, CreateSender(db));
+        var handler = new AgentUpdateProjectHandler(db, CreateService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
@@ -163,12 +154,12 @@ public class AgentProjectsHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new AgentUpdateProjectHandler(db, CreateSender(db));
+        var handler = new AgentUpdateProjectHandler(db, CreateService(db));
 
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>
             handler.Handle(
                 new AgentUpdateProjectCommand(
-                    dev.Id, project.Id, 
+                    dev.Id, project.Id,
                     "Nuevo Titulo", null, null, null, null, null, null,
                     null, null, null, null, null, null, null, null, null),
                 CancellationToken.None));
@@ -190,7 +181,7 @@ public class AgentProjectsHandlerTests
         db.Teams.Add(team);
         await db.SaveChangesAsync();
 
-        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+        var handler = new AgentAssignProjectTeamHandler(CreateService(db));
         await handler.Handle(
             new AgentAssignProjectTeamCommand(gestor.Id, project.Id, team.Id, IsPrimary: true),
             CancellationToken.None);
@@ -221,7 +212,7 @@ public class AgentProjectsHandlerTests
         db.Teams.Add(team);
         await db.SaveChangesAsync();
 
-        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+        var handler = new AgentAssignProjectTeamHandler(CreateService(db));
 
         var ex = await Should.ThrowAsync<UnauthorizedAccessException>(() =>
             handler.Handle(
@@ -240,7 +231,7 @@ public class AgentProjectsHandlerTests
         db.Teams.Add(team);
         await db.SaveChangesAsync();
 
-        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+        var handler = new AgentAssignProjectTeamHandler(CreateService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
@@ -258,7 +249,7 @@ public class AgentProjectsHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new AgentAssignProjectTeamHandler(CreateSender(db));
+        var handler = new AgentAssignProjectTeamHandler(CreateService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(

@@ -35,7 +35,7 @@ public class GetProjectStatusHistoryHandlerTests
         db.Persons.Add(person);
         await db.SaveChangesAsync();
 
-        var transitionHandler = new TransitionProjectStatusHandler(db);
+        var transitionHandler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         await transitionHandler.Handle(new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningWithClient, person.Id), CancellationToken.None);
         await transitionHandler.Handle(new TransitionProjectStatusCommand(project.Id, ProjectStatus.PlanningSprint, person.Id), CancellationToken.None);
 

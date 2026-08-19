@@ -1,10 +1,8 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
-using CarteraProyectos.Core.Interfaces;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -17,15 +15,6 @@ public class AgentGovernanceHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AppDbContext(options);
-    }
-
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AgentGetProjectRisksQuery).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        var sp = services.BuildServiceProvider();
-        return sp.GetRequiredService<ISender>();
     }
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, string email, PersonRole role)
@@ -74,7 +63,7 @@ public class AgentGovernanceHandlerTests
         var project = await AddProjectAsync(db, "Proyecto 1");
         await AssignProjectToTeamAsync(db, project.Id, team.Id);
 
-        var handler = new AgentTransitionProjectStatusHandler(CreateSender(db));
+        var handler = new AgentTransitionProjectStatusHandler(new ProjectLifecycleService(db));
         await handler.Handle(
             new AgentTransitionProjectStatusCommand(dev.Id, project.Id, "PlanningWithClient"),
             CancellationToken.None);
@@ -90,7 +79,7 @@ public class AgentGovernanceHandlerTests
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
         var project = await AddProjectAsync(db, "Proyecto 1");
 
-        var handler = new AgentTransitionProjectStatusHandler(CreateSender(db));
+        var handler = new AgentTransitionProjectStatusHandler(new ProjectLifecycleService(db));
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
@@ -108,7 +97,8 @@ public class AgentGovernanceHandlerTests
         var project = await AddProjectAsync(db, "Proyecto 1");
         await AssignProjectToTeamAsync(db, project.Id, team.Id);
 
-        var handler = new AgentAddProjectRiskHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentAddProjectRiskHandler(svc);
         var riskId = await handler.Handle(
             new AgentAddProjectRiskCommand(
                 dev.Id, project.Id, "Riesgo de recursos",
@@ -129,7 +119,8 @@ public class AgentGovernanceHandlerTests
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
         var project = await AddProjectAsync(db, "Proyecto 1");
 
-        var handler = new AgentAddProjectRiskHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentAddProjectRiskHandler(svc);
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
@@ -149,7 +140,8 @@ public class AgentGovernanceHandlerTests
         db.ProjectRisks.Add(risk);
         await db.SaveChangesAsync();
 
-        var handler = new AgentUpdateProjectRiskHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentUpdateProjectRiskHandler(svc);
         await handler.Handle(
             new AgentUpdateProjectRiskCommand(
                 gestor.Id, project.Id, risk.Id,
@@ -170,7 +162,8 @@ public class AgentGovernanceHandlerTests
         var proj1 = await AddProjectAsync(db, "Proyecto 1");
         var proj2 = await AddProjectAsync(db, "Proyecto 2");
 
-        var handler = new AgentAddProjectDependencyHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentAddProjectDependencyHandler(svc);
         var depId = await handler.Handle(
             new AgentAddProjectDependencyCommand(gestor.Id, proj1.Id, proj2.Id, "Depende de Proyecto 2"),
             CancellationToken.None);
@@ -194,7 +187,8 @@ public class AgentGovernanceHandlerTests
         await db.SaveChangesAsync();
 
         // Intentar crear ciclo: proj1 → proj2 (cuando proj2 ya depende de proj1)
-        var handler = new AgentAddProjectDependencyHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentAddProjectDependencyHandler(svc);
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
@@ -215,7 +209,8 @@ public class AgentGovernanceHandlerTests
         db.ProjectRisks.Add(risk2);
         await db.SaveChangesAsync();
 
-        var handler = new AgentGetProjectRisksHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentGetProjectRisksHandler(svc);
         var risks = await handler.Handle(new AgentGetProjectRisksQuery(project.Id), CancellationToken.None);
 
         risks.Count.ShouldBe(2);
@@ -238,7 +233,8 @@ public class AgentGovernanceHandlerTests
         db.ProjectDependencies.Add(dep2);
         await db.SaveChangesAsync();
 
-        var handler = new AgentGetProjectDependenciesHandler(CreateSender(db));
+        var svc = new ProjectGovernanceService(db);
+        var handler = new AgentGetProjectDependenciesHandler(svc);
         var result = await handler.Handle(new AgentGetProjectDependenciesQuery(proj1.Id), CancellationToken.None);
 
         result.DependsOn.Count.ShouldBe(1); // proj1 depende de proj2

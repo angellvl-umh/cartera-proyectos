@@ -3,6 +3,7 @@ using CarteraProyectos.Core.Features.Persons;
 using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using Shouldly;
 using Xunit;
 
@@ -18,6 +19,9 @@ public class GetPersonsHandlerTests
         return new AppDbContext(options);
     }
 
+    private static PersonManagementService BuildService(IAppDbContext db)
+        => new(db, Substitute.For<IIdentityProviderService>());
+
     [Fact]
     public async Task Handle_ByDefaultExcludesInactivePersons()
     {
@@ -32,7 +36,7 @@ public class GetPersonsHandlerTests
         await db.SaveChangesAsync();
 
         var query = new GetPersonsQuery(Page: 1, PageSize: 20, IncludeInactive: false);
-        var handler = new GetPersonsHandler(db);
+        var handler = new GetPersonsHandler(BuildService(db));
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -58,7 +62,7 @@ public class GetPersonsHandlerTests
         await db.SaveChangesAsync();
 
         var query = new GetPersonsQuery(Page: 1, PageSize: 20, IncludeInactive: true);
-        var handler = new GetPersonsHandler(db);
+        var handler = new GetPersonsHandler(BuildService(db));
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -82,7 +86,7 @@ public class GetPersonsHandlerTests
         await db.SaveChangesAsync();
 
         var query = new GetPersonsQuery(Page: 1, PageSize: 20, IncludeInactive: true);
-        var handler = new GetPersonsHandler(db);
+        var handler = new GetPersonsHandler(BuildService(db));
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -108,8 +112,9 @@ public class GetPersonsHandlerTests
         }
         await db.SaveChangesAsync();
 
+        var handler = new GetPersonsHandler(BuildService(db));
+
         var query1 = new GetPersonsQuery(Page: 1, PageSize: 10, IncludeInactive: false);
-        var handler = new GetPersonsHandler(db);
 
         // Act
         var page1 = await handler.Handle(query1, CancellationToken.None);

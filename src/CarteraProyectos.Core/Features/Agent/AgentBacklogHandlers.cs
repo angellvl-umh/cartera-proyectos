@@ -25,23 +25,16 @@ public record AgentBulkAssignToSprintCommand(
 
 // ─── Backlog Handlers ─────────────────────────────────────────────────────────
 
-public sealed class AgentReorderBacklogHandler(ISender sender)
+public sealed class AgentReorderBacklogHandler(IWorkItemLifecycleService service)
     : IRequestHandler<AgentReorderBacklogCommand>
 {
     public async Task Handle(AgentReorderBacklogCommand request, CancellationToken ct)
-        => await sender.Send(
-            new ReorderWorkItemsCommand(request.ProjectId, request.OrderedIds),
-            ct);
+        => await service.ReorderAsync(request.ProjectId, request.OrderedIds, ct);
 }
 
-public sealed class AgentBulkAssignToSprintHandler(ISender sender)
+public sealed class AgentBulkAssignToSprintHandler(IWorkItemLifecycleService service)
     : IRequestHandler<AgentBulkAssignToSprintCommand>
 {
     public async Task Handle(AgentBulkAssignToSprintCommand request, CancellationToken ct)
-        => await sender.Send(
-            new BulkAssignWorkItemsToSprintCommand(
-                request.ProjectId,
-                request.WorkItemIds,
-                request.SprintId),
-            ct);
+        => await service.BulkAssignToSprintAsync(request.ProjectId, request.WorkItemIds, request.SprintId, ct);
 }

@@ -58,6 +58,9 @@ public class SprintCarryOverTests
         return wi;
     }
 
+    private static TransitionSprintStatusHandler CreateHandler(AppDbContext db)
+        => new(new SprintLifecycleService(db));
+
     // ── Test 1: CommittedPoints al activar ─────────────────────────────────
 
     [Fact]
@@ -71,7 +74,7 @@ public class SprintCarryOverTests
         await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.ToDo, 5);
         await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.ToDo, null);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Active), CancellationToken.None);
 
         var updated = await db.Sprints.FindAsync(sprint.Id);
@@ -90,7 +93,7 @@ public class SprintCarryOverTests
         var doneItem = await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.Done, 3);
         var discardedItem = await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.Discarded, 5);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         await handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed), CancellationToken.None);
 
         var updated = await db.Sprints.FindAsync(sprint.Id);
@@ -108,7 +111,7 @@ public class SprintCarryOverTests
 
         await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(sprint.Id, SprintStatus.Completed), CancellationToken.None));
 
@@ -128,7 +131,7 @@ public class SprintCarryOverTests
 
         var wi = await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         await handler.Handle(new TransitionSprintStatusCommand(
             sprint.Id, SprintStatus.Completed,
             CarryOver: CarryOverTarget.Backlog), CancellationToken.None);
@@ -158,7 +161,7 @@ public class SprintCarryOverTests
         // Tarea ya en Backlog pero asignada al sprint
         var wi = await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.Backlog);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         await handler.Handle(new TransitionSprintStatusCommand(
             sprint.Id, SprintStatus.Completed,
             CarryOver: CarryOverTarget.Backlog), CancellationToken.None);
@@ -185,7 +188,7 @@ public class SprintCarryOverTests
 
         var wi = await AddWorkItemAsync(db, project.Id, activeSprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         await handler.Handle(new TransitionSprintStatusCommand(
             activeSprint.Id, SprintStatus.Completed,
             CarryOver: CarryOverTarget.Sprint,
@@ -214,7 +217,7 @@ public class SprintCarryOverTests
         var sprint = await AddSprintAsync(db, project.Id, SprintStatus.Active);
         await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(
                 sprint.Id, SprintStatus.Completed,
@@ -230,7 +233,7 @@ public class SprintCarryOverTests
         var sprint = await AddSprintAsync(db, project.Id, SprintStatus.Active);
         await AddWorkItemAsync(db, project.Id, sprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(
                 sprint.Id, SprintStatus.Completed,
@@ -255,7 +258,7 @@ public class SprintCarryOverTests
 
         await AddWorkItemAsync(db, project.Id, activeSprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(
                 activeSprint.Id, SprintStatus.Completed,
@@ -274,7 +277,7 @@ public class SprintCarryOverTests
 
         await AddWorkItemAsync(db, project.Id, activeSprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(
                 activeSprint.Id, SprintStatus.Completed,
@@ -291,7 +294,7 @@ public class SprintCarryOverTests
         var activeSprint = await AddSprintAsync(db, project.Id, SprintStatus.Active);
         await AddWorkItemAsync(db, project.Id, activeSprint.Id, WorkItemStatus.InProgress);
 
-        var handler = new TransitionSprintStatusHandler(db);
+        var handler = CreateHandler(db);
         var ex = await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(new TransitionSprintStatusCommand(
                 activeSprint.Id, SprintStatus.Completed,

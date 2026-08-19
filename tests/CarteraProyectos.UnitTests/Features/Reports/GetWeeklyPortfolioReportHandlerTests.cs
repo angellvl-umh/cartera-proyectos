@@ -81,7 +81,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.Count.ShouldBe(1);
@@ -104,7 +104,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.Count.ShouldBe(1);
@@ -128,7 +128,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(oldUpdate);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         // Should be at risk because no update this week, even though old one was OnTrack
@@ -150,7 +150,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.ShouldBeEmpty();
@@ -171,7 +171,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.ShouldBeEmpty();
@@ -192,7 +192,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.ShouldBeEmpty();
@@ -225,7 +225,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.AddRange(update1, update2);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(TeamId: team1.Id), CancellationToken.None);
 
         result.OtherProjects.Count.ShouldBe(1);
@@ -249,7 +249,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.AddRange(update1, update2);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(Year: 2025), CancellationToken.None);
 
         result.OtherProjects.Count.ShouldBe(1);
@@ -264,7 +264,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects.Count.ShouldBe(1);
@@ -293,7 +293,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.Add(update);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.OtherProjects[0].PrimaryTeamName.ShouldBe("Equipo Principal");
@@ -318,7 +318,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.AddRange(updateA, updateM, updateZ);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects[0].Title.ShouldBe("Proyecto A");
@@ -342,7 +342,7 @@ public class GetWeeklyPortfolioReportHandlerTests
         db.ProjectWeeklyUpdates.AddRange(oldUpdate, newUpdate);
         await db.SaveChangesAsync();
 
-        var handler = new GetWeeklyPortfolioReportHandler(db);
+        var handler = new GetWeeklyPortfolioReportHandler(new WeeklyPortfolioReportService(db));
         var result = await handler.Handle(new GetWeeklyPortfolioReportQuery(), CancellationToken.None);
 
         result.AtRiskProjects[0].LatestSummary.ShouldBe("New");

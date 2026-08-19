@@ -1,10 +1,8 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
-using CarteraProyectos.Core.Interfaces;
+using CarteraProyectos.Core.Features.WorkItems;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -19,15 +17,6 @@ public class AgentBacklogHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AppDbContext(options);
-    }
-
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(AgentReorderBacklogCommand).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        return services.BuildServiceProvider().GetRequiredService<ISender>();
     }
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, PersonRole role = PersonRole.Gestor)
@@ -67,7 +56,7 @@ public class AgentBacklogHandlerTests
         db.WorkItems.AddRange(w1, w2, w3);
         await db.SaveChangesAsync();
 
-        var handler = new AgentReorderBacklogHandler(CreateSender(db));
+        var handler = new AgentReorderBacklogHandler(new WorkItemLifecycleService(db));
         // Queremos el orden: w3, w1, w2 → sortOrders 10, 20, 30
         await handler.Handle(
             new AgentReorderBacklogCommand(person.Id, project.Id, [w3.Id, w1.Id, w2.Id]),
@@ -99,7 +88,7 @@ public class AgentBacklogHandlerTests
         db.WorkItems.AddRange(w1, wOther);
         await db.SaveChangesAsync();
 
-        var handler = new AgentReorderBacklogHandler(CreateSender(db));
+        var handler = new AgentReorderBacklogHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
@@ -117,7 +106,7 @@ public class AgentBacklogHandlerTests
         db.WorkItems.Add(w1);
         await db.SaveChangesAsync();
 
-        var handler = new AgentReorderBacklogHandler(CreateSender(db));
+        var handler = new AgentReorderBacklogHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
@@ -142,7 +131,7 @@ public class AgentBacklogHandlerTests
         db.WorkItems.AddRange(w1, w2);
         await db.SaveChangesAsync();
 
-        var handler = new AgentBulkAssignToSprintHandler(CreateSender(db));
+        var handler = new AgentBulkAssignToSprintHandler(new WorkItemLifecycleService(db));
         await handler.Handle(
             new AgentBulkAssignToSprintCommand(person.Id, project.Id, [w1.Id, w2.Id], sprint.Id),
             CancellationToken.None);
@@ -167,7 +156,7 @@ public class AgentBacklogHandlerTests
         w1.AssignToSprint(sprint.Id);
         await db.SaveChangesAsync();
 
-        var handler = new AgentBulkAssignToSprintHandler(CreateSender(db));
+        var handler = new AgentBulkAssignToSprintHandler(new WorkItemLifecycleService(db));
         await handler.Handle(
             new AgentBulkAssignToSprintCommand(person.Id, project.Id, [w1.Id], null),
             CancellationToken.None);
@@ -197,7 +186,7 @@ public class AgentBacklogHandlerTests
         db.WorkItems.Add(w1);
         await db.SaveChangesAsync();
 
-        var handler = new AgentBulkAssignToSprintHandler(CreateSender(db));
+        var handler = new AgentBulkAssignToSprintHandler(new WorkItemLifecycleService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(

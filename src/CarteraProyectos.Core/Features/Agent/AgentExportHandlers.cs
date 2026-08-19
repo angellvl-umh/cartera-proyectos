@@ -30,7 +30,7 @@ public record AgentExportResult(string? Url, string Message);
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
 public sealed class AgentExportProjectsExcelHandler(
-    ISender sender,
+    IProjectsReadService projectsService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentExportProjectsExcelQuery, AgentExportResult>
@@ -41,8 +41,7 @@ public sealed class AgentExportProjectsExcelHandler(
     public async Task<AgentExportResult> Handle(
         AgentExportProjectsExcelQuery request, CancellationToken ct)
     {
-        var projects = await sender.Send(
-            new AgentGetProjectsQuery(request.PersonId, request.Status), ct);
+        var projects = await projectsService.GetAsync(request.PersonId, request.Status, ct);
 
         if (projects.Count == 0)
             return new AgentExportResult(
@@ -60,7 +59,7 @@ public sealed class AgentExportProjectsExcelHandler(
 }
 
 public sealed class AgentExportWeeklyReportExcelHandler(
-    ISender sender,
+    IWeeklyPortfolioReportService reportService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentExportWeeklyReportExcelQuery, AgentExportResult>
@@ -71,7 +70,7 @@ public sealed class AgentExportWeeklyReportExcelHandler(
     public async Task<AgentExportResult> Handle(
         AgentExportWeeklyReportExcelQuery request, CancellationToken ct)
     {
-        var report = await sender.Send(
+        var report = await reportService.GetAsync(
             new GetWeeklyPortfolioReportQuery(request.Year, request.TeamId), ct);
 
         var total = report.AtRiskProjects.Count + report.OtherProjects.Count;

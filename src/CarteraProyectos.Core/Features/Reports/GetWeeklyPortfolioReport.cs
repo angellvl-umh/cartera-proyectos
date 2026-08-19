@@ -18,10 +18,14 @@ public record WeeklyPortfolioProjectDto(
     int? PortfolioYear = null,
     int OpenHighImpactRisks = 0);
 
-public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
-    : IRequestHandler<GetWeeklyPortfolioReportQuery, WeeklyPortfolioReportDto>
+public interface IWeeklyPortfolioReportService
 {
-    public async Task<WeeklyPortfolioReportDto> Handle(GetWeeklyPortfolioReportQuery request, CancellationToken ct)
+    Task<WeeklyPortfolioReportDto> GetAsync(GetWeeklyPortfolioReportQuery query, CancellationToken ct);
+}
+
+public sealed class WeeklyPortfolioReportService(IAppDbContext db) : IWeeklyPortfolioReportService
+{
+    public async Task<WeeklyPortfolioReportDto> GetAsync(GetWeeklyPortfolioReportQuery request, CancellationToken ct)
     {
         var thisWeekMonday = GetMondayOfWeek(DateTime.UtcNow);
 
@@ -119,4 +123,11 @@ public sealed class GetWeeklyPortfolioReportHandler(IAppDbContext db)
         var daysToMonday = daysOfWeek == 0 ? 6 : daysOfWeek - 1;
         return dateOnly.AddDays(-daysToMonday);
     }
+}
+
+public sealed class GetWeeklyPortfolioReportHandler(IWeeklyPortfolioReportService service)
+    : IRequestHandler<GetWeeklyPortfolioReportQuery, WeeklyPortfolioReportDto>
+{
+    public Task<WeeklyPortfolioReportDto> Handle(GetWeeklyPortfolioReportQuery request, CancellationToken ct)
+        => service.GetAsync(request, ct);
 }

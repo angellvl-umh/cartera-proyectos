@@ -32,7 +32,8 @@ public class ProjectHandlerTests
     public async Task CreateProject_ValidCommand_CreatesProjectWithStoppedStatus()
     {
         var (db, gestor) = await DbWithGestor();
-        var handler = new CreateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new CreateProjectHandler(service);
 
         var id = await handler.Handle(
             new CreateProjectCommand("Portal Alumno", null, "RRHH", ProjectComplexity.Medium, 2026, null, null,
@@ -52,7 +53,8 @@ public class ProjectHandlerTests
     public async Task CreateProject_WithNewFields_StoresAllFields()
     {
         var (db, gestor) = await DbWithGestor();
-        var handler = new CreateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new CreateProjectHandler(service);
 
         var id = await handler.Handle(
             new CreateProjectCommand(
@@ -85,7 +87,8 @@ public class ProjectHandlerTests
         db.Teams.AddRange(team1, team2);
         await db.SaveChangesAsync();
 
-        var handler = new CreateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new CreateProjectHandler(service);
         var id = await handler.Handle(
             new CreateProjectCommand("Proyecto Test", null, null, ProjectComplexity.Small, 2026, null, null,
                 RequestingPersonId: gestor.Id,
@@ -106,7 +109,8 @@ public class ProjectHandlerTests
     public async Task CreateProject_SinTeamIds_NoCreaAsignaciones()
     {
         var (db, gestor) = await DbWithGestor();
-        var handler = new CreateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new CreateProjectHandler(service);
 
         var id = await handler.Handle(
             new CreateProjectCommand("Proyecto Sin Equipos", null, null, ProjectComplexity.Small, 2026, null, null,
@@ -173,7 +177,8 @@ public class ProjectHandlerTests
             ProjectTeamAssignment.Create(project.Id, team2.Id, false));
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new UpdateProjectHandler(service);
         await handler.Handle(
             new UpdateProjectCommand(project.Id, "Proyecto", null, null, ProjectComplexity.Small, 2026, null, null,
                 TeamIds: [team2.Id, team3.Id],
@@ -206,7 +211,8 @@ public class ProjectHandlerTests
             ProjectTeamAssignment.Create(project.Id, team1.Id, true));
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new UpdateProjectHandler(service);
         // TeamIds es null → no tocar equipos
         await handler.Handle(
             new UpdateProjectCommand(project.Id, "Título Nuevo", null, null, ProjectComplexity.Small, 2026, null, null),
@@ -230,7 +236,8 @@ public class ProjectHandlerTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
-        var handler = new UpdateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new UpdateProjectHandler(service);
         await handler.Handle(
             new UpdateProjectCommand(project.Id, "Actualizado", "Nueva desc", "ADMIN", ProjectComplexity.Large, 2027, null, null),
             CancellationToken.None);
@@ -246,7 +253,8 @@ public class ProjectHandlerTests
     public async Task UpdateProject_NotFound_ThrowsKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new UpdateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new UpdateProjectHandler(service);
 
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
@@ -325,7 +333,8 @@ public class ProjectHandlerTests
     {
         var (db, gestor) = await DbWithGestor();
 
-        var handler = new CreateProjectHandler(db);
+        var service = new ProjectLifecycleService(db);
+        var handler = new CreateProjectHandler(service);
         var id = await handler.Handle(
             new CreateProjectCommand("Proyecto Test", null, "TIC", ProjectComplexity.Small, 2026, null, null,
                 RequestingPersonId: gestor.Id),

@@ -1,8 +1,6 @@
 using CarteraProyectos.Core.Domain;
-using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Persons;
 
@@ -18,30 +16,9 @@ public sealed class UpdatePersonValidator : AbstractValidator<UpdatePersonComman
     }
 }
 
-public sealed class UpdatePersonHandler(IAppDbContext db) : IRequestHandler<UpdatePersonCommand>
+public sealed class UpdatePersonHandler(IPersonManagementService service)
+    : IRequestHandler<UpdatePersonCommand>
 {
-    public async Task Handle(UpdatePersonCommand request, CancellationToken cancellationToken)
-    {
-        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
-            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
-        
-        if (requester.Role != PersonRole.Gestor)
-            throw new UnauthorizedAccessException("Solo el Gestor puede actualizar personas.");
-
-        var person = await db.Persons.FindAsync([request.PersonId], cancellationToken)
-            ?? throw new KeyNotFoundException($"Persona con Id {request.PersonId} no encontrada.");
-
-        // Verificar email duplicado (de otra persona)
-        var emailExists = await db.Persons.AnyAsync(
-            p => p.Id != request.PersonId && p.Email.ToLower() == request.Email.ToLower(),
-            cancellationToken);
-        
-        if (emailExists)
-            throw new InvalidOperationException("Ya existe otra persona con ese email.");
-
-        person.Update(request.Name, request.Email);
-        person.UpdateRole(request.Role);
-        
-        await db.SaveChangesAsync(cancellationToken);
-    }
+    public Task Handle(UpdatePersonCommand request, CancellationToken cancellationToken)
+        => service.UpdateAsync(request, cancellationToken);
 }

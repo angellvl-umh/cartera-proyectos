@@ -1,9 +1,7 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Projects;
-using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Projects.Risks;
 
@@ -26,25 +24,8 @@ public sealed class CreateProjectRiskValidator : AbstractValidator<CreateProject
     }
 }
 
-public sealed class CreateProjectRiskHandler(IAppDbContext db) : IRequestHandler<CreateProjectRiskCommand, int>
+public sealed class CreateProjectRiskHandler(IProjectGovernanceService service) : IRequestHandler<CreateProjectRiskCommand, int>
 {
-    public async Task<int> Handle(CreateProjectRiskCommand request, CancellationToken cancellationToken)
-    {
-        if (!await db.Projects.AnyAsync(p => p.Id == request.ProjectId, cancellationToken))
-            throw new KeyNotFoundException($"Proyecto con Id {request.ProjectId} no encontrado.");
-
-        var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
-            ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
-
-        await ProjectAuthorization.EnsureCanManageProjectAsync(db, request.ProjectId, requester, cancellationToken);
-
-        var risk = ProjectRisk.Create(
-            request.ProjectId, request.Description,
-            request.Probability, request.Impact,
-            request.MitigationPlan, request.RequestingPersonId);
-
-        db.ProjectRisks.Add(risk);
-        await db.SaveChangesAsync(cancellationToken);
-        return risk.Id;
-    }
+    public Task<int> Handle(CreateProjectRiskCommand request, CancellationToken cancellationToken)
+        => service.AddRiskAsync(request, cancellationToken);
 }

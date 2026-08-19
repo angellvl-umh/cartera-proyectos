@@ -65,7 +65,7 @@ public class AgentGetProjectsHandlerTests
         await AddProjectAsync(db, "Proyecto B");
         await AddProjectAsync(db, "Proyecto C");
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(gestor.Id), CancellationToken.None);
 
         result.Count.ShouldBe(3);
@@ -80,7 +80,7 @@ public class AgentGetProjectsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(gestor.Id), CancellationToken.None);
 
         result.ShouldBeEmpty();
@@ -98,7 +98,7 @@ public class AgentGetProjectsHandlerTests
         var otroProyecto = await AddProjectAsync(db, "Proyecto ajeno");
         await AssignProjectToTeamAsync(db, suProyecto.Id, team.Id);
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(jefe.Id), CancellationToken.None);
 
         result.Count.ShouldBe(1);
@@ -118,7 +118,7 @@ public class AgentGetProjectsHandlerTests
         var otroProyecto = await AddProjectAsync(db, "Proyecto no visible");
         await AssignProjectToTeamAsync(db, suProyecto.Id, team.Id);
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(dev.Id), CancellationToken.None);
 
         result.Count.ShouldBe(1);
@@ -132,7 +132,7 @@ public class AgentGetProjectsHandlerTests
         var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
         await AddProjectAsync(db, "Proyecto cualquiera");
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(dev.Id), CancellationToken.None);
 
         result.ShouldBeEmpty();
@@ -142,7 +142,7 @@ public class AgentGetProjectsHandlerTests
     public async Task PersonaInexistente_LanzaKeyNotFoundException()
     {
         await using var db = CreateDb();
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(new AgentGetProjectsQuery(9999), CancellationToken.None));
@@ -160,7 +160,7 @@ public class AgentGetProjectsHandlerTests
         var proyecto = await AddProjectAsync(db, "Proyecto solo del dev");
         await AssignProjectToTeamAsync(db, proyecto.Id, team.Id);
 
-        var handler = new AgentGetProjectsHandler(db);
+        var handler = new AgentGetProjectsHandler(new ProjectsReadService(db));
         var result = await handler.Handle(new AgentGetProjectsQuery(gestor.Id), CancellationToken.None);
 
         // Gestor lo ve aunque no esté en el equipo

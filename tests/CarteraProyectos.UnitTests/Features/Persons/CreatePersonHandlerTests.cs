@@ -26,6 +26,9 @@ public class CreatePersonHandlerTests
         return idp;
     }
 
+    private static CreatePersonHandler BuildHandler(IAppDbContext db, IIdentityProviderService idp)
+        => new(new PersonManagementService(db, idp));
+
     // ── Caso 1: sin flag → no se llama al IdP, resultado sin password ni warning ──
 
     [Fact]
@@ -46,7 +49,7 @@ public class CreatePersonHandlerTests
             RequestingPersonId: requester.Id,
             CreateLocalCredentials: false);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -87,7 +90,7 @@ public class CreatePersonHandlerTests
             Role: PersonRole.Desarrollador,
             RequestingPersonId: requester.Id);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -125,7 +128,7 @@ public class CreatePersonHandlerTests
             RequestingPersonId: requester.Id,
             CreateLocalCredentials: true);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -163,7 +166,7 @@ public class CreatePersonHandlerTests
             RequestingPersonId: requester.Id,
             CreateLocalCredentials: true);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -201,7 +204,7 @@ public class CreatePersonHandlerTests
             RequestingPersonId: requester.Id,
             CreateLocalCredentials: true);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -237,7 +240,7 @@ public class CreatePersonHandlerTests
             Role: PersonRole.Desarrollador,
             RequestingPersonId: requester.Id);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(() => handler.Handle(command, CancellationToken.None));
@@ -263,7 +266,7 @@ public class CreatePersonHandlerTests
             Role: PersonRole.Desarrollador,
             RequestingPersonId: requester.Id);
 
-        var handler = new CreatePersonHandler(db, idp);
+        var handler = BuildHandler(db, idp);
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(() => handler.Handle(command, CancellationToken.None));

@@ -33,17 +33,17 @@ public record AgentSetPersonActiveCommand(
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
-public sealed class AgentGetPersonsHandler(ISender sender)
+public sealed class AgentGetPersonsHandler(IPersonManagementService service)
     : IRequestHandler<AgentGetPersonsQuery, IReadOnlyList<PersonListDto>>
 {
     public async Task<IReadOnlyList<PersonListDto>> Handle(AgentGetPersonsQuery request, CancellationToken ct)
     {
-        var result = await sender.Send(new GetPersonsQuery(1, 100, request.IncludeInactive), ct);
+        var result = await service.GetListAsync(new GetPersonsQuery(1, 100, request.IncludeInactive), ct);
         return result.Items;
     }
 }
 
-public sealed class AgentCreatePersonHandler(ISender sender)
+public sealed class AgentCreatePersonHandler(IPersonManagementService service)
     : IRequestHandler<AgentCreatePersonCommand, int>
 {
     public async Task<int> Handle(AgentCreatePersonCommand request, CancellationToken ct)
@@ -55,7 +55,7 @@ public sealed class AgentCreatePersonHandler(ISender sender)
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
 
         // El agente nunca crea credenciales locales — CreateLocalCredentials: false
-        var result = await sender.Send(
+        var result = await service.CreateAsync(
             new CreatePersonCommand(request.Name, request.Email, role, request.PersonId, CreateLocalCredentials: false),
             ct);
 
@@ -63,7 +63,7 @@ public sealed class AgentCreatePersonHandler(ISender sender)
     }
 }
 
-public sealed class AgentUpdatePersonHandler(ISender sender)
+public sealed class AgentUpdatePersonHandler(IPersonManagementService service)
     : IRequestHandler<AgentUpdatePersonCommand>
 {
     public async Task Handle(AgentUpdatePersonCommand request, CancellationToken ct)
@@ -74,15 +74,15 @@ public sealed class AgentUpdatePersonHandler(ISender sender)
         if (role == PersonRole.JefeEquipo)
             throw new InvalidOperationException("Rol no válido. Valores aceptados: Desarrollador, Gestor.");
 
-        await sender.Send(new UpdatePersonCommand(request.TargetPersonId, request.Name, request.Email, role, request.PersonId), ct);
+        await service.UpdateAsync(new UpdatePersonCommand(request.TargetPersonId, request.Name, request.Email, role, request.PersonId), ct);
     }
 }
 
-public sealed class AgentSetPersonActiveHandler(ISender sender)
+public sealed class AgentSetPersonActiveHandler(IPersonManagementService service)
     : IRequestHandler<AgentSetPersonActiveCommand>
 {
     public async Task Handle(AgentSetPersonActiveCommand request, CancellationToken ct)
     {
-        await sender.Send(new SetPersonActiveCommand(request.TargetPersonId, request.IsActive, request.PersonId), ct);
+        await service.SetActiveAsync(new SetPersonActiveCommand(request.TargetPersonId, request.IsActive, request.PersonId), ct);
     }
 }

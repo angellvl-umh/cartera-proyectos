@@ -203,7 +203,7 @@ public class ProjectStateMachineTests
         db.WorkItems.AddRange(taskDone, taskDiscarded);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
         await handler.Handle(
             new TransitionProjectStatusCommand(project.Id, ProjectStatus.Completed, gestor.Id),
             CancellationToken.None);
@@ -236,7 +236,7 @@ public class ProjectStateMachineTests
         db.WorkItems.AddRange(taskToDo, taskDone);
         await db.SaveChangesAsync();
 
-        var handler = new TransitionProjectStatusHandler(db);
+        var handler = new TransitionProjectStatusHandler(new ProjectLifecycleService(db));
 
         await Should.ThrowAsync<InvalidOperationException>(
             () => handler.Handle(

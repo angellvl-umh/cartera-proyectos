@@ -46,48 +46,8 @@ public sealed class CreateProjectValidator : AbstractValidator<CreateProjectComm
     }
 }
 
-public sealed class CreateProjectHandler(IAppDbContext db) : IRequestHandler<CreateProjectCommand, int>
+public sealed class CreateProjectHandler(IProjectLifecycleService service) : IRequestHandler<CreateProjectCommand, int>
 {
-    public async Task<int> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
-    {
-        if (request.RequestingPersonId > 0)
-        {
-            var requester = await db.Persons.FindAsync([request.RequestingPersonId], cancellationToken)
-                ?? throw new KeyNotFoundException($"Persona con Id {request.RequestingPersonId} no encontrada.");
-            if (requester.Role != PersonRole.Gestor)
-                throw new UnauthorizedAccessException("Solo el Gestor puede crear proyectos.");
-        }
-
-        var project = Project.Create(
-            request.Title, request.Description, request.RequestingUnit,
-            request.Complexity, request.PortfolioYear, request.StartDate, request.EndDate,
-            request.PreviousReferenceId, request.BeneficiaryCount,
-            request.PromoterId, request.OrganicUnitId, request.UorOrder,
-            request.GroupPriority,
-            request.DesiredDeploymentDate, request.SpecificationsUrl, request.EpicUrl,
-            request.EstimatedBudget, request.BusinessValue);
-
-        if (request.TagIds is { Count: > 0 })
-        {
-            var tags = db.Tags.Where(t => request.TagIds.Contains(t.Id)).ToList();
-            foreach (var tag in tags)
-                ((ICollection<Tag>)project.Tags).Add(tag);
-        }
-
-        db.Projects.Add(project);
-        db.ProjectStatusHistories.Add(ProjectStatusHistory.Create(project, null, project.Status, request.RequestingPersonId));
-        await db.SaveChangesAsync(cancellationToken);
-
-        if (request.TeamIds is { Count: > 0 })
-        {
-            foreach (var teamId in request.TeamIds)
-            {
-                db.ProjectTeamAssignments.Add(
-                    ProjectTeamAssignment.Create(project.Id, teamId, isPrimary: teamId == request.PrimaryTeamId));
-            }
-            await db.SaveChangesAsync(cancellationToken);
-        }
-
-        return project.Id;
-    }
+    public Task<int> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
+        => service.CreateAsync(request, cancellationToken);
 }

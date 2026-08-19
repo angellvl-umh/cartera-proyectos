@@ -42,7 +42,7 @@ file static class ChartHelpers
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
 public sealed class AgentChartTeamCapacityHandler(
-    ISender sender,
+    ICapacityReadService capacityService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentChartTeamCapacityQuery, AgentChartResult>
@@ -50,7 +50,7 @@ public sealed class AgentChartTeamCapacityHandler(
     public async Task<AgentChartResult> Handle(
         AgentChartTeamCapacityQuery request, CancellationToken ct)
     {
-        var capacity = await sender.Send(new AgentGetCapacityQuery(), ct);
+        var capacity = await capacityService.GetAsync(ct);
 
         // Aplanar todos los miembros de todos los equipos
         var members = capacity.Teams
@@ -88,7 +88,7 @@ public sealed class AgentChartTeamCapacityHandler(
 }
 
 public sealed class AgentChartProjectProgressHandler(
-    ISender sender,
+    IProjectsReadService projectsService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentChartProjectProgressQuery, AgentChartResult>
@@ -96,8 +96,7 @@ public sealed class AgentChartProjectProgressHandler(
     public async Task<AgentChartResult> Handle(
         AgentChartProjectProgressQuery request, CancellationToken ct)
     {
-        var projects = await sender.Send(
-            new AgentGetProjectsQuery(request.PersonId, null), ct);
+        var projects = await projectsService.GetAsync(request.PersonId, null, ct);
 
         if (projects.Count == 0)
         {
@@ -130,7 +129,7 @@ public sealed class AgentChartProjectProgressHandler(
 }
 
 public sealed class AgentChartMyTasksByStatusHandler(
-    ISender sender,
+    IMyTasksReadService myTasksService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentChartMyTasksByStatusQuery, AgentChartResult>
@@ -148,7 +147,7 @@ public sealed class AgentChartMyTasksByStatusHandler(
     public async Task<AgentChartResult> Handle(
         AgentChartMyTasksByStatusQuery request, CancellationToken ct)
     {
-        var myTasks = await sender.Send(new AgentGetMyTasksQuery(request.PersonId), ct);
+        var myTasks = await myTasksService.GetAsync(request.PersonId, ct);
 
         // Agregar por estado
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -194,7 +193,7 @@ public sealed class AgentChartMyTasksByStatusHandler(
 }
 
 public sealed class AgentChartProjectsByStatusHandler(
-    ISender sender,
+    IProjectsReadService projectsService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentChartProjectsByStatusQuery, AgentChartResult>
@@ -202,8 +201,7 @@ public sealed class AgentChartProjectsByStatusHandler(
     public async Task<AgentChartResult> Handle(
         AgentChartProjectsByStatusQuery request, CancellationToken ct)
     {
-        var projects = await sender.Send(
-            new AgentGetProjectsQuery(request.PersonId, request.Status), ct);
+        var projects = await projectsService.GetAsync(request.PersonId, request.Status, ct);
 
         if (projects.Count == 0)
         {
@@ -235,7 +233,7 @@ public sealed class AgentChartProjectsByStatusHandler(
 }
 
 public sealed class AgentChartProjectsByTeamHandler(
-    ISender sender,
+    IProjectsReadService projectsService,
     IEphemeralBlobStore blobStore,
     IPublicUrlProvider urlProvider)
     : IRequestHandler<AgentChartProjectsByTeamQuery, AgentChartResult>
@@ -243,8 +241,7 @@ public sealed class AgentChartProjectsByTeamHandler(
     public async Task<AgentChartResult> Handle(
         AgentChartProjectsByTeamQuery request, CancellationToken ct)
     {
-        var projects = await sender.Send(
-            new AgentGetProjectsQuery(request.PersonId, null), ct);
+        var projects = await projectsService.GetAsync(request.PersonId, null, ct);
 
         if (projects.Count == 0)
         {

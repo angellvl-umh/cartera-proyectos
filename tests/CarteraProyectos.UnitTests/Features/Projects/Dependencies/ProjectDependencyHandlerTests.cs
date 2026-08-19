@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Projects;
 using CarteraProyectos.Core.Features.Projects.Dependencies;
 using CarteraProyectos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +36,8 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (gestor, projA, projB) = await SeedTwoProjectsAsync(db);
 
-        var handler = new CreateProjectDependencyHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectDependencyHandler(svc);
         var id = await handler.Handle(
             new CreateProjectDependencyCommand(projA.Id, projB.Id, "A depende de B", gestor.Id),
             CancellationToken.None);
@@ -53,7 +55,6 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (gestor, projA, _) = await SeedTwoProjectsAsync(db);
 
-        var handler = new CreateProjectDependencyHandler(db);
         // La validación de auto-dependencia la hace el validator FluentValidation,
         // pero también podemos verificar el validator directamente
         var validator = new CreateProjectDependencyValidator();
@@ -69,7 +70,8 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (gestor, projA, projB) = await SeedTwoProjectsAsync(db);
 
-        var handler = new CreateProjectDependencyHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectDependencyHandler(svc);
         await handler.Handle(
             new CreateProjectDependencyCommand(projA.Id, projB.Id, null, gestor.Id),
             CancellationToken.None);
@@ -86,7 +88,8 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (gestor, projA, projB) = await SeedTwoProjectsAsync(db);
 
-        var handler = new CreateProjectDependencyHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectDependencyHandler(svc);
         // B depende de A
         await handler.Handle(
             new CreateProjectDependencyCommand(projB.Id, projA.Id, null, gestor.Id),
@@ -107,7 +110,8 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (gestor, projA, _) = await SeedTwoProjectsAsync(db);
 
-        var handler = new CreateProjectDependencyHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectDependencyHandler(svc);
         await Should.ThrowAsync<KeyNotFoundException>(
             () => handler.Handle(
                 new CreateProjectDependencyCommand(projA.Id, 999, null, gestor.Id),
@@ -125,7 +129,8 @@ public class ProjectDependencyHandlerTests
         db.Projects.AddRange(projA, projB);
         await db.SaveChangesAsync();
 
-        var handler = new CreateProjectDependencyHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new CreateProjectDependencyHandler(svc);
         await Should.ThrowAsync<UnauthorizedAccessException>(
             () => handler.Handle(
                 new CreateProjectDependencyCommand(projA.Id, projB.Id, null, dev.Id),
@@ -148,7 +153,8 @@ public class ProjectDependencyHandlerTests
         db.ProjectDependencies.Add(ProjectDependency.Create(projC.Id, projA.Id, "C→A"));
         await db.SaveChangesAsync();
 
-        var handler = new GetProjectDependenciesHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new GetProjectDependenciesHandler(svc);
         var result = await handler.Handle(new GetProjectDependenciesQuery(projA.Id), CancellationToken.None);
 
         // A depende de B → DependsOn debe incluir B
@@ -168,7 +174,8 @@ public class ProjectDependencyHandlerTests
         await using var db = CreateDb();
         var (_, projA, _) = await SeedTwoProjectsAsync(db);
 
-        var handler = new GetProjectDependenciesHandler(db);
+        var svc = new ProjectGovernanceService(db);
+        var handler = new GetProjectDependenciesHandler(svc);
         var result = await handler.Handle(new GetProjectDependenciesQuery(projA.Id), CancellationToken.None);
 
         result.DependsOn.ShouldBeEmpty();

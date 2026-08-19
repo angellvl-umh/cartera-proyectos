@@ -1,10 +1,10 @@
 using CarteraProyectos.Core.Domain;
 using CarteraProyectos.Core.Features.Agent;
+using CarteraProyectos.Core.Features.Epics;
+using CarteraProyectos.Core.Features.Sprints;
 using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace CarteraProyectos.UnitTests.Features.Agent;
@@ -19,15 +19,6 @@ public class AgentSprintsEpicsHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AppDbContext(options);
-    }
-
-    private static ISender CreateSender(AppDbContext db)
-    {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg =>
-            cfg.RegisterServicesFromAssembly(typeof(AgentCreateSprintCommand).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        return services.BuildServiceProvider().GetRequiredService<ISender>();
     }
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, PersonRole role = PersonRole.Gestor)
@@ -75,7 +66,7 @@ public class AgentSprintsEpicsHandlerTests
         var person = await AddPersonAsync(db);
         var project = await AddProjectAsync(db);
 
-        var handler = new AgentCreateSprintHandler(CreateSender(db));
+        var handler = new AgentCreateSprintHandler(new SprintLifecycleService(db));
         var id = await handler.Handle(
             new AgentCreateSprintCommand(
                 person.Id, project.Id, "Sprint Alpha", "Objetivo",
@@ -108,7 +99,7 @@ public class AgentSprintsEpicsHandlerTests
         await using var db = CreateDb();
         var person = await AddPersonAsync(db);
 
-        var handler = new AgentCreateSprintHandler(CreateSender(db));
+        var handler = new AgentCreateSprintHandler(new SprintLifecycleService(db));
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
                 new AgentCreateSprintCommand(person.Id, 99999, "Sprint", null, null, null, null),
@@ -130,7 +121,7 @@ public class AgentSprintsEpicsHandlerTests
         db.Sprints.Add(sprint);
         await db.SaveChangesAsync();
 
-        var handler = new AgentActivateSprintHandler(CreateSender(db));
+        var handler = new AgentActivateSprintHandler(new SprintLifecycleService(db));
         await handler.Handle(
             new AgentActivateSprintCommand(person.Id, sprint.Id),
             CancellationToken.None);
@@ -152,7 +143,7 @@ public class AgentSprintsEpicsHandlerTests
     {
         await using var db = CreateDb();
 
-        var handler = new AgentActivateSprintHandler(CreateSender(db));
+        var handler = new AgentActivateSprintHandler(new SprintLifecycleService(db));
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
                 new AgentActivateSprintCommand(1, 99999),
@@ -171,7 +162,7 @@ public class AgentSprintsEpicsHandlerTests
         var project = await AddProjectAsync(db);
         var sprint = await AddActiveSprint(db, project.Id);
 
-        var handler = new AgentCompleteSprintHandler(CreateSender(db));
+        var handler = new AgentCompleteSprintHandler(new SprintLifecycleService(db));
         await handler.Handle(
             new AgentCompleteSprintCommand(person.Id, sprint.Id, null, null),
             CancellationToken.None);
@@ -195,7 +186,7 @@ public class AgentSprintsEpicsHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new AgentCompleteSprintHandler(CreateSender(db));
+        var handler = new AgentCompleteSprintHandler(new SprintLifecycleService(db));
         await handler.Handle(
             new AgentCompleteSprintCommand(person.Id, sprint.Id, "Backlog", null),
             CancellationToken.None);
@@ -227,7 +218,7 @@ public class AgentSprintsEpicsHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new AgentCompleteSprintHandler(CreateSender(db));
+        var handler = new AgentCompleteSprintHandler(new SprintLifecycleService(db));
         await handler.Handle(
             new AgentCompleteSprintCommand(person.Id, activeSprint.Id, "Sprint", targetSprint.Id),
             CancellationToken.None);
@@ -251,7 +242,7 @@ public class AgentSprintsEpicsHandlerTests
         db.WorkItems.Add(wi);
         await db.SaveChangesAsync();
 
-        var handler = new AgentCompleteSprintHandler(CreateSender(db));
+        var handler = new AgentCompleteSprintHandler(new SprintLifecycleService(db));
         var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
                 new AgentCompleteSprintCommand(person.Id, sprint.Id, "InvalidoTotalmenteFalso", null),
@@ -280,7 +271,7 @@ public class AgentSprintsEpicsHandlerTests
         var person = await AddPersonAsync(db);
         var project = await AddProjectAsync(db);
 
-        var handler = new AgentCreateEpicHandler(CreateSender(db));
+        var handler = new AgentCreateEpicHandler(new EpicService(db));
         var id = await handler.Handle(
             new AgentCreateEpicCommand(
                 person.Id, project.Id,
@@ -308,7 +299,7 @@ public class AgentSprintsEpicsHandlerTests
     public async Task AgentCreateEpic_ProyectoInexistente_LanzaKeyNotFound()
     {
         await using var db = CreateDb();
-        var handler = new AgentCreateEpicHandler(CreateSender(db));
+        var handler = new AgentCreateEpicHandler(new EpicService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(
@@ -328,7 +319,7 @@ public class AgentSprintsEpicsHandlerTests
         var project = await AddProjectAsync(db);
         var epic = await AddEpicAsync(db, project.Id, "Título original");
 
-        var handler = new AgentUpdateEpicHandler(CreateSender(db));
+        var handler = new AgentUpdateEpicHandler(new EpicService(db));
         await handler.Handle(
             new AgentUpdateEpicCommand(
                 person.Id, epic.Id,
@@ -354,7 +345,7 @@ public class AgentSprintsEpicsHandlerTests
     public async Task AgentUpdateEpic_EpicaInexistente_LanzaKeyNotFound()
     {
         await using var db = CreateDb();
-        var handler = new AgentUpdateEpicHandler(CreateSender(db));
+        var handler = new AgentUpdateEpicHandler(new EpicService(db));
 
         await Should.ThrowAsync<KeyNotFoundException>(() =>
             handler.Handle(

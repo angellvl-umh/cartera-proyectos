@@ -3,9 +3,7 @@ using CarteraProyectos.Core.Features.Agent;
 using CarteraProyectos.Core.Features.Persons;
 using CarteraProyectos.Core.Interfaces;
 using CarteraProyectos.Infrastructure.Persistence;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 
@@ -21,21 +19,18 @@ public class AgentPersonsHandlerTests
         return new AppDbContext(options);
     }
 
-    private static ISender CreateSender(AppDbContext db)
+    private static IIdentityProviderService NoOpIdp()
     {
-        var services = new ServiceCollection();
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AgentGetPersonsQuery).Assembly));
-        services.AddScoped<IAppDbContext>(sp => db);
-        // El agente nunca crea credenciales locales, pero el handler de CreatePerson
-        // requiere IIdentityProviderService inyectado — registrar un stub que nunca se invoca.
-        var idpStub = Substitute.For<IIdentityProviderService>();
-        idpStub.CreateUserWithTemporaryPasswordAsync(
+        var idp = Substitute.For<IIdentityProviderService>();
+        // El agente nunca crea credenciales locales — stub que nunca debe invocarse
+        idp.CreateUserWithTemporaryPasswordAsync(
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new IdentityCredentialsResult(IdentityCredentialsStatus.Unavailable, null));
-        services.AddScoped<IIdentityProviderService>(_ => idpStub);
-        var sp = services.BuildServiceProvider();
-        return sp.GetRequiredService<ISender>();
+        return idp;
     }
+
+    private static IPersonManagementService BuildService(AppDbContext db)
+        => new PersonManagementService(db, NoOpIdp());
 
     private static async Task<Person> AddPersonAsync(AppDbContext db, string email, PersonRole role)
     {
@@ -45,19 +40,38 @@ public class AgentPersonsHandlerTests
         return person;
     }
 
+    // ─── AgentGetPersons ──────────────────────────────────────────────────────
+
     [Fact]
     public async Task AgentGetPersons_RetornaPersonasActivas()
     {
         await using var db = CreateDb();
-        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
-        var dev1 = await AddPersonAsync(db, "dev1@uni.es", PersonRole.Desarrollador);
-        var dev2 = await AddPersonAsync(db, "dev2@uni.es", PersonRole.Desarrollador);
+        await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+        await AddPersonAsync(db, "dev1@uni.es", PersonRole.Desarrollador);
+        await AddPersonAsync(db, "dev2@uni.es", PersonRole.Desarrollador);
 
-        var handler = new AgentGetPersonsHandler(CreateSender(db));
+        var handler = new AgentGetPersonsHandler(BuildService(db));
         var result = await handler.Handle(new AgentGetPersonsQuery(false), CancellationToken.None);
 
         result.Count.ShouldBe(3);
     }
+
+    [Fact]
+    public async Task AgentGetPersons_IncludeInactive_DevuelveTodasLasPersonas()
+    {
+        await using var db = CreateDb();
+        await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+        var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
+        dev.Deactivate();
+        await db.SaveChangesAsync();
+
+        var handler = new AgentGetPersonsHandler(BuildService(db));
+        var result = await handler.Handle(new AgentGetPersonsQuery(true), CancellationToken.None);
+
+        result.Count.ShouldBe(2);
+    }
+
+    // ─── AgentCreatePerson ────────────────────────────────────────────────────
 
     [Fact]
     public async Task AgentCreatePerson_Gestor_CreaPerson()
@@ -65,7 +79,7 @@ public class AgentPersonsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentCreatePersonHandler(CreateSender(db));
+        var handler = new AgentCreatePersonHandler(BuildService(db));
         var id = await handler.Handle(
             new AgentCreatePersonCommand(gestor.Id, "Nueva Persona", "nueva@uni.es", "Desarrollador"),
             CancellationToken.None);
@@ -83,7 +97,7 @@ public class AgentPersonsHandlerTests
         await using var db = CreateDb();
         var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
 
-        var handler = new AgentCreatePersonHandler(CreateSender(db));
+        var handler = new AgentCreatePersonHandler(BuildService(db));
 
         await Should.ThrowAsync<UnauthorizedAccessException>(() =>
             handler.Handle(
@@ -97,13 +111,15 @@ public class AgentPersonsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentCreatePersonHandler(CreateSender(db));
+        var handler = new AgentCreatePersonHandler(BuildService(db));
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
                 new AgentCreatePersonCommand(gestor.Id, "Nueva Persona", "nueva@uni.es", "JefeEquipo"),
                 CancellationToken.None));
     }
+
+    // ─── AgentUpdatePerson ────────────────────────────────────────────────────
 
     [Fact]
     public async Task AgentUpdatePerson_Gestor_ActualizaPerson()
@@ -112,7 +128,7 @@ public class AgentPersonsHandlerTests
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
         var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
 
-        var handler = new AgentUpdatePersonHandler(CreateSender(db));
+        var handler = new AgentUpdatePersonHandler(BuildService(db));
         await handler.Handle(
             new AgentUpdatePersonCommand(gestor.Id, dev.Id, "Nuevo Nombre", "newemail@uni.es", "Gestor"),
             CancellationToken.None);
@@ -124,13 +140,45 @@ public class AgentPersonsHandlerTests
     }
 
     [Fact]
+    public async Task AgentUpdatePerson_RoleJefeEquipo_LanzaInvalidOperation()
+    {
+        await using var db = CreateDb();
+        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+        var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
+
+        var handler = new AgentUpdatePersonHandler(BuildService(db));
+
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            handler.Handle(
+                new AgentUpdatePersonCommand(gestor.Id, dev.Id, "Nombre", "newemail@uni.es", "JefeEquipo"),
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AgentUpdatePerson_Desarrollador_LanzaUnauthorized()
+    {
+        await using var db = CreateDb();
+        var dev1 = await AddPersonAsync(db, "dev1@uni.es", PersonRole.Desarrollador);
+        var dev2 = await AddPersonAsync(db, "dev2@uni.es", PersonRole.Desarrollador);
+
+        var handler = new AgentUpdatePersonHandler(BuildService(db));
+
+        await Should.ThrowAsync<UnauthorizedAccessException>(() =>
+            handler.Handle(
+                new AgentUpdatePersonCommand(dev1.Id, dev2.Id, "Nombre", "newemail@uni.es", "Desarrollador"),
+                CancellationToken.None));
+    }
+
+    // ─── AgentSetPersonActive ─────────────────────────────────────────────────
+
+    [Fact]
     public async Task AgentSetPersonActive_Desactiva()
     {
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
         var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
 
-        var handler = new AgentSetPersonActiveHandler(CreateSender(db));
+        var handler = new AgentSetPersonActiveHandler(BuildService(db));
         await handler.Handle(
             new AgentSetPersonActiveCommand(gestor.Id, dev.Id, false),
             CancellationToken.None);
@@ -145,11 +193,29 @@ public class AgentPersonsHandlerTests
         await using var db = CreateDb();
         var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
 
-        var handler = new AgentSetPersonActiveHandler(CreateSender(db));
+        var handler = new AgentSetPersonActiveHandler(BuildService(db));
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(
                 new AgentSetPersonActiveCommand(gestor.Id, gestor.Id, false),
                 CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AgentSetPersonActive_Reactiva()
+    {
+        await using var db = CreateDb();
+        var gestor = await AddPersonAsync(db, "gestor@uni.es", PersonRole.Gestor);
+        var dev = await AddPersonAsync(db, "dev@uni.es", PersonRole.Desarrollador);
+        dev.Deactivate();
+        await db.SaveChangesAsync();
+
+        var handler = new AgentSetPersonActiveHandler(BuildService(db));
+        await handler.Handle(
+            new AgentSetPersonActiveCommand(gestor.Id, dev.Id, true),
+            CancellationToken.None);
+
+        var updated = await db.Persons.FindAsync(dev.Id);
+        updated!.IsActive.ShouldBeTrue();
     }
 }

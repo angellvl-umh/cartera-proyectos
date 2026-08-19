@@ -1,7 +1,5 @@
-using CarteraProyectos.Core.Interfaces;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CarteraProyectos.Core.Features.Epics;
 
@@ -23,15 +21,8 @@ public sealed class UpdateEpicValidator : AbstractValidator<UpdateEpicCommand>
     }
 }
 
-public sealed class UpdateEpicHandler(IAppDbContext db) : IRequestHandler<UpdateEpicCommand>
+public sealed class UpdateEpicHandler(IEpicService service) : IRequestHandler<UpdateEpicCommand>
 {
-    public async Task Handle(UpdateEpicCommand request, CancellationToken cancellationToken)
-    {
-        var epic = await db.Epics.FirstOrDefaultAsync(e => e.Id == request.Id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Épica {request.Id} no encontrada.");
-
-        epic.Update(request.Title, request.Description, request.Priority, request.SortOrder,
-            request.EstimationHours, request.EstimationPoints);
-        await db.SaveChangesAsync(cancellationToken);
-    }
+    public Task Handle(UpdateEpicCommand request, CancellationToken cancellationToken)
+        => service.UpdateAsync(request, cancellationToken);
 }

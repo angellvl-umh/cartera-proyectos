@@ -52,7 +52,7 @@ public record AgentAddProjectDependencyCommand(
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
-public sealed class AgentTransitionProjectStatusHandler(ISender sender)
+public sealed class AgentTransitionProjectStatusHandler(IProjectLifecycleService service)
     : IRequestHandler<AgentTransitionProjectStatusCommand>
 {
     public async Task Handle(AgentTransitionProjectStatusCommand request, CancellationToken ct)
@@ -65,21 +65,21 @@ public sealed class AgentTransitionProjectStatusHandler(ISender sender)
                 $"Estado '{request.NewStatus}' no válido. Estados válidos: {validStatuses}");
         }
 
-        await sender.Send(new TransitionProjectStatusCommand(request.ProjectId, status, request.PersonId), ct);
+        await service.TransitionStatusAsync(new TransitionProjectStatusCommand(request.ProjectId, status, request.PersonId), ct);
     }
 }
 
-public sealed class AgentGetProjectRisksHandler(ISender sender)
+public sealed class AgentGetProjectRisksHandler(IProjectGovernanceService service)
     : IRequestHandler<AgentGetProjectRisksQuery, IReadOnlyList<ProjectRiskDto>>
 {
     public async Task<IReadOnlyList<ProjectRiskDto>> Handle(AgentGetProjectRisksQuery request, CancellationToken ct)
     {
-        var result = await sender.Send(new GetProjectRisksQuery(request.ProjectId, 1, 100), ct);
+        var result = await service.GetRisksAsync(new GetProjectRisksQuery(request.ProjectId, 1, 100), ct);
         return result.Items;
     }
 }
 
-public sealed class AgentAddProjectRiskHandler(ISender sender)
+public sealed class AgentAddProjectRiskHandler(IProjectGovernanceService service)
     : IRequestHandler<AgentAddProjectRiskCommand, int>
 {
     public async Task<int> Handle(AgentAddProjectRiskCommand request, CancellationToken ct)
@@ -92,14 +92,14 @@ public sealed class AgentAddProjectRiskHandler(ISender sender)
             throw new InvalidOperationException(
                 "Impact no válido. Valores: Low, Medium, High.");
 
-        return await sender.Send(
+        return await service.AddRiskAsync(
             new CreateProjectRiskCommand(
                 request.ProjectId, request.PersonId, request.Description,
                 probability, impact, request.MitigationPlan), ct);
     }
 }
 
-public sealed class AgentUpdateProjectRiskHandler(ISender sender)
+public sealed class AgentUpdateProjectRiskHandler(IProjectGovernanceService service)
     : IRequestHandler<AgentUpdateProjectRiskCommand>
 {
     public async Task Handle(AgentUpdateProjectRiskCommand request, CancellationToken ct)
@@ -116,7 +116,7 @@ public sealed class AgentUpdateProjectRiskHandler(ISender sender)
             throw new InvalidOperationException(
                 "Status no válido. Valores: Open, Mitigated, Closed.");
 
-        await sender.Send(
+        await service.UpdateRiskAsync(
             new UpdateProjectRiskCommand(
                 request.ProjectId, request.RiskId, request.PersonId,
                 request.Description, probability, impact,
@@ -124,12 +124,12 @@ public sealed class AgentUpdateProjectRiskHandler(ISender sender)
     }
 }
 
-public sealed class AgentGetProjectDependenciesHandler(ISender sender)
+public sealed class AgentGetProjectDependenciesHandler(IProjectGovernanceService service)
     : IRequestHandler<AgentGetProjectDependenciesQuery, AgentProjectDependenciesDto>
 {
     public async Task<AgentProjectDependenciesDto> Handle(AgentGetProjectDependenciesQuery request, CancellationToken ct)
     {
-        var result = await sender.Send(new GetProjectDependenciesQuery(request.ProjectId), ct);
+        var result = await service.GetDependenciesAsync(new GetProjectDependenciesQuery(request.ProjectId), ct);
         
         return new AgentProjectDependenciesDto(
             result.DependsOn.Select(d => new AgentDependencyItemDto(d.ProjectId, d.ProjectTitle, d.Description)).ToList(),
@@ -137,12 +137,12 @@ public sealed class AgentGetProjectDependenciesHandler(ISender sender)
     }
 }
 
-public sealed class AgentAddProjectDependencyHandler(ISender sender)
+public sealed class AgentAddProjectDependencyHandler(IProjectGovernanceService service)
     : IRequestHandler<AgentAddProjectDependencyCommand, int>
 {
-    public async Task<int> Handle(AgentAddProjectDependencyCommand request, CancellationToken ct)
+    public Task<int> Handle(AgentAddProjectDependencyCommand request, CancellationToken ct)
     {
-        return await sender.Send(
+        return service.AddDependencyAsync(
             new CreateProjectDependencyCommand(
                 request.ProjectId, request.DependsOnProjectId,
                 request.Description, request.PersonId), ct);

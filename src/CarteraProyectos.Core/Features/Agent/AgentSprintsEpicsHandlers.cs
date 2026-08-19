@@ -66,11 +66,11 @@ public record AgentUpdateEpicCommand(
 
 // ─── Sprint Handlers ──────────────────────────────────────────────────────────
 
-public sealed class AgentCreateSprintHandler(ISender sender)
+public sealed class AgentCreateSprintHandler(ISprintLifecycleService service)
     : IRequestHandler<AgentCreateSprintCommand, int>
 {
-    public async Task<int> Handle(AgentCreateSprintCommand request, CancellationToken ct)
-        => await sender.Send(
+    public Task<int> Handle(AgentCreateSprintCommand request, CancellationToken ct)
+        => service.CreateAsync(
             new CreateSprintCommand(
                 request.ProjectId,
                 request.Name,
@@ -82,11 +82,11 @@ public sealed class AgentCreateSprintHandler(ISender sender)
             ct);
 }
 
-public sealed class AgentActivateSprintHandler(ISender sender)
+public sealed class AgentActivateSprintHandler(ISprintLifecycleService service)
     : IRequestHandler<AgentActivateSprintCommand>
 {
-    public async Task Handle(AgentActivateSprintCommand request, CancellationToken ct)
-        => await sender.Send(
+    public Task Handle(AgentActivateSprintCommand request, CancellationToken ct)
+        => service.TransitionStatusAsync(
             new TransitionSprintStatusCommand(
                 request.SprintId,
                 SprintStatus.Active,
@@ -94,7 +94,7 @@ public sealed class AgentActivateSprintHandler(ISender sender)
             ct);
 }
 
-public sealed class AgentCompleteSprintHandler(ISender sender)
+public sealed class AgentCompleteSprintHandler(ISprintLifecycleService service)
     : IRequestHandler<AgentCompleteSprintCommand>
 {
     public async Task Handle(AgentCompleteSprintCommand request, CancellationToken ct)
@@ -108,7 +108,7 @@ public sealed class AgentCompleteSprintHandler(ISender sender)
             carryOver = parsed;
         }
 
-        await sender.Send(
+        await service.TransitionStatusAsync(
             new TransitionSprintStatusCommand(
                 request.SprintId,
                 SprintStatus.Completed,
@@ -121,11 +121,11 @@ public sealed class AgentCompleteSprintHandler(ISender sender)
 
 // ─── Epic Handlers ────────────────────────────────────────────────────────────
 
-public sealed class AgentCreateEpicHandler(ISender sender)
+public sealed class AgentCreateEpicHandler(IEpicService service)
     : IRequestHandler<AgentCreateEpicCommand, int>
 {
-    public async Task<int> Handle(AgentCreateEpicCommand request, CancellationToken ct)
-        => await sender.Send(
+    public Task<int> Handle(AgentCreateEpicCommand request, CancellationToken ct)
+        => service.CreateAsync(
             new CreateEpicCommand(
                 request.ProjectId,
                 request.Title,
@@ -137,11 +137,11 @@ public sealed class AgentCreateEpicHandler(ISender sender)
             ct);
 }
 
-public sealed class AgentUpdateEpicHandler(ISender sender)
+public sealed class AgentUpdateEpicHandler(IEpicService service)
     : IRequestHandler<AgentUpdateEpicCommand>
 {
-    public async Task Handle(AgentUpdateEpicCommand request, CancellationToken ct)
-        => await sender.Send(
+    public Task Handle(AgentUpdateEpicCommand request, CancellationToken ct)
+        => service.UpdateAsync(
             new UpdateEpicCommand(
                 request.EpicId,
                 request.Title,

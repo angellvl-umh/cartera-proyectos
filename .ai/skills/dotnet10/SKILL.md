@@ -234,6 +234,50 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 - OpenAPI descriptions on every endpoint (for Tool Server)
 - Enums stored as strings in DB
 
+## Servicios de aplicación compartidos (handlers no llaman a otros handlers)
+
+`ISender`/`IMediator` **solo** se inyecta en Minimal API endpoints y en `SendChatMessageHandler` (el orquestador del bucle de tool-calling del chat, que despacha dinámicamente los `Agent*Command` que decide el modelo). Ningún otro `IRequestHandler` debe depender de `ISender` para invocar a otro handler — verificado por `tests/CarteraProyectos.ArchTests` (`NoNestedMediatorHandlersTests`), que falla el build si se reintroduce el patrón.
+
+Cuando un `Agent*Handler` necesita la misma lógica que ya tiene el handler de dominio equivalente (p. ej. `AgentUpdateTaskStatusHandler` y `TransitionWorkItemStatusHandler`), esa lógica se extrae a un servicio de aplicación plano en `Features/<Feature>/`, y ambos handlers lo inyectan directamente:
+
+```csharp
+// Features/WorkItems/WorkItemLifecycleService.cs
+public interface IWorkItemLifecycleService
+{
+    Task TransitionStatusAsync(int id, WorkItemStatus newStatus, int requestingPersonId, CancellationToken ct);
+}
+
+public sealed class WorkItemLifecycleService(IAppDbContext db) : IWorkItemLifecycleService
+{
+    public async Task TransitionStatusAsync(int id, WorkItemStatus newStatus, int requestingPersonId, CancellationToken ct)
+    {
+        // ... lógica de negocio real, antes duplicada/anidada entre los dos handlers ...
+    }
+}
+
+// Features/WorkItems/TransitionWorkItemStatus.cs — handler de dominio, adaptador fino
+public sealed class TransitionWorkItemStatusHandler(IWorkItemLifecycleService service)
+    : IRequestHandler<TransitionWorkItemStatusCommand>
+{
+    public Task Handle(TransitionWorkItemStatusCommand request, CancellationToken ct)
+        => service.TransitionStatusAsync(request.Id, request.NewStatus, request.RequestingPersonId, ct);
+}
+
+// Features/Agent/AgentHandlers.cs — Agent handler, mismo servicio, sin ISender
+public sealed class AgentUpdateTaskStatusHandler(IWorkItemLifecycleService service)
+    : IRequestHandler<AgentUpdateTaskStatusCommand>
+{
+    public async Task Handle(AgentUpdateTaskStatusCommand request, CancellationToken ct)
+    {
+        if (!Enum.TryParse<WorkItemStatus>(request.NewStatus, out var status))
+            throw new InvalidOperationException("Estado no válido.");
+        await service.TransitionStatusAsync(request.WorkItemId, status, request.PersonId, ct);
+    }
+}
+```
+
+Cuando los comandos tienen muchos campos (p. ej. `CreateProjectCommand`), el servicio puede recibir el propio record como parámetro en vez de desglosarlo campo a campo — sigue siendo un simple DTO en ese punto, no se envía por `ISender`.
+
 ## Testing
 
 ### Unit Test (Handler)
@@ -263,3 +307,4 @@ public class CreateProjectHandlerTests
 - ❌ NUNCA usar constructor injection clásica (usar primary constructors)
 - ❌ NUNCA devolver entidades de dominio desde los endpoints
 - ❌ NUNCA poner lógica de negocio en los endpoints
+- ❌ NUNCA inyectar `ISender`/`IMediator` en un `IRequestHandler` (salvo `SendChatMessageHandler`) — extrae la lógica compartida a un servicio de aplicación
