@@ -25,6 +25,7 @@ const ROUTE_LABELS: Record<string, string> = {
   portfolio: 'Cartera',
   roadmap: 'Roadmap',
   reports: 'Informe semanal',
+  'reports-activity': 'Feed de actividad',
   'my-tasks': 'Mis tareas',
   capacity: 'Capacidad',
   'team-activity': 'Actividad',
@@ -83,6 +84,9 @@ const ROUTE_LABELS: Record<string, string> = {
             </a>
             <a routerLink="/reports/weekly-portfolio" routerLinkActive="nav-item-active" class="sidebar-nav-item" style="padding-left:34px;font-size:13.5px" nz-tooltip nzTooltipTitle="Informe semanal" [nzTooltipTrigger]="collapsed() ? 'hover' : null">
               <span nz-icon nzType="schedule"></span>@if (!collapsed()) {<span>Informe semanal</span>}
+            </a>
+            <a routerLink="/reports/activity" routerLinkActive="nav-item-active" class="sidebar-nav-item" style="padding-left:34px;font-size:13.5px" nz-tooltip nzTooltipTitle="Feed de actividad" [nzTooltipTrigger]="collapsed() ? 'hover' : null">
+              <span nz-icon nzType="history"></span>@if (!collapsed()) {<span>Feed de actividad</span>}
             </a>
             <a routerLink="/my-tasks" routerLinkActive="nav-item-active" class="sidebar-nav-item" nz-tooltip nzTooltipTitle="Mis tareas" [nzTooltipTrigger]="collapsed() ? 'hover' : null">
               <span nz-icon nzType="check-square"></span>@if (!collapsed()) {<span>Mis tareas</span>}
