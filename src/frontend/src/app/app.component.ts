@@ -260,7 +260,12 @@ export class AppComponent {
       map(() => this.router.url),
       startWith(this.router.url),
       map(url => {
-        const segment = url.split('?')[0].split('/').filter(Boolean)[0] ?? '';
+        const segments = url.split('?')[0].split('/').filter(Boolean);
+        // Prueba primero la clave compuesta de los dos primeros segmentos (p. ej.
+        // "reports-activity"); si no existe, cae al primer segmento (p. ej. "reports").
+        const composite = segments.slice(0, 2).join('-');
+        if (composite && ROUTE_LABELS[composite]) return ROUTE_LABELS[composite];
+        const segment = segments[0] ?? '';
         return ROUTE_LABELS[segment] ?? 'Dashboard';
       }),
     ),
