@@ -1,4 +1,5 @@
 using CarteraProyectos.Core.Domain;
+using CarteraProyectos.Core.Features.Activity;
 using CarteraProyectos.Core.Features.Persons;
 using CarteraProyectos.Core.Features.Reports;
 using CarteraProyectos.Core.Interfaces;
@@ -119,6 +120,21 @@ public static class ReportEndpoints
                 "Previsión de carga de trabajo por equipo y trimestre para el año indicado (por defecto el año actual). " +
                 "La demanda se estima a partir de la complejidad y las fechas de los proyectos activos. " +
                 "Nivel de carga: Green <70 %, Yellow 70–100 %, Red >100 %.");
+
+        // Feed de actividad reciente
+        app.MapGet("/api/activity",
+            async (IMediator mediator, CancellationToken ct,
+                   int? projectId = null, int? teamId = null, int? personId = null,
+                   int page = 1, int pageSize = 20) =>
+                Results.Ok(await mediator.Send(
+                    new GetActivityFeedQuery(projectId, teamId, personId, page, pageSize), ct)))
+            .RequireAuthorization()
+            .WithName("GetActivityFeed")
+            .WithDescription(
+                "Feed de actividad reciente de la plataforma en orden cronológico inverso: " +
+                "cambios de estado de proyecto, tareas creadas, tareas completadas, comentarios y " +
+                "actualizaciones semanales de avance. Filtrable por proyecto, equipo y persona (autor/actor). " +
+                "Paginado (pageSize máximo 100).");
 
         return app;
     }

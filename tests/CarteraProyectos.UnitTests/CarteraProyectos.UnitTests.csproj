@@ -22,8 +22,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\CarteraProyectos.Api\CarteraProyectos.Api.csproj" />
     <ProjectReference Include="..\..\src\CarteraProyectos.Core\CarteraProyectos.Core.csproj" />
     <ProjectReference Include="..\..\src\CarteraProyectos.Infrastructure\CarteraProyectos.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>
