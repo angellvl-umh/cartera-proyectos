@@ -322,6 +322,11 @@ export class ChatPanelComponent {
 
   inputText = '';
 
+  // Generación del borrador actual. Se incrementa en cualquier acción del
+  // usuario que abandone el borrador vigente (seleccionar otra conversación o
+  // pulsar "Nueva conversación"), para invalidar una creación perezosa en curso.
+  private draftToken = 0;
+
   // Solo mensajes user/assistant visibles; marca toolAction en el primero
   // que viene después de una racha de mensajes tool.
   readonly visibleMessages = computed<VisibleMessage[]>(() => {
@@ -385,6 +390,7 @@ export class ChatPanelComponent {
 
   selectConversation(id: number): void {
     if (this.activeConvId() === id) return;
+    this.draftToken++;
     this.sending.set(false);
     this.activeConvId.set(id);
     this.rawMessages.set([]);
@@ -402,6 +408,7 @@ export class ChatPanelComponent {
   }
 
   startNewConversation(): void {
+    this.draftToken++;
     this.activeConvId.set(null);
     this.rawMessages.set([]);
     this.inputText = '';
@@ -434,21 +441,25 @@ export class ChatPanelComponent {
       // mensaje y, cuando existe, se encadena el envío real.
       this.sending.set(true);
       const title = this.deriveTitle(text);
+      // Captura la generación del borrador vigente: si el usuario la abandona
+      // (selecciona otra conversación o pulsa "Nueva conversación") antes de que
+      // resuelva la creación, el token cambiará y descartaremos la respuesta.
+      const myDraftToken = this.draftToken;
       this.chatService.createConversation(title).subscribe({
         next: ({ id }) => {
           // La conversación queda creada en el backend y visible en la lista.
           this.loadConversations();
-          // Guarda de condición de carrera: si el usuario navegó a otra
-          // conversación o abrió un borrador nuevo mientras se creaba esta, no
-          // le imponemos la conversación recién creada ni encadenamos el envío.
-          if (this.activeConvId() !== null) return;
+          // El usuario abandonó este borrador (seleccionó otra conversación o
+          // pulsó "Nueva conversación") mientras se creaba: no adoptamos la
+          // conversación creada ni enviamos el mensaje descartado.
+          if (this.draftToken !== myDraftToken) return;
           this.activeConvId.set(id);
           this.continueSend(id, text);
         },
         error: () => {
-          // Solo restauramos la vista actual si seguimos en el mismo borrador
-          // que inició la creación (activeConvId aún null).
-          if (this.activeConvId() !== null) return;
+          // Solo restauramos la vista si seguimos en el mismo borrador que
+          // inició la creación.
+          if (this.draftToken !== myDraftToken) return;
           this.sending.set(false);
           // El texto escrito se conserva para que el usuario pueda reintentar.
           this.message.error('No se pudo crear la conversación');

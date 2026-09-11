@@ -268,12 +268,10 @@ describe('ChatPanelComponent – guarda de condición de carrera', () => {
     expect(chat.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('la creación perezosa tardía sí adopta el id creado si el usuario sigue en un borrador (activeConvId null)', () => {
-    // Documenta el alcance de la guarda: al basarse en `activeConvId() === null`,
-    // no distingue entre "el mismo borrador" y "un borrador nuevo". Si el usuario
-    // sigue sin conversación activa cuando llega la respuesta, la conversación
-    // recién creada se adopta y se encadena el envío (comportamiento aceptado por
-    // el diseño; la carrera relevante es la de cambiar a OTRA conversación).
+  it('la creación perezosa tardía adopta el id creado si el usuario sigue en el mismo borrador', () => {
+    // Con el mecanismo de token, si el usuario no abandona el borrador (no cambia
+    // de conversación ni pulsa "Nueva conversación") el token no cambia y la
+    // conversación recién creada se adopta y se encadena el envío correctamente.
     const createSubject = new Subject<{ id: number }>();
     const chat = makeChatMock({
       createConversation: vi.fn(() => createSubject.asObservable()),
@@ -289,6 +287,37 @@ describe('ChatPanelComponent – guarda de condición de carrera', () => {
 
     expect(comp.activeConvId()).toBe(7);
     expect(chat.sendMessage).toHaveBeenCalledWith(7, 'hola');
+  });
+
+  it('pulsar "Nueva conversación" mientras se crea el borrador descarta el mensaje: no se envía', () => {
+    // Escenario del hallazgo BLOQUEANTE de la ronda 2: el usuario escribe, envía,
+    // se arrepiente y pulsa "Nueva conversación" antes de que resuelva la
+    // creación. startNewConversation deja activeConvId en null (igual que antes),
+    // así que solo el token distingue "borrador abandonado" de "mismo borrador".
+    const createSubject = new Subject<{ id: number }>();
+    const chat = makeChatMock({
+      createConversation: vi.fn(() => createSubject.asObservable()),
+    });
+    const comp = createComponent(chat, makeMessageMock());
+
+    comp.activeConvId.set(null);
+    comp.inputText = 'hola';
+    comp.sendMessage();
+    expect(chat.createConversation).toHaveBeenCalledWith('hola');
+
+    // El usuario descarta el borrador con "Nueva conversación" (activeConvId sigue null).
+    comp.startNewConversation();
+    expect(comp.activeConvId()).toBeNull();
+
+    // Llega tarde la respuesta de createConversation (id 7).
+    createSubject.next({ id: 7 });
+    createSubject.complete();
+
+    // El mensaje descartado NO se envía al backend…
+    expect(chat.sendMessage).not.toHaveBeenCalled();
+    // …ni se adopta la conversación creada, ni reaparece el mensaje en la vista.
+    expect(comp.activeConvId()).toBeNull();
+    expect(comp.rawMessages()).toEqual([]);
   });
 });
 
