@@ -21,3 +21,11 @@
 
 - [x] 3.1 `dotnet build src/CarteraProyectos.slnx` y `dotnet test src/CarteraProyectos.slnx` en verde (sin cambios esperados, pero se verifica que nada se ha roto — este change no toca backend).
 - [x] 3.2 `pnpm build` (`ng build`) del frontend en verde, sin nuevos warnings de `tsc`/plantilla por el guard eliminado.
+
+## 4. Sugerencias de revisión (aprobadas por el usuario tras GATE 2)
+
+- [ ] 4.1 Distinguir el texto del estado vacío: "Escribe tu primer mensaje para empezar" cuando `activeConvId() === null` (borrador), "Sin mensajes todavía" cuando hay conversación activa pero `visibleMessages().length === 0`.
+- [ ] 4.2 Test de error tardío en la guarda de `continueSend`: con un `Subject` para `chatService.sendMessage`, cambiar de conversación antes de que el observable emita `error`, y comprobar que `inputText`/`rawMessages`/`sending` de la vista actual no se ven afectados por ese error ajeno.
+- [ ] 4.3 Corregir la condición de carrera preexistente en `selectConversation(id)`: guardar el `next`/`error` de `chatService.getMessages(id)` con `this.activeConvId() === id` antes de tocar `rawMessages`/`loadingMsgs`, igual que ya hace `continueSend` para sus propias respuestas.
+- [ ] 4.4 Mitigar la ventana residual de conversación huérfana: en el `next` de `createConversation` (rama de creación perezosa), cuando `this.draftToken !== myDraftToken` (borrador abandonado), borrar en fire-and-forget la conversación recién creada (`this.chatService.deleteConversation(id).subscribe()`) en vez de dejarla huérfana; mover `this.loadConversations()` para que solo se ejecute en la rama en la que sí se adopta la conversación (evita que la huérfana llegue a aparecer en la lista antes de borrarse).
+- [ ] 4.5 `pnpm test -- --run` y `pnpm build` en verde con los cambios de esta sección.
