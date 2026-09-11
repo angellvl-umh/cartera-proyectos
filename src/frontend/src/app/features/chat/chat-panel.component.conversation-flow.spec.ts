@@ -240,6 +240,87 @@ describe('ChatPanelComponent – guarda de condición de carrera', () => {
     const conv = comp.conversations().find(c => c.id === 1)!;
     expect(conv.messageCount).toBe(serverMsgs.length);
   });
+
+  it('la creación perezosa no secuestra la vista si el usuario navega a otra conversación mientras se crea', () => {
+    const createSubject = new Subject<{ id: number }>();
+    const chat = makeChatMock({
+      createConversation: vi.fn(() => createSubject.asObservable()),
+    });
+    const comp = createComponent(chat, makeMessageMock());
+
+    // Sin conversación activa: el usuario escribe y envía → se crea perezosamente.
+    comp.activeConvId.set(null);
+    comp.inputText = 'primer mensaje';
+    comp.sendMessage();
+    expect(chat.createConversation).toHaveBeenCalledWith('primer mensaje');
+
+    // Antes de que resuelva createConversation, el usuario selecciona otra conversación.
+    comp.selectConversation(99);
+    expect(comp.activeConvId()).toBe(99);
+
+    // Llega tarde la respuesta de createConversation (id 7).
+    createSubject.next({ id: 7 });
+    createSubject.complete();
+
+    // No se secuestra la vista: seguimos en la conversación elegida por el usuario…
+    expect(comp.activeConvId()).toBe(99);
+    // …y NO se ha encadenado el envío (continueSend) del borrador abandonado.
+    expect(chat.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('la creación perezosa tardía sí adopta el id creado si el usuario sigue en un borrador (activeConvId null)', () => {
+    // Documenta el alcance de la guarda: al basarse en `activeConvId() === null`,
+    // no distingue entre "el mismo borrador" y "un borrador nuevo". Si el usuario
+    // sigue sin conversación activa cuando llega la respuesta, la conversación
+    // recién creada se adopta y se encadena el envío (comportamiento aceptado por
+    // el diseño; la carrera relevante es la de cambiar a OTRA conversación).
+    const createSubject = new Subject<{ id: number }>();
+    const chat = makeChatMock({
+      createConversation: vi.fn(() => createSubject.asObservable()),
+    });
+    const comp = createComponent(chat, makeMessageMock());
+
+    comp.activeConvId.set(null);
+    comp.inputText = 'hola';
+    comp.sendMessage();
+
+    createSubject.next({ id: 7 });
+    createSubject.complete();
+
+    expect(comp.activeConvId()).toBe(7);
+    expect(chat.sendMessage).toHaveBeenCalledWith(7, 'hola');
+  });
+});
+
+describe('ChatPanelComponent – selectConversation y flag sending', () => {
+  it('reseleccionar la conversación ya activa NO resetea sending (evita double-submit)', () => {
+    const chat = makeChatMock();
+    const comp = createComponent(chat, makeMessageMock());
+
+    comp.activeConvId.set(5);
+    comp.sending.set(true); // envío en curso en la conversación 5
+
+    comp.selectConversation(5); // clic sobre la misma conversación activa
+
+    // sending NO se resetea: la petición sigue en vuelo, no debe reabrirse el composer
+    expect(comp.sending()).toBe(true);
+    // no se recargan mensajes (guard de misma conversación)
+    expect(chat.getMessages).not.toHaveBeenCalled();
+  });
+
+  it('seleccionar una conversación distinta SÍ resetea sending', () => {
+    const chat = makeChatMock();
+    const comp = createComponent(chat, makeMessageMock());
+
+    comp.activeConvId.set(5);
+    comp.sending.set(true);
+
+    comp.selectConversation(6); // conversación distinta
+
+    expect(comp.sending()).toBe(false);
+    expect(comp.activeConvId()).toBe(6);
+    expect(chat.getMessages).toHaveBeenCalledWith(6);
+  });
 });
 
 describe('ChatPanelComponent – startNewConversation', () => {

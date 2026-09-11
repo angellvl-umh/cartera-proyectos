@@ -384,8 +384,8 @@ export class ChatPanelComponent {
   }
 
   selectConversation(id: number): void {
-    this.sending.set(false);
     if (this.activeConvId() === id) return;
+    this.sending.set(false);
     this.activeConvId.set(id);
     this.rawMessages.set([]);
     this.loadingMsgs.set(true);
@@ -436,11 +436,19 @@ export class ChatPanelComponent {
       const title = this.deriveTitle(text);
       this.chatService.createConversation(title).subscribe({
         next: ({ id }) => {
-          this.activeConvId.set(id);
+          // La conversación queda creada en el backend y visible en la lista.
           this.loadConversations();
+          // Guarda de condición de carrera: si el usuario navegó a otra
+          // conversación o abrió un borrador nuevo mientras se creaba esta, no
+          // le imponemos la conversación recién creada ni encadenamos el envío.
+          if (this.activeConvId() !== null) return;
+          this.activeConvId.set(id);
           this.continueSend(id, text);
         },
         error: () => {
+          // Solo restauramos la vista actual si seguimos en el mismo borrador
+          // que inició la creación (activeConvId aún null).
+          if (this.activeConvId() !== null) return;
           this.sending.set(false);
           // El texto escrito se conserva para que el usuario pueda reintentar.
           this.message.error('No se pudo crear la conversación');
