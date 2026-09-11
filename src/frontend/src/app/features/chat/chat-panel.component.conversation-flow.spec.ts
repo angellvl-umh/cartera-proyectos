@@ -215,6 +215,38 @@ describe('ChatPanelComponent – guarda de condición de carrera', () => {
     expect(comp.sending()).toBe(false);
   });
 
+  it('un error tardío no restaura inputText/rawMessages/sending si el usuario cambió de conversación', () => {
+    const sendSubject = new Subject<SendChatMessageResult>();
+    const chat = makeChatMock({
+      sendMessage: vi.fn(() => sendSubject.asObservable()),
+    });
+    const msgMock = makeMessageMock();
+    const comp = createComponent(chat, msgMock);
+
+    // Estamos en la conversación 1 y enviamos
+    comp.activeConvId.set(1);
+    comp.rawMessages.set([msg(1, 'user', 'previo')]);
+    comp.inputText = 'hola';
+    comp.sendMessage();
+    expect(chat.sendMessage).toHaveBeenCalledWith(1, 'hola');
+
+    // El usuario abandona el borrador antes de que la petición falle
+    comp.startNewConversation();
+    expect(comp.activeConvId()).toBeNull();
+    expect(comp.rawMessages()).toEqual([]);
+
+    // La petición de la conv 1 falla tarde
+    sendSubject.error(new Error('boom'));
+
+    // El error ajeno NO restaura el texto ni resucita el mensaje optimista ni
+    // reactiva sending de la vista actual (borrador)
+    expect(comp.inputText).toBe('');
+    expect(comp.rawMessages()).toEqual([]);
+    expect(comp.sending()).toBe(false);
+    // Tampoco se muestra el toast de error de una conversación que el usuario ya abandonó
+    expect(msgMock.error).not.toHaveBeenCalled();
+  });
+
   it('la respuesta actualiza el contador de la conversación en la lista aunque no sea la activa', () => {
     const sendSubject = new Subject<SendChatMessageResult>();
     const serverMsgs = [msg(1, 'user', 'hola'), msg(2, 'assistant', 'r')];
@@ -318,6 +350,10 @@ describe('ChatPanelComponent – guarda de condición de carrera', () => {
     // …ni se adopta la conversación creada, ni reaparece el mensaje en la vista.
     expect(comp.activeConvId()).toBeNull();
     expect(comp.rawMessages()).toEqual([]);
+    // La conversación huérfana recién creada se borra (best-effort)…
+    expect(chat.deleteConversation).toHaveBeenCalledWith(7);
+    // …y nunca se llega a cargar en la lista lateral (loadConversations omitido en esa rama).
+    expect(chat.listConversations).not.toHaveBeenCalled();
   });
 });
 
@@ -349,6 +385,37 @@ describe('ChatPanelComponent – selectConversation y flag sending', () => {
     expect(comp.sending()).toBe(false);
     expect(comp.activeConvId()).toBe(6);
     expect(chat.getMessages).toHaveBeenCalledWith(6);
+  });
+
+  it('la respuesta tardía de getMessages(A) no pisa la vista si el usuario ya seleccionó B', () => {
+    const getSubjectA = new Subject<ChatMessageResponseDto[]>();
+    const msgsB = [msg(10, 'user', 'soy B')];
+    const chat = makeChatMock({
+      // getMessages(A) queda pendiente (Subject); getMessages(B) resuelve normal.
+      getMessages: vi.fn((id: number) =>
+        id === 1 ? getSubjectA.asObservable() : of(msgsB),
+      ),
+    });
+    const comp = createComponent(chat, makeMessageMock());
+
+    // El usuario selecciona A (carga pendiente)
+    comp.selectConversation(1);
+    expect(comp.activeConvId()).toBe(1);
+    expect(comp.loadingMsgs()).toBe(true);
+
+    // Antes de que responda A, selecciona B (resuelve de inmediato)
+    comp.selectConversation(2);
+    expect(comp.activeConvId()).toBe(2);
+    expect(comp.rawMessages()).toEqual(msgsB);
+    expect(comp.loadingMsgs()).toBe(false);
+
+    // Llega tarde la respuesta de A: no debe pisar la vista de B
+    getSubjectA.next([msg(1, 'user', 'soy A')]);
+    getSubjectA.complete();
+
+    expect(comp.activeConvId()).toBe(2);
+    expect(comp.rawMessages()).toEqual(msgsB);
+    expect(comp.loadingMsgs()).toBe(false);
   });
 });
 

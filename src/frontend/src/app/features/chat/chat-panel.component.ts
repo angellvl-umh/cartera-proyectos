@@ -249,7 +249,11 @@ interface VisibleMessage {
                 @if (loadingMsgs()) {
                   <div style="text-align:center;padding:40px"><nz-spin /></div>
                 } @else {
-                  @if (activeConvId() === null || visibleMessages().length === 0) {
+                  @if (activeConvId() === null) {
+                    <div style="text-align:center;padding:20px">
+                      <nz-empty nzNotFoundContent="Escribe tu primer mensaje para empezar" [nzNotFoundImage]="'simple'" />
+                    </div>
+                  } @else if (visibleMessages().length === 0) {
                     <div style="text-align:center;padding:20px">
                       <nz-empty nzNotFoundContent="Sin mensajes todavía" [nzNotFoundImage]="'simple'" />
                     </div>
@@ -397,10 +401,14 @@ export class ChatPanelComponent {
     this.loadingMsgs.set(true);
     this.chatService.getMessages(id).subscribe({
       next: msgs => {
+        // Guarda de carrera: si el usuario ya seleccionó otra conversación
+        // mientras esta cargaba, la respuesta tardía no debe pisar la vista.
+        if (this.activeConvId() !== id) return;
         this.rawMessages.set(msgs);
         this.loadingMsgs.set(false);
       },
       error: () => {
+        if (this.activeConvId() !== id) return;
         this.loadingMsgs.set(false);
         this.activeConvId.set(null);
       },
@@ -447,12 +455,18 @@ export class ChatPanelComponent {
       const myDraftToken = this.draftToken;
       this.chatService.createConversation(title).subscribe({
         next: ({ id }) => {
-          // La conversación queda creada en el backend y visible en la lista.
-          this.loadConversations();
           // El usuario abandonó este borrador (seleccionó otra conversación o
-          // pulsó "Nueva conversación") mientras se creaba: no adoptamos la
-          // conversación creada ni enviamos el mensaje descartado.
-          if (this.draftToken !== myDraftToken) return;
+          // pulsó "Nueva conversación") mientras se creaba.
+          if (this.draftToken !== myDraftToken) {
+            // La creación ya ocurrió en el backend: la borramos (best-effort,
+            // sin bloquear ni mostrar error si falla) para no dejar una entrada
+            // vacía huérfana en el historial del usuario. loadConversations se
+            // omite en esta rama para que la huérfana nunca llegue a la lista.
+            this.chatService.deleteConversation(id).subscribe();
+            return;
+          }
+          // La conversación queda creada y visible en la lista.
+          this.loadConversations();
           this.activeConvId.set(id);
           this.continueSend(id, text);
         },
