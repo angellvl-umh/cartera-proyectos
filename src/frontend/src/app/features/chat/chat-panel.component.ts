@@ -190,12 +190,6 @@ interface VisibleMessage {
       gap: 8px;
       align-items: flex-end;
     }
-    .empty-chat {
-      flex: 1 1 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
   `],
   template: `
     <nz-drawer
@@ -251,62 +245,56 @@ interface VisibleMessage {
 
             <!-- Panel derecho: mensajes -->
             <div class="chat-area">
-              @if (activeConvId() === null) {
-                <div class="empty-chat">
-                  <nz-empty nzNotFoundContent="Selecciona o crea una conversación" [nzNotFoundImage]="'simple'" />
-                </div>
-              } @else {
-                <div class="messages-container" #messagesContainer>
-                  @if (loadingMsgs()) {
-                    <div style="text-align:center;padding:40px"><nz-spin /></div>
-                  } @else {
-                    @if (visibleMessages().length === 0) {
-                      <div style="text-align:center;padding:20px">
-                        <nz-empty nzNotFoundContent="Sin mensajes todavía" [nzNotFoundImage]="'simple'" />
-                      </div>
-                    }
-                    @for (msg of visibleMessages(); track msg.id) {
-                      @if (msg.toolAction) {
-                        <div class="tool-indicator">🔧 acción ejecutada</div>
-                      }
-                      <div class="msg-row" [class]="msg.role">
-                        @if (msg.role === 'assistant') {
-                          <div class="msg-bubble" [innerHTML]="msg.contentHtml"></div>
-                        } @else {
-                          <div class="msg-bubble">{{ msg.content }}</div>
-                        }
-                        <div class="msg-time">{{ formatTime(msg.createdAt) }}</div>
-                      </div>
-                    }
-                    @if (sending()) {
-                      <div class="msg-row assistant">
-                        <div class="msg-bubble" style="min-width:60px">
-                          <nz-spin nzSimple [nzSize]="'small'"></nz-spin>
-                        </div>
-                      </div>
-                    }
+              <div class="messages-container" #messagesContainer>
+                @if (loadingMsgs()) {
+                  <div style="text-align:center;padding:40px"><nz-spin /></div>
+                } @else {
+                  @if (activeConvId() === null || visibleMessages().length === 0) {
+                    <div style="text-align:center;padding:20px">
+                      <nz-empty nzNotFoundContent="Sin mensajes todavía" [nzNotFoundImage]="'simple'" />
+                    </div>
                   }
-                </div>
+                  @for (msg of visibleMessages(); track msg.id) {
+                    @if (msg.toolAction) {
+                      <div class="tool-indicator">🔧 acción ejecutada</div>
+                    }
+                    <div class="msg-row" [class]="msg.role">
+                      @if (msg.role === 'assistant') {
+                        <div class="msg-bubble" [innerHTML]="msg.contentHtml"></div>
+                      } @else {
+                        <div class="msg-bubble">{{ msg.content }}</div>
+                      }
+                      <div class="msg-time">{{ formatTime(msg.createdAt) }}</div>
+                    </div>
+                  }
+                  @if (sending()) {
+                    <div class="msg-row assistant">
+                      <div class="msg-bubble" style="min-width:60px">
+                        <nz-spin nzSimple [nzSize]="'small'"></nz-spin>
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
 
-                <div class="input-bar">
-                  <textarea
-                    nz-input
-                    [nzAutosize]="{ minRows: 1, maxRows: 4 }"
-                    placeholder="Escribe un mensaje…"
-                    [(ngModel)]="inputText"
-                    [disabled]="sending()"
-                    (keydown.enter)="onEnterKey($event)"
-                    style="resize:none;flex:1 1 auto"
-                  ></textarea>
-                  <button
-                    nz-button nzType="primary"
-                    [disabled]="sending() || !inputText.trim()"
-                    (click)="sendMessage()"
-                  >
-                    <span nz-icon nzType="send"></span>
-                  </button>
-                </div>
-              }
+              <div class="input-bar">
+                <textarea
+                  nz-input
+                  [nzAutosize]="{ minRows: 1, maxRows: 4 }"
+                  placeholder="Escribe un mensaje…"
+                  [(ngModel)]="inputText"
+                  [disabled]="sending()"
+                  (keydown.enter)="onEnterKey($event)"
+                  style="resize:none;flex:1 1 auto"
+                ></textarea>
+                <button
+                  nz-button nzType="primary"
+                  [disabled]="sending() || !inputText.trim()"
+                  (click)="sendMessage()"
+                >
+                  <span nz-icon nzType="send"></span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -396,6 +384,7 @@ export class ChatPanelComponent {
   }
 
   selectConversation(id: number): void {
+    this.sending.set(false);
     if (this.activeConvId() === id) return;
     this.activeConvId.set(id);
     this.rawMessages.set([]);
@@ -413,22 +402,10 @@ export class ChatPanelComponent {
   }
 
   startNewConversation(): void {
-    const now = new Date();
-    const title = `Chat ${now.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })} ${now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-    this.chatService.createConversation(title).subscribe({
-      next: ({ id }) => {
-        // Recarga lista y abre la nueva conversación
-        this.chatService.listConversations().subscribe({
-          next: result => {
-            this.conversations.set(result.items);
-            this.selectConversation(id);
-          },
-        });
-      },
-      error: () => {
-        this.message.error('No se pudo crear la conversación');
-      },
-    });
+    this.activeConvId.set(null);
+    this.rawMessages.set([]);
+    this.inputText = '';
+    this.sending.set(false);
   }
 
   deleteConversation(id: number): void {
@@ -438,6 +415,7 @@ export class ChatPanelComponent {
         if (this.activeConvId() === id) {
           this.activeConvId.set(null);
           this.rawMessages.set([]);
+          this.inputText = '';
         }
       },
       error: () => {
@@ -450,8 +428,49 @@ export class ChatPanelComponent {
     const text = this.inputText.trim();
     if (!text || this.sending()) return;
     const convId = this.activeConvId();
-    if (convId === null) return;
 
+    if (convId === null) {
+      // Sin conversación activa: se crea de forma perezosa a partir del propio
+      // mensaje y, cuando existe, se encadena el envío real.
+      this.sending.set(true);
+      const title = this.deriveTitle(text);
+      this.chatService.createConversation(title).subscribe({
+        next: ({ id }) => {
+          this.activeConvId.set(id);
+          this.loadConversations();
+          this.continueSend(id, text);
+        },
+        error: () => {
+          this.sending.set(false);
+          // El texto escrito se conserva para que el usuario pueda reintentar.
+          this.message.error('No se pudo crear la conversación');
+        },
+      });
+      return;
+    }
+
+    this.continueSend(convId, text);
+  }
+
+  /**
+   * Título de una conversación derivado del primer mensaje: primera línea,
+   * recortada a 60 caracteres con «…» si excede.
+   */
+  private deriveTitle(text: string): string {
+    const firstLine = text.split('\n')[0].trim();
+    return firstLine.length > 60 ? `${firstLine.slice(0, 60)}…` : firstLine;
+  }
+
+  /**
+   * Cuerpo del envío contra una conversación ya existente: mensaje optimista,
+   * llamada al backend, recarga de mensajes y manejo de errores.
+   *
+   * Guarda de conversación activa: si el usuario cambió de conversación (o abrió
+   * un borrador nuevo) mientras la petición estaba en curso, la respuesta tardía
+   * actualiza el historial lateral de esa conversación pero NO sobrescribe la
+   * vista actual (rawMessages/sending/inputText), que pertenece a otra.
+   */
+  private continueSend(convId: number, text: string): void {
     // Añade el mensaje del usuario de forma optimista
     const tempUserMsg: ChatMessageResponseDto = {
       id: -Date.now(),
@@ -471,8 +490,8 @@ export class ChatPanelComponent {
         // Recarga mensajes reales desde el servidor (incluye tool messages del backend)
         this.chatService.getMessages(convId).subscribe({
           next: msgs => {
-            this.rawMessages.set(msgs);
-            // Actualiza el contador en la lista de conversaciones
+            // Actualiza el contador en la lista de conversaciones (siempre, aunque
+            // el usuario ya no esté viendo esta conversación).
             this.conversations.update(list =>
               list.map(c =>
                 c.id === convId
@@ -480,20 +499,29 @@ export class ChatPanelComponent {
                   : c,
               ),
             );
+            // Solo sobrescribe la vista si seguimos en la misma conversación.
+            if (this.activeConvId() === convId) {
+              this.rawMessages.set(msgs);
+            }
           },
         });
-        if (result.hitIterationLimit) {
-          this.message.warning('El asistente alcanzó el límite de iteraciones. La respuesta puede estar incompleta.');
+        if (this.activeConvId() === convId) {
+          if (result.hitIterationLimit) {
+            this.message.warning('El asistente alcanzó el límite de iteraciones. La respuesta puede estar incompleta.');
+          }
+          this.sending.set(false);
         }
-        this.sending.set(false);
       },
       error: () => {
-        // Restaura el texto para que el usuario pueda reintentar
-        this.inputText = text;
-        // Elimina el mensaje optimista temporal
-        this.rawMessages.update(msgs => msgs.filter(m => m.id !== tempUserMsg.id));
-        this.message.error('Error al enviar el mensaje. Puedes intentarlo de nuevo.');
-        this.sending.set(false);
+        // Solo restaura la vista actual si seguimos en la misma conversación.
+        if (this.activeConvId() === convId) {
+          // Restaura el texto para que el usuario pueda reintentar
+          this.inputText = text;
+          // Elimina el mensaje optimista temporal
+          this.rawMessages.update(msgs => msgs.filter(m => m.id !== tempUserMsg.id));
+          this.message.error('Error al enviar el mensaje. Puedes intentarlo de nuevo.');
+          this.sending.set(false);
+        }
       },
     });
   }
