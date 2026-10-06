@@ -19,6 +19,8 @@ interface PortfolioProjectDto {
   complexity: ProjectComplexity;
   portfolioYear?: number;
   primaryTeamName?: string;
+  promoterId?: number | null;
+  tagIds: number[];
 }
 
 interface PortfolioDto {
@@ -87,6 +89,7 @@ export class KanbanByStatusComponent {
   @Input() filterQ = '';
   @Input() filterComplexity: ProjectComplexity | null = null;
   @Input() filterTagIds: number[] = [];
+  @Input() filterPromoterId: number | null = null;
 
   readonly statusOrder = STATUS_COLUMN_ORDER;
   readonly statusLabels = PROJECT_STATUS_LABELS;
@@ -101,6 +104,8 @@ export class KanbanByStatusComponent {
     return all.filter(p => {
       if (q && !p.title.toLowerCase().includes(q)) return false;
       if (this.filterComplexity && p.complexity !== this.filterComplexity) return false;
+      if (this.filterPromoterId != null && p.promoterId !== this.filterPromoterId) return false;
+      if (this.filterTagIds.length > 0 && !this.filterTagIds.some(id => p.tagIds.includes(id))) return false;
       return true;
     });
   });

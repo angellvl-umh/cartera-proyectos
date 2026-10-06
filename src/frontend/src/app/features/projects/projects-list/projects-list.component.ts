@@ -3,11 +3,12 @@ import {
   Component,
   computed,
   inject,
+  OnInit,
   signal,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { NzTableModule } from 'ng-zorro-antd/table';
+import { NzTableModule, NzTableSortOrder } from 'ng-zorro-antd/table';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -24,14 +25,22 @@ import {
   Project,
   ProjectComplexity,
   ProjectDetail,
-  ProjectFilters,
   ProjectStatus,
+  PromoterDto,
   TagDto,
 } from '../project.model';
 import { ProjectStatusBadgeComponent } from '../project-status-badge/project-status-badge.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
 import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
 import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.component';
+import {
+  parseProjectsListParams,
+  serializeProjectsListParams,
+  SortField,
+  SortDir,
+} from './projects-list-query';
+
+type SortOrderMap = Partial<Record<SortField, NzTableSortOrder>>;
 
 @Component({
   selector: 'app-projects-list',
@@ -84,13 +93,13 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
         <input
           nz-input
           placeholder="Buscar por título..."
-          [(ngModel)]="filterQ"
-          (ngModelChange)="applyFilters()"
+          [ngModel]="filterQ()"
+          (ngModelChange)="onQChange($event)"
           style="width: 240px"
         />
         <nz-select
-          [(ngModel)]="filterStatus"
-          (ngModelChange)="applyFilters()"
+          [ngModel]="filterStatus()"
+          (ngModelChange)="onFilterChange('status', $event)"
           nzPlaceHolder="Estado"
           nzAllowClear
           style="width: 180px"
@@ -100,8 +109,8 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
           }
         </nz-select>
         <nz-select
-          [(ngModel)]="filterComplexity"
-          (ngModelChange)="applyFilters()"
+          [ngModel]="filterComplexity()"
+          (ngModelChange)="onFilterChange('complexity', $event)"
           nzPlaceHolder="Complejidad"
           nzAllowClear
           style="width: 160px"
@@ -111,8 +120,8 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
           }
         </nz-select>
         <nz-select
-          [(ngModel)]="filterTagIds"
-          (ngModelChange)="applyFilters()"
+          [ngModel]="filterTagIds()"
+          (ngModelChange)="onFilterChange('tagIds', $event)"
           nzMode="multiple"
           nzPlaceHolder="Etiquetas"
           nzAllowClear
@@ -124,10 +133,22 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
             <nz-option [nzValue]="t.id" [nzLabel]="t.name" />
           }
         </nz-select>
+        <nz-select
+          [ngModel]="filterPromoterId()"
+          (ngModelChange)="onFilterChange('promoterId', $event)"
+          nzPlaceHolder="Promotor"
+          nzAllowClear
+          nzShowSearch
+          style="width: 200px"
+        >
+          @for (p of allPromoters(); track p.id) {
+            <nz-option [nzValue]="p.id" [nzLabel]="p.name" />
+          }
+        </nz-select>
 
         <div class="view-toggle">
-          <button type="button" [class.active]="viewMode() === 'tabla'" (click)="viewMode.set('tabla')">Tabla</button>
-          <button type="button" [class.active]="viewMode() === 'tablero'" (click)="viewMode.set('tablero')">Tablero</button>
+          <button type="button" [class.active]="viewMode() === 'tabla'" (click)="onViewChange('tabla')">Tabla</button>
+          <button type="button" [class.active]="viewMode() === 'tablero'" (click)="onViewChange('tablero')">Tablero</button>
         </div>
       </div>
 
@@ -140,6 +161,8 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
           [nzPageIndex]="currentPage()"
           [nzPageSize]="pageSize()"
           [nzFrontPagination]="false"
+          [nzShowSizeChanger]="true"
+          [nzPageSizeOptions]="[10, 20, 50, 100]"
           (nzPageIndexChange)="onPageChange($event)"
           (nzPageSizeChange)="onPageSizeChange($event)"
           nzBordered
@@ -147,11 +170,36 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
         >
           <thead>
             <tr>
-              <th>Título</th>
-              <th nzWidth="160px">Complejidad</th>
+              <th
+                [nzSortFn]="true"
+                [nzSortOrder]="sortOrders()['title'] ?? null"
+                (nzSortOrderChange)="onSortChange('title', $event)"
+              >Título</th>
+              <th
+                [nzSortFn]="true"
+                [nzSortOrder]="sortOrders()['promoter'] ?? null"
+                (nzSortOrderChange)="onSortChange('promoter', $event)"
+              >Promotor</th>
+              <th
+                [nzSortFn]="true"
+                [nzSortOrder]="sortOrders()['organicUnit'] ?? null"
+                (nzSortOrderChange)="onSortChange('organicUnit', $event)"
+                nzWidth="180px"
+              >Unidad orgánica</th>
+              <th
+                [nzSortFn]="true"
+                [nzSortOrder]="sortOrders()['complexity'] ?? null"
+                (nzSortOrderChange)="onSortChange('complexity', $event)"
+                nzWidth="160px"
+              >Complejidad</th>
               <th nzWidth="220px">Estado</th>
               <th>Etiquetas</th>
-              <th nzWidth="100px">Año cartera</th>
+              <th
+                [nzSortFn]="true"
+                [nzSortOrder]="sortOrders()['portfolioYear'] ?? null"
+                (nzSortOrderChange)="onSortChange('portfolioYear', $event)"
+                nzWidth="100px"
+              >Año cartera</th>
               <th nzWidth="200px">Acciones</th>
             </tr>
           </thead>
@@ -159,6 +207,8 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
             @for (row of projects(); track row.id) {
               <tr>
                 <td style="font-weight:600;font-size:14.5px">{{ row.title }}</td>
+                <td>{{ row.promoterName ?? '—' }}</td>
+                <td>{{ row.organicUnitName ?? '—' }}</td>
                 <td><app-complexity-indicator [complexity]="row.complexity" /></td>
                 <td>
                   <app-project-status-badge [status]="row.status" />
@@ -224,9 +274,10 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
         </nz-table>
       } @else {
         <app-kanban-by-status
-          [filterQ]="filterQ"
-          [filterComplexity]="filterComplexity"
-          [filterTagIds]="filterTagIds"
+          [filterQ]="filterQ()"
+          [filterComplexity]="filterComplexity()"
+          [filterTagIds]="filterTagIds()"
+          [filterPromoterId]="filterPromoterId()"
         />
       }
     </div>
@@ -240,25 +291,39 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
     />
   `,
 })
-export class ProjectsListComponent {
+export class ProjectsListComponent implements OnInit {
   private readonly service = inject(ProjectsService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly message = inject(NzMessageService);
 
-  filterQ = '';
-  filterStatus: ProjectStatus | null = null;
-  filterComplexity: ProjectComplexity | null = null;
-  filterTagIds: number[] = [];
+  // ── filter state (driven from URL) ──────────────────────────────────────────
+  filterQ = signal('');
+  filterStatus = signal<ProjectStatus | null>(null);
+  filterComplexity = signal<ProjectComplexity | null>(null);
+  filterTagIds = signal<number[]>([]);
+  filterPromoterId = signal<number | null>(null);
+  currentPage = signal(1);
+  pageSize = signal(20);
+  sortBy = signal<SortField | null>(null);
+  sortDir = signal<SortDir>('asc');
+  viewMode = signal<'tabla' | 'tablero'>('tabla');
+
+  // ── sort order map for nz-table ──────────────────────────────────────────────
+  readonly sortOrders = computed<SortOrderMap>(() => {
+    const by = this.sortBy();
+    const dir = this.sortDir();
+    if (!by) return {};
+    return { [by]: dir === 'asc' ? 'ascend' : 'descend' } as SortOrderMap;
+  });
 
   allTags = signal<TagDto[]>([]);
+  allPromoters = signal<PromoterDto[]>([]);
   projects = signal<Project[]>([]);
   loading = signal(false);
   formVisible = signal(false);
   editingProject = signal<ProjectDetail | null>(null);
-  currentPage = signal(1);
-  pageSize = signal(20);
   total = signal(0);
-  viewMode = signal<'tabla' | 'tablero'>('tabla');
 
   readonly statusOptions = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(v => ({
     value: v, label: PROJECT_STATUS_LABELS[v],
@@ -269,26 +334,61 @@ export class ProjectsListComponent {
   }));
 
   constructor() {
-    this.service.getTags().subscribe(tags => this.allTags.set(tags));
-    this.loadProjects();
+    this.service.getTags().subscribe({
+      next: tags => this.allTags.set(tags),
+      error: () => { /* silently ignore */ },
+    });
+    this.service.getPromoters().subscribe({
+      next: result => this.allPromoters.set(result.items),
+      error: () => { /* show no options; the list still works */ },
+    });
   }
 
-  private buildFilters(): ProjectFilters {
-    const f: ProjectFilters = {
+  ngOnInit(): void {
+    // The URL is the source of truth. Subscribe to queryParamMap; parse and
+    // load on every change (which includes browser back/forward).
+    this.route.queryParamMap.subscribe(paramMap => {
+      // Convert ParamMap to plain object with multi-value support for tagIds
+      const params: Record<string, string | string[]> = {};
+      for (const key of paramMap.keys) {
+        const all = paramMap.getAll(key);
+        params[key] = all.length === 1 ? all[0] : all;
+      }
+
+      const parsed = parseProjectsListParams(params);
+      this.filterQ.set(parsed.q);
+      this.filterStatus.set(parsed.status);
+      this.filterComplexity.set(parsed.complexity);
+      this.filterTagIds.set(parsed.tagIds);
+      this.filterPromoterId.set(parsed.promoterId);
+      this.currentPage.set(parsed.page);
+      this.pageSize.set(parsed.pageSize);
+      this.sortBy.set(parsed.sortBy);
+      this.sortDir.set(parsed.sortDir);
+      this.viewMode.set(parsed.viewMode);
+      this.loadProjects();
+    });
+  }
+
+  private buildFilters() {
+    return {
       page: this.currentPage(),
       pageSize: this.pageSize(),
+      q: this.filterQ() || undefined,
+      status: this.filterStatus() ?? undefined,
+      complexity: this.filterComplexity() ?? undefined,
+      tagIds: this.filterTagIds().length ? this.filterTagIds() : undefined,
+      promoterId: this.filterPromoterId() ?? undefined,
+      sortBy: this.sortBy() ?? undefined,
+      sortDir: this.sortBy() ? this.sortDir() : undefined,
     };
-    if (this.filterQ) f.q = this.filterQ;
-    if (this.filterStatus) f.status = this.filterStatus;
-    if (this.filterComplexity) f.complexity = this.filterComplexity;
-    if (this.filterTagIds.length) f.tagIds = this.filterTagIds;
-    return f;
   }
 
   private loadProjects(): void {
+    if (this.viewMode() !== 'tabla') return;
     this.loading.set(true);
     this.service.getProjects(this.buildFilters()).subscribe({
-      next: (result) => {
+      next: result => {
         this.projects.set(result.items);
         this.total.set(result.total);
         this.loading.set(false);
@@ -300,21 +400,69 @@ export class ProjectsListComponent {
     });
   }
 
-  applyFilters(): void {
-    this.currentPage.set(1);
-    this.loadProjects();
+  private navigate(overrides: Partial<{
+    q: string; status: ProjectStatus | null; complexity: ProjectComplexity | null;
+    tagIds: number[]; promoterId: number | null; page: number; pageSize: number;
+    sortBy: SortField | null; sortDir: SortDir; viewMode: 'tabla' | 'tablero';
+  }>, replaceUrl = false): void {
+    const params = serializeProjectsListParams({
+      q: this.filterQ(),
+      status: this.filterStatus(),
+      complexity: this.filterComplexity(),
+      tagIds: this.filterTagIds(),
+      promoterId: this.filterPromoterId(),
+      page: this.currentPage(),
+      pageSize: this.pageSize(),
+      sortBy: this.sortBy(),
+      sortDir: this.sortDir(),
+      viewMode: this.viewMode(),
+      ...overrides,
+    });
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: params,
+      replaceUrl,
+    });
+  }
+
+  // ── filter change handlers ────────────────────────────────────────────────────
+
+  onQChange(q: string): void {
+    // Text search: replace URL (no browser-history entry per keystroke)
+    this.navigate({ q, page: 1 }, true);
+  }
+
+  onFilterChange(field: 'status' | 'complexity' | 'tagIds' | 'promoterId', value: unknown): void {
+    const overrides: Parameters<typeof this.navigate>[0] = { page: 1 };
+    if (field === 'status') overrides.status = (value as ProjectStatus | null) ?? null;
+    if (field === 'complexity') overrides.complexity = (value as ProjectComplexity | null) ?? null;
+    if (field === 'tagIds') overrides.tagIds = (value as number[]) ?? [];
+    if (field === 'promoterId') overrides.promoterId = (value as number | null) ?? null;
+    this.navigate(overrides);
   }
 
   onPageChange(page: number): void {
-    this.currentPage.set(page);
-    this.loadProjects();
+    this.navigate({ page });
   }
 
   onPageSizeChange(size: number): void {
-    this.pageSize.set(size);
-    this.currentPage.set(1);
-    this.loadProjects();
+    this.navigate({ pageSize: size, page: 1 });
   }
+
+  onSortChange(field: SortField, order: NzTableSortOrder): void {
+    if (!order) {
+      this.navigate({ sortBy: null, sortDir: 'asc', page: 1 });
+    } else {
+      const dir: SortDir = order === 'descend' ? 'desc' : 'asc';
+      this.navigate({ sortBy: field, sortDir: dir, page: 1 });
+    }
+  }
+
+  onViewChange(mode: 'tabla' | 'tablero'): void {
+    this.navigate({ viewMode: mode });
+  }
+
+  // ── tag inline edit ───────────────────────────────────────────────────────────
 
   tagIdsMap = computed(() => {
     const map: Record<number, number[]> = {};
@@ -339,9 +487,7 @@ export class ProjectsListComponent {
     });
   }
 
-  complexityLabel(c: ProjectComplexity): string {
-    return PROJECT_COMPLEXITY_LABELS[c] ?? c;
-  }
+  // ── helpers ───────────────────────────────────────────────────────────────────
 
   canEdit(_status: ProjectStatus): boolean {
     return true;
