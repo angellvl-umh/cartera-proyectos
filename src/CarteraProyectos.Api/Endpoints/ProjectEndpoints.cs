@@ -18,14 +18,14 @@ public static class ProjectEndpoints
             IMediator mediator, CancellationToken ct,
             string? status, int? year, int? teamId, string? complexity, string? q,
             int? tagId, [FromQuery(Name = "tagIds")] int[]? tagIds, int? promoterId,
-            int page = 1, int pageSize = 20) =>
+            int page = 1, int pageSize = 20, string? sortBy = null, string? sortDir = null) =>
         {
             ProjectStatus? st = status is not null && Enum.TryParse<ProjectStatus>(status, out var s) ? s : null;
             ProjectComplexity? cx = complexity is not null && Enum.TryParse<ProjectComplexity>(complexity, out var c) ? c : null;
-            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, tagId, tagIds, promoterId, page, pageSize), ct));
+            return Results.Ok(await mediator.Send(new GetProjectsQuery(st, year, teamId, cx, q, tagId, tagIds, promoterId, page, pageSize, sortBy, sortDir), ct));
         })
         .WithName("GetProjects")
-        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q, tagId, promoterId. Soporta paginación.");
+        .WithDescription("Lista proyectos con filtros opcionales: status, year, teamId, complexity, q, tagId, promoterId, sortBy (title|promoter|organicUnit|complexity|portfolioYear), sortDir (asc|desc). Soporta paginación.");
 
         group.MapGet("/{id:int}", async (int id, IMediator mediator, CancellationToken ct) =>
         {

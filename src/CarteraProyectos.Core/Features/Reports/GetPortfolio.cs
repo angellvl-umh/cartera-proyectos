@@ -19,7 +19,9 @@ public record PortfolioProjectDto(
     int TotalWorkItems, int DoneWorkItems,
     int TotalMilestones, int ReachedMilestones,
     int ActiveSprintCount,
-    int? BusinessValue);
+    int? BusinessValue,
+    int? PromoterId,
+    List<int> TagIds);
 
 public record PortfolioStatsDto(
     int Total,
@@ -83,6 +85,11 @@ public sealed class GetPortfolioHandler(IAppDbContext db)
             .Select(g => new { ProjectId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
 
+        var tagIdsByProject = await db.Projects
+            .Where(p => projectIds.Contains(p.Id))
+            .Select(p => new { p.Id, TagIds = p.Tags.Select(t => t.Id).ToList() })
+            .ToListAsync(ct);
+
         var projects = allProjects.Select(p =>
         {
             var teamName = primaryTeams.FirstOrDefault(t => t.ProjectId == p.Id)?.Name;
@@ -91,11 +98,13 @@ public sealed class GetPortfolioHandler(IAppDbContext db)
             var totalM   = milestoneCounts.Where(m => m.ProjectId == p.Id).Sum(m => m.Count);
             var reachedM = milestoneCounts.Where(m => m.ProjectId == p.Id && m.IsReached).Sum(m => m.Count);
             var activeSprints = activeSprintCounts.FirstOrDefault(s => s.ProjectId == p.Id)?.Count ?? 0;
+            var tagIds = tagIdsByProject.FirstOrDefault(t => t.Id == p.Id)?.TagIds ?? [];
 
             return new PortfolioProjectDto(
                 p.Id, p.Title, p.Status.ToString(), p.RequestingUnit, p.Complexity.ToString(),
                 p.PortfolioYear, p.StartDate?.ToString(), p.EndDate?.ToString(),
-                teamName, total, done, totalM, reachedM, activeSprints, p.BusinessValue);
+                teamName, total, done, totalM, reachedM, activeSprints, p.BusinessValue,
+                p.PromoterId, tagIds);
         }).ToList();
 
         var stats = new PortfolioStatsDto(
