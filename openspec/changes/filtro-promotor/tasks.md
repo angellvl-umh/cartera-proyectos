@@ -12,7 +12,7 @@
 ## 2. Frontend
 
 - [x] 2.1 `projects-list.component.ts`: selector "Promotor" (`nz-select`, búsqueda, borrable, ~200px) tras "Etiquetas"; cargar promotores con `ProjectsService.getPromoters()` y tolerar errores; `filterPromoterId` en `buildFilters()` → `promoterId`; `applyFilters()` al cambiarlo
-- [ ] 2.2 `kanban-by-status.component.ts`: añadir `promoterId` y `tagIds` a su `PortfolioProjectDto` local y un `@Input() filterPromoterId`; filtrar en `filteredProjects` por promotor y por etiquetas (alguna de las seleccionadas); pasar `filterPromoterId` desde `projects-list`
+- [x] 2.2 `kanban-by-status.component.ts`: añadir `promoterId` y `tagIds` a su `PortfolioProjectDto` local y un `@Input() filterPromoterId`; filtrar en `filteredProjects` por promotor y por etiquetas (alguna de las seleccionadas); pasar `filterPromoterId` desde `projects-list`
 - [x] 2.3 `project.model.ts`: añadir `organicUnitId: number | null` y `organicUnitName: string | null` a `Project`; en la tabla, columnas "Promotor" y "Unidad orgánica" (`?? '—'`) tras "Título"
 - [x] 2.4 Tabla: columnas ordenables (Título, Promotor, Unidad orgánica, Complejidad, Año cartera) con orden en servidor (`nzSortFn` true + `nzSortOrderChange`), una sola columna a la vez; selector de tamaño de página (`nzShowSizeChanger`, 10/20/50/100); `ProjectFilters` y `ProjectsService.getProjects` envían `sortBy`/`sortDir`
 - [x] 2.5 Estado en la URL en `projects-list`: `queryParamMap` → parseo y validación → campos de filtro + `currentPage` + `pageSize` + orden + `viewMode` → `loadProjects()`; los handlers de filtros, página y vista solo navegan (`router.navigate([], { relativeTo, queryParams })`, omitiendo vacíos y valores por defecto; el texto con `replaceUrl: true`)
