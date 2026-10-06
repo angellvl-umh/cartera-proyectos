@@ -4,12 +4,16 @@
  *  - el computed filteredProjects reacciona a cambios de signal inputs
  *    (filterPromoterId, filterTagIds, filterQ, filterComplexity)
  *
- * Sigue el mismo patrón que los tests de ChatPanelComponent (createApplication +
- * createEnvironmentInjector, sin TestBed). Para modificar signal inputs en tests
- * sin fixture, accede al nodo signal interno mediante `ɵSIGNAL` y actualiza su
- * valor con `signalSetFn`, que es la misma función que usa Angular internamente
- * cuando el padre vincula un input. Esto replica lo que haría
- * `fixture.componentRef.setInput()` con un framework de testing completo.
+ * Nota sobre setInput: fixture.componentRef.setInput() no funciona con signal
+ * inputs (`input()` de Angular 21) en este entorno de test porque
+ * `@angular/platform-browser-dynamic` no está instalado. Sin él, el compilador
+ * JIT no registra los signal inputs en `ɵcmp.inputs` y setInput lanza NG0303.
+ * Como alternativa, se usa `node.applyValueToInputSignal(node, value)` —
+ * el método interno de INPUT_SIGNAL_NODE que el framework usa al aplicar
+ * bindings de padre a hijo — accedido vía el símbolo `ɵSIGNAL`.
+ *
+ * El patrón de inicialización sigue los tests de ChatPanelComponent:
+ * createApplication + createEnvironmentInjector, sin TestBed.
  */
 import '@angular/compiler';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -30,20 +34,17 @@ import { ProjectComplexity, ProjectStatus } from '../project.model';
 
 /**
  * Sets a signal input's value on a component instance.
- * Accesses the underlying SIGNAL node via Angular's internal ɵSIGNAL symbol,
- * then calls `node.applyValueToInputSignal(node, value)` — exactly the method
- * the framework uses when it applies a bound value to a signal input.
- * This correctly updates the value and invalidates downstream computed signals.
+ * Uses `node.applyValueToInputSignal(node, value)` — the method on
+ * INPUT_SIGNAL_NODE that the Angular framework calls when a parent binds a
+ * value to a signal input. This correctly updates the value AND invalidates
+ * downstream computed signals (calls signalSetFn → producerIncrementEpoch →
+ * producerNotifyConsumers).
  */
 function setSignalInput<T>(comp: KanbanByStatusComponent, inputName: keyof KanbanByStatusComponent, value: T) {
   const inputSignal = comp[inputName] as unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const node = (inputSignal as any)[SIGNAL as symbol];
-  if (!node) throw new Error(`No signal node found for input '${String(inputName)}'`);
-  // applyValueToInputSignal calls signalSetFn internally, which:
-  //   1. Updates node.value
-  //   2. Calls producerIncrementEpoch() (global epoch++)
-  //   3. Calls producerNotifyConsumers(node)
+  if (!node) throw new Error(`No SIGNAL node found for input '${String(inputName)}'`);
   node.applyValueToInputSignal(node, value);
 }
 
@@ -52,20 +53,30 @@ function setSignalInput<T>(comp: KanbanByStatusComponent, inputName: keyof Kanba
 const PROJECT_A = {
   id: 1, title: 'Proyecto A', status: 'InSprint' as ProjectStatus,
   requestingUnit: 'TIC', complexity: 'Small' as ProjectComplexity,
-  promoterId: 3, tagIds: [1, 2],
+  promoterId: 3, tagIds: [1, 2] as number[],
 };
 const PROJECT_B = {
   id: 2, title: 'Proyecto B', status: 'Stopped' as ProjectStatus,
   requestingUnit: 'TIC', complexity: 'Medium' as ProjectComplexity,
-  promoterId: 4, tagIds: [3],
+  promoterId: 4, tagIds: [3] as number[],
 };
 const PROJECT_C = {
   id: 3, title: 'Proyecto C', status: 'InSprint' as ProjectStatus,
   requestingUnit: 'TIC', complexity: 'Large' as ProjectComplexity,
-  promoterId: null, tagIds: [],
+  promoterId: null, tagIds: [] as number[],
 };
+// Proyecto D: DTO SIN la propiedad tagIds — simula una respuesta de la API
+// en la que el campo no viene incluido (p.ej. endpoint antiguo o campo opcional).
+// La línea `(p.tagIds ?? [])` del componente debe tolerarlo sin lanzar excepción.
+const PROJECT_D_NO_TAGIDS = {
+  id: 4, title: 'Proyecto D', status: 'Stopped' as ProjectStatus,
+  requestingUnit: 'TIC', complexity: 'VerySmall' as ProjectComplexity,
+  promoterId: null,
+  // tagIds: intencionalmente ausente
+} as unknown as { id: number; title: string; status: ProjectStatus; requestingUnit: string; complexity: ProjectComplexity; promoterId: null; tagIds: number[] };
 
 const PORTFOLIO_RESPONSE = { projects: [PROJECT_A, PROJECT_B, PROJECT_C] };
+const PORTFOLIO_WITH_D = { projects: [PROJECT_A, PROJECT_B, PROJECT_C, PROJECT_D_NO_TAGIDS] };
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 
@@ -81,8 +92,8 @@ afterAll(() => {
   appRef.destroy();
 });
 
-function createComponent(): KanbanByStatusComponent {
-  const httpMock = { get: () => of(PORTFOLIO_RESPONSE) };
+function createComponent(portfolioResponse = PORTFOLIO_RESPONSE): KanbanByStatusComponent {
+  const httpMock = { get: () => of(portfolioResponse) };
   const routerMock = { navigate: () => {} };
 
   const inj = createEnvironmentInjector(
@@ -115,16 +126,12 @@ describe('KanbanByStatusComponent – carga inicial', () => {
 });
 
 describe('KanbanByStatusComponent – filterPromoterId reacciona como signal input', () => {
-  it('filtra por promotor sin recrear el componente (setInput)', () => {
+  it('filtra por promotor sin recrear el componente', () => {
     const comp = createComponent();
-
-    // Estado inicial: 3 proyectos
     expect(visibleProjects(comp)).toHaveLength(3);
 
-    // Cambiar el signal input y verificar que el computed reacciona
     setSignalInput(comp, 'filterPromoterId', 3);
 
-    // Solo el proyecto A tiene promoterId === 3
     const visible = visibleProjects(comp);
     expect(visible).toHaveLength(1);
     expect(visible[0].id).toBe(PROJECT_A.id);
@@ -143,7 +150,6 @@ describe('KanbanByStatusComponent – filterTagIds reacciona como signal input',
     const comp = createComponent();
     setSignalInput(comp, 'filterTagIds', [3]);
 
-    // Solo B tiene tagId 3
     const visible = visibleProjects(comp);
     expect(visible).toHaveLength(1);
     expect(visible[0].id).toBe(PROJECT_B.id);
@@ -155,11 +161,20 @@ describe('KanbanByStatusComponent – filterTagIds reacciona como signal input',
     expect(visibleProjects(comp)).toHaveLength(3);
   });
 
-  it('tagIds tolerante con proyectos sin tagIds ([] → vacío, sin excepción)', () => {
-    const comp = createComponent();
-    setSignalInput(comp, 'filterTagIds', [99]);
-    // Ningún proyecto tiene tagId 99
-    expect(visibleProjects(comp)).toHaveLength(0);
+  it('tagIds tolerante: proyecto SIN propiedad tagIds en el DTO no lanza excepción', () => {
+    // PROJECT_D_NO_TAGIDS no tiene la propiedad tagIds: prueba que (p.tagIds ?? [])
+    // impide un TypeError al hacer .some() o .includes() sobre undefined.
+    const comp = createComponent(PORTFOLIO_WITH_D); // 4 proyectos, uno sin tagIds
+
+    // Sin filtro activo: los 4 proyectos son visibles (incluido D sin tagIds)
+    expect(visibleProjects(comp)).toHaveLength(4);
+
+    // Con un tagId activo: D queda excluido (tagIds ?? [] → no tiene ninguno)
+    setSignalInput(comp, 'filterTagIds', [1]);
+    // Solo A tiene tagId 1
+    const visible = visibleProjects(comp);
+    expect(visible).toHaveLength(1);
+    expect(visible[0].id).toBe(PROJECT_A.id);
   });
 });
 
@@ -186,7 +201,7 @@ describe('KanbanByStatusComponent – filterComplexity reacciona como signal inp
 });
 
 describe('KanbanByStatusComponent – combinación de filtros cambia sin recrear el componente', () => {
-  it('primero filterPromoterId, luego filterTagIds: ambos se aplican a la vez', () => {
+  it('filterPromoterId y filterTagIds combinados: filtran correctamente', () => {
     const comp = createComponent();
 
     // Paso 1: filtrar por promotor 3 → solo A
@@ -194,7 +209,7 @@ describe('KanbanByStatusComponent – combinación de filtros cambia sin recrear
     expect(visibleProjects(comp)).toHaveLength(1);
     expect(visibleProjects(comp)[0].id).toBe(PROJECT_A.id);
 
-    // Paso 2: añadir filtro por tagId 3 (A tiene promoterId=3 pero NO tagId 3)
+    // Paso 2: añadir tagId 3 (A tiene promoterId=3 pero NO tagId 3)
     setSignalInput(comp, 'filterTagIds', [3]);
     expect(visibleProjects(comp)).toHaveLength(0);
 
