@@ -17,7 +17,9 @@ public record GetProjectsQuery(
     int[]? TagIds = null,
     int? PromoterId = null,
     int Page = 1,
-    int PageSize = 20) : IRequest<PagedResult<ProjectListDto>>;
+    int PageSize = 20,
+    string? SortBy = null,
+    string? SortDir = null) : IRequest<PagedResult<ProjectListDto>>;
 
 public record ProjectListDto(
     int Id,
@@ -32,7 +34,9 @@ public record ProjectListDto(
     int? PromoterId,
     string? PromoterName,
     int? BusinessValue,
-    List<TagDto> Tags);
+    List<TagDto> Tags,
+    int? OrganicUnitId,
+    string? OrganicUnitName);
 
 public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetProjectsQuery, PagedResult<ProjectListDto>>
 {
@@ -43,6 +47,7 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
 
         var query = db.Projects
             .Include(p => p.Promoter)
+            .Include(p => p.OrganicUnit)
             .Include(p => p.Tags)
             .AsQueryable();
 
@@ -73,7 +78,42 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
         if (request.PromoterId.HasValue)
             query = query.Where(p => p.PromoterId == request.PromoterId.Value);
 
-        var ordered = query.OrderByDescending(p => p.Id);
+        // Ordenación en servidor; los nulos siempre van al final.
+        // Desempate estable: Id descendente.
+        var sortDir = request.SortDir?.ToLower();
+        var descending = sortDir == "desc";
+
+        IOrderedQueryable<Project> ordered = (request.SortBy?.ToLower()) switch
+        {
+            "title" => descending
+                ? query.OrderBy(p => p.Title == null).ThenByDescending(p => p.Title == null ? null : p.Title.ToLower()).ThenByDescending(p => p.Id)
+                : query.OrderBy(p => p.Title == null).ThenBy(p => p.Title == null ? null : p.Title.ToLower()).ThenByDescending(p => p.Id),
+
+            "promoter" => descending
+                ? query.OrderBy(p => p.Promoter == null).ThenByDescending(p => p.Promoter == null ? null : p.Promoter.Name.ToLower()).ThenByDescending(p => p.Id)
+                : query.OrderBy(p => p.Promoter == null).ThenBy(p => p.Promoter == null ? null : p.Promoter.Name.ToLower()).ThenByDescending(p => p.Id),
+
+            "organicunit" => descending
+                ? query.OrderBy(p => p.OrganicUnit == null).ThenByDescending(p => p.OrganicUnit == null ? null : p.OrganicUnit.Name.ToLower()).ThenByDescending(p => p.Id)
+                : query.OrderBy(p => p.OrganicUnit == null).ThenBy(p => p.OrganicUnit == null ? null : p.OrganicUnit.Name.ToLower()).ThenByDescending(p => p.Id),
+
+            "complexity" => descending
+                ? query.OrderByDescending(p => p.Complexity == ProjectComplexity.VeryLarge ? 4
+                                             : p.Complexity == ProjectComplexity.Large ? 3
+                                             : p.Complexity == ProjectComplexity.Medium ? 2
+                                             : p.Complexity == ProjectComplexity.Small ? 1 : 0).ThenByDescending(p => p.Id)
+                : query.OrderBy(p => p.Complexity == ProjectComplexity.VeryLarge ? 4
+                                   : p.Complexity == ProjectComplexity.Large ? 3
+                                   : p.Complexity == ProjectComplexity.Medium ? 2
+                                   : p.Complexity == ProjectComplexity.Small ? 1 : 0).ThenByDescending(p => p.Id),
+
+            "portfolioyear" => descending
+                ? query.OrderBy(p => p.PortfolioYear == null).ThenByDescending(p => p.PortfolioYear).ThenByDescending(p => p.Id)
+                : query.OrderBy(p => p.PortfolioYear == null).ThenBy(p => p.PortfolioYear).ThenByDescending(p => p.Id),
+
+            _ => query.OrderByDescending(p => p.Id),
+        };
+
         var total = await ordered.CountAsync(cancellationToken);
 
         var items = await ordered
@@ -89,7 +129,8 @@ public sealed class GetProjectsHandler(IAppDbContext db) : IRequestHandler<GetPr
                 p.GroupPriority,
                 p.PromoterId, p.Promoter?.Name,
                 p.BusinessValue,
-                p.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList())).ToList(),
+                p.Tags.Select(t => new TagDto(t.Id, t.Name, t.Color)).ToList(),
+                p.OrganicUnitId, p.OrganicUnit?.Name)).ToList(),
             total, page, pageSize);
     }
 }
