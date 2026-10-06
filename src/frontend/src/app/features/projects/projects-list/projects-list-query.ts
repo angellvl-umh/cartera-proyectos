@@ -38,9 +38,19 @@ export interface ProjectsListParams {
 }
 
 /**
+ * Returns true only if the string represents a strict positive integer
+ * (digits only, no decimals, no garbage after the number like "3abc").
+ * parseInt('3abc') = 3 but /^\d+$/ rejects it.
+ */
+function isStrictPositiveInt(s: string): boolean {
+  return /^\d+$/.test(s) && parseInt(s, 10) > 0;
+}
+
+/**
  * Parse raw query params from ActivatedRoute.queryParamMap into a
  * typed, validated ProjectsListParams. Invalid values are silently ignored
- * (treated as the default).
+ * (treated as the default). Integer parameters (promoterId, page, pageSize,
+ * tagIds) only accept strings matching /^\d+$/ — "3abc" is treated as absent.
  */
 export function parseProjectsListParams(params: Params): ProjectsListParams {
   const q = typeof params['q'] === 'string' ? params['q'] : '';
@@ -64,22 +74,28 @@ export function parseProjectsListParams(params: Params): ProjectsListParams {
       ? [rawTagIds]
       : [];
   const tagIds = tagIdsRaw
-    .map(v => parseInt(String(v), 10))
-    .filter(n => !isNaN(n) && n > 0);
+    .filter(v => typeof v === 'string' && isStrictPositiveInt(v as string))
+    .map(v => parseInt(v as string, 10));
 
   const rawPromoterId = params['promoterId'];
-  const promoterIdNum = parseInt(String(rawPromoterId), 10);
   const promoterId: number | null =
-    rawPromoterId != null && !isNaN(promoterIdNum) && promoterIdNum > 0
-      ? promoterIdNum
+    typeof rawPromoterId === 'string' && isStrictPositiveInt(rawPromoterId)
+      ? parseInt(rawPromoterId, 10)
       : null;
 
-  const rawPage = parseInt(String(params['page']), 10);
-  const page = !isNaN(rawPage) && rawPage >= 1 ? rawPage : DEFAULT_PAGE;
+  const rawPage = params['page'];
+  const page: number =
+    typeof rawPage === 'string' && isStrictPositiveInt(rawPage)
+      ? parseInt(rawPage, 10)
+      : DEFAULT_PAGE;
 
-  const rawPageSize = parseInt(String(params['pageSize']), 10);
-  const pageSize = VALID_PAGE_SIZES.includes(rawPageSize as (typeof VALID_PAGE_SIZES)[number])
-    ? rawPageSize
+  const rawPageSize = params['pageSize'];
+  const parsedPageSize =
+    typeof rawPageSize === 'string' && isStrictPositiveInt(rawPageSize)
+      ? parseInt(rawPageSize, 10)
+      : -1;
+  const pageSize = VALID_PAGE_SIZES.includes(parsedPageSize as (typeof VALID_PAGE_SIZES)[number])
+    ? parsedPageSize
     : DEFAULT_PAGE_SIZE;
 
   const rawSortBy = params['sortBy'];

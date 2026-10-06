@@ -178,6 +178,33 @@ describe('parseProjectsListParams', () => {
     expect(result.tagIds).toEqual([]);
     expect(result.viewMode).toBe('tabla');
   });
+
+  // ── Fix #4: strict integer validation tests ───────────────────────────────────
+
+  it('promoterId=3abc is ignored (parseInt would return 3, strict validation rejects it)', () => {
+    const result = parseProjectsListParams({ promoterId: '3abc' });
+    expect(result.promoterId).toBeNull();
+  });
+
+  it('page=2.5 is ignored (strict validation rejects non-integer strings)', () => {
+    const result = parseProjectsListParams({ page: '2.5' });
+    expect(result.page).toBe(DEFAULT_PAGE);
+  });
+
+  it('pageSize=50x is ignored', () => {
+    const result = parseProjectsListParams({ pageSize: '50x' });
+    expect(result.pageSize).toBe(DEFAULT_PAGE_SIZE);
+  });
+
+  it('tagIds=1&tagIds=2x: keeps 1, discards 2x', () => {
+    const result = parseProjectsListParams({ tagIds: ['1', '2x'] });
+    expect(result.tagIds).toEqual([1]);
+  });
+
+  it('promoterId= (empty string) is ignored', () => {
+    const result = parseProjectsListParams({ promoterId: '' });
+    expect(result.promoterId).toBeNull();
+  });
 });
 
 // ── serializeProjectsListParams ───────────────────────────────────────────────
