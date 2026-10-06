@@ -20,8 +20,9 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import {
+  catchError,
   debounceTime,
-  distinctUntilChanged,
+  EMPTY,
   Subject,
   Subscription,
   switchMap,
@@ -43,6 +44,8 @@ import { ProjectFormComponent } from '../project-form/project-form.component';
 import { ComplexityIndicatorComponent } from '../complexity-indicator/complexity-indicator.component';
 import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.component';
 import {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
   parseProjectsListParams,
   serializeProjectsListParams,
   SortDir,
@@ -335,11 +338,27 @@ export class ProjectsListComponent implements OnInit, OnDestroy {
   sortDir = signal<SortDir>('asc');
   viewMode = signal<'tabla' | 'tablero'>('tabla');
 
-  // ── Fix #3: latest requested state (synchronous snapshot for navigate())
-  // navigate() reads THIS object instead of URL-derived signals to avoid the
-  // race condition where nzPageSizeChange + nzPageIndexChange fire synchronously
-  // and the second call reads the stale signal value (pageSize not yet applied).
-  private pendingState!: ListState;
+  // Fix #5: pendingState initialized with defaults (no ! assertion).
+  // Fix #3 (prev ronda): navigate() writes here synchronously to avoid the
+  // pageSize/pageIndex race condition.
+  private pendingState: ListState = {
+    q: '',
+    status: null,
+    complexity: null,
+    tagIds: [],
+    promoterId: null,
+    page: DEFAULT_PAGE,
+    pageSize: DEFAULT_PAGE_SIZE,
+    sortBy: null,
+    sortDir: 'asc',
+    viewMode: 'tabla',
+  };
+
+  // Fix #2: tracks the last q value that THIS component navigated to.
+  // inputQ is only synced from the URL when parsed.q differs from this value,
+  // which means the change came from outside (browser back/forward, external link)
+  // rather than from the user's own typing via onQChange.
+  private lastNavigatedQ = '';
 
   // ── sort order map for nz-table ──────────────────────────────────────────────
   readonly sortOrders = computed<SortOrderMap>(() => {
@@ -385,29 +404,36 @@ export class ProjectsListComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Debounce pipeline: each keystroke goes through qSubject; after 300ms of
     // silence we navigate (replaceUrl=true so no extra history entry per char).
+    // Fix #3: no distinctUntilChanged — if the user types "ab", presses Back
+    // (q="") and retypes "ab", distinctUntilChanged would swallow the second
+    // emission. Instead, compare with pendingState.q inside the subscribe.
     this.subs.add(
-      this.qSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(q => {
+      this.qSubject.pipe(debounceTime(300)).subscribe(q => {
+        if (q === this.pendingState.q) return; // same as current state, skip
+        this.lastNavigatedQ = q;
         this.navigateWith({ ...this.pendingState, q, page: 1 }, true);
       }),
     );
 
-    // switchMap pipeline: cancels previous HTTP request on new load trigger.
+    // Fix #1: catchError INSIDE switchMap so a single HTTP error doesn't close
+    // the outer subscription. EMPTY completes the inner observable cleanly and
+    // lets subsequent loadSubject emissions create a new inner observable.
     this.subs.add(
       this.loadSubject.pipe(
         switchMap(filters => {
           this.loading.set(true);
-          return this.service.getProjects(filters);
+          return this.service.getProjects(filters).pipe(
+            catchError(() => {
+              this.loading.set(false);
+              this.message.error('Error al cargar los proyectos');
+              return EMPTY;
+            }),
+          );
         }),
-      ).subscribe({
-        next: result => {
-          this.projects.set(result.items);
-          this.total.set(result.total);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.message.error('Error al cargar los proyectos');
-        },
+      ).subscribe(result => {
+        this.projects.set(result.items);
+        this.total.set(result.total);
+        this.loading.set(false);
       }),
     );
 
@@ -423,11 +449,15 @@ export class ProjectsListComponent implements OnInit, OnDestroy {
 
         const parsed = parseProjectsListParams(params);
 
-        // Fix #2: only sync inputQ from URL when the URL's q differs from the
-        // current inputQ (e.g. browser back navigation changes q externally).
-        // This prevents the URL from clobbering the user's half-typed text.
-        if (parsed.q !== this.filterQ()) {
+        // Fix #2: only sync inputQ when the URL's q differs from the last q
+        // that THIS component navigated to. If parsed.q equals lastNavigatedQ,
+        // the change was triggered by the user's own typing (debounce → navigate),
+        // so we must NOT overwrite inputQ (which may be ahead of the debounced value).
+        // If they differ, it's an external navigation (browser back/forward, direct URL)
+        // and we must sync the input.
+        if (parsed.q !== this.lastNavigatedQ) {
           this.inputQ.set(parsed.q);
+          this.lastNavigatedQ = parsed.q;
         }
 
         this.filterQ.set(parsed.q);
