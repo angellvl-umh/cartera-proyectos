@@ -48,6 +48,8 @@ export class ProjectsService {
       }
     }
     if (filters?.promoterId) params = params.set('promoterId', filters.promoterId.toString());
+    if (filters?.sortBy) params = params.set('sortBy', filters.sortBy);
+    if (filters?.sortDir) params = params.set('sortDir', filters.sortDir);
     return this.http.get<PagedResult<Project>>(this.base, { params });
   }
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -19,6 +19,8 @@ interface PortfolioProjectDto {
   complexity: ProjectComplexity;
   portfolioYear?: number;
   primaryTeamName?: string;
+  promoterId?: number | null;
+  tagIds: number[];
 }
 
 interface PortfolioDto {
@@ -84,9 +86,10 @@ export class KanbanByStatusComponent {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
 
-  @Input() filterQ = '';
-  @Input() filterComplexity: ProjectComplexity | null = null;
-  @Input() filterTagIds: number[] = [];
+  readonly filterQ = input('');
+  readonly filterComplexity = input<ProjectComplexity | null>(null);
+  readonly filterTagIds = input<number[]>([]);
+  readonly filterPromoterId = input<number | null>(null);
 
   readonly statusOrder = STATUS_COLUMN_ORDER;
   readonly statusLabels = PROJECT_STATUS_LABELS;
@@ -97,10 +100,13 @@ export class KanbanByStatusComponent {
 
   private readonly filteredProjects = computed(() => {
     const all = this.portfolio()?.projects ?? [];
-    const q = this.filterQ.trim().toLowerCase();
+    const q = this.filterQ().trim().toLowerCase();
+    const filterTagIds = this.filterTagIds();
     return all.filter(p => {
       if (q && !p.title.toLowerCase().includes(q)) return false;
-      if (this.filterComplexity && p.complexity !== this.filterComplexity) return false;
+      if (this.filterComplexity() && p.complexity !== this.filterComplexity()) return false;
+      if (this.filterPromoterId() != null && p.promoterId !== this.filterPromoterId()) return false;
+      if (filterTagIds.length > 0 && !(p.tagIds ?? []).some(id => filterTagIds.includes(id))) return false;
       return true;
     });
   });

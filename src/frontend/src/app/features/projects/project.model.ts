@@ -137,6 +137,8 @@ export interface Project {
   estimatedBudget: number | null;
   businessValue: number | null;
   tags: TagDto[];
+  organicUnitId: number | null;
+  organicUnitName: string | null;
 }
 
 export interface ProjectTeam {
@@ -261,6 +263,8 @@ export interface ProjectFilters {
   promoterId?: number;
   page?: number;
   pageSize?: number;
+  sortBy?: string;
+  sortDir?: string;
 }
 
 export interface Team {
