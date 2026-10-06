@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
@@ -18,6 +19,13 @@ import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTagModule } from 'ng-zorro-antd/tag';
+import {
+  debounceTime,
+  distinctUntilChanged,
+  Subject,
+  Subscription,
+  switchMap,
+} from 'rxjs';
 import { ProjectsService } from '../projects.service';
 import {
   PROJECT_COMPLEXITY_LABELS,
@@ -25,6 +33,7 @@ import {
   Project,
   ProjectComplexity,
   ProjectDetail,
+  ProjectFilters,
   ProjectStatus,
   PromoterDto,
   TagDto,
@@ -36,11 +45,25 @@ import { KanbanByStatusComponent } from '../kanban-by-status/kanban-by-status.co
 import {
   parseProjectsListParams,
   serializeProjectsListParams,
-  SortField,
   SortDir,
+  SortField,
 } from './projects-list-query';
 
 type SortOrderMap = Partial<Record<SortField, NzTableSortOrder>>;
+
+/** Current UI state, kept in sync with the URL. */
+interface ListState {
+  q: string;
+  status: ProjectStatus | null;
+  complexity: ProjectComplexity | null;
+  tagIds: number[];
+  promoterId: number | null;
+  page: number;
+  pageSize: number;
+  sortBy: SortField | null;
+  sortDir: SortDir;
+  viewMode: 'tabla' | 'tablero';
+}
 
 @Component({
   selector: 'app-projects-list',
@@ -90,10 +113,12 @@ type SortOrderMap = Partial<Record<SortField, NzTableSortOrder>>;
 
       <!-- Filtros -->
       <div class="toolbar">
+        <!-- inputQ es local: el usuario escribe libremente sin que la URL lo
+             reescriba en cada pulsación; el valor se propaga con debounce. -->
         <input
           nz-input
           placeholder="Buscar por título..."
-          [ngModel]="filterQ()"
+          [ngModel]="inputQ()"
           (ngModelChange)="onQChange($event)"
           style="width: 240px"
         />
@@ -291,14 +316,15 @@ type SortOrderMap = Partial<Record<SortField, NzTableSortOrder>>;
     />
   `,
 })
-export class ProjectsListComponent implements OnInit {
+export class ProjectsListComponent implements OnInit, OnDestroy {
   private readonly service = inject(ProjectsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly message = inject(NzMessageService);
 
   // ── filter state (driven from URL) ──────────────────────────────────────────
-  filterQ = signal('');
+  filterQ = signal('');          // valor aplicado (desde URL)
+  inputQ = signal('');           // valor local del campo de texto (no se reescribe por la URL mientras el usuario escribe)
   filterStatus = signal<ProjectStatus | null>(null);
   filterComplexity = signal<ProjectComplexity | null>(null);
   filterTagIds = signal<number[]>([]);
@@ -308,6 +334,12 @@ export class ProjectsListComponent implements OnInit {
   sortBy = signal<SortField | null>(null);
   sortDir = signal<SortDir>('asc');
   viewMode = signal<'tabla' | 'tablero'>('tabla');
+
+  // ── Fix #3: latest requested state (synchronous snapshot for navigate())
+  // navigate() reads THIS object instead of URL-derived signals to avoid the
+  // race condition where nzPageSizeChange + nzPageIndexChange fire synchronously
+  // and the second call reads the stale signal value (pageSize not yet applied).
+  private pendingState!: ListState;
 
   // ── sort order map for nz-table ──────────────────────────────────────────────
   readonly sortOrders = computed<SortOrderMap>(() => {
@@ -333,6 +365,12 @@ export class ProjectsListComponent implements OnInit {
     value: v, label: PROJECT_COMPLEXITY_LABELS[v],
   }));
 
+  // ── Fix #2: debounce pipeline for text search ────────────────────────────────
+  private readonly qSubject = new Subject<string>();
+  // switchMap for HTTP: cancels the previous request when a new one arrives
+  private readonly loadSubject = new Subject<ProjectFilters>();
+  private readonly subs = new Subscription();
+
   constructor() {
     this.service.getTags().subscribe({
       next: tags => this.allTags.set(tags),
@@ -345,79 +383,115 @@ export class ProjectsListComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Debounce pipeline: each keystroke goes through qSubject; after 300ms of
+    // silence we navigate (replaceUrl=true so no extra history entry per char).
+    this.subs.add(
+      this.qSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(q => {
+        this.navigateWith({ ...this.pendingState, q, page: 1 }, true);
+      }),
+    );
+
+    // switchMap pipeline: cancels previous HTTP request on new load trigger.
+    this.subs.add(
+      this.loadSubject.pipe(
+        switchMap(filters => {
+          this.loading.set(true);
+          return this.service.getProjects(filters);
+        }),
+      ).subscribe({
+        next: result => {
+          this.projects.set(result.items);
+          this.total.set(result.total);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.message.error('Error al cargar los proyectos');
+        },
+      }),
+    );
+
     // The URL is the source of truth. Subscribe to queryParamMap; parse and
     // load on every change (which includes browser back/forward).
-    this.route.queryParamMap.subscribe(paramMap => {
-      // Convert ParamMap to plain object with multi-value support for tagIds
-      const params: Record<string, string | string[]> = {};
-      for (const key of paramMap.keys) {
-        const all = paramMap.getAll(key);
-        params[key] = all.length === 1 ? all[0] : all;
-      }
+    this.subs.add(
+      this.route.queryParamMap.subscribe(paramMap => {
+        const params: Record<string, string | string[]> = {};
+        for (const key of paramMap.keys) {
+          const all = paramMap.getAll(key);
+          params[key] = all.length === 1 ? all[0] : all;
+        }
 
-      const parsed = parseProjectsListParams(params);
-      this.filterQ.set(parsed.q);
-      this.filterStatus.set(parsed.status);
-      this.filterComplexity.set(parsed.complexity);
-      this.filterTagIds.set(parsed.tagIds);
-      this.filterPromoterId.set(parsed.promoterId);
-      this.currentPage.set(parsed.page);
-      this.pageSize.set(parsed.pageSize);
-      this.sortBy.set(parsed.sortBy);
-      this.sortDir.set(parsed.sortDir);
-      this.viewMode.set(parsed.viewMode);
-      this.loadProjects();
-    });
+        const parsed = parseProjectsListParams(params);
+
+        // Fix #2: only sync inputQ from URL when the URL's q differs from the
+        // current inputQ (e.g. browser back navigation changes q externally).
+        // This prevents the URL from clobbering the user's half-typed text.
+        if (parsed.q !== this.filterQ()) {
+          this.inputQ.set(parsed.q);
+        }
+
+        this.filterQ.set(parsed.q);
+        this.filterStatus.set(parsed.status);
+        this.filterComplexity.set(parsed.complexity);
+        this.filterTagIds.set(parsed.tagIds);
+        this.filterPromoterId.set(parsed.promoterId);
+        this.currentPage.set(parsed.page);
+        this.pageSize.set(parsed.pageSize);
+        this.sortBy.set(parsed.sortBy);
+        this.sortDir.set(parsed.sortDir);
+        this.viewMode.set(parsed.viewMode);
+
+        // Snapshot for Fix #3: always keep pendingState in sync with the URL.
+        this.pendingState = {
+          q: parsed.q,
+          status: parsed.status,
+          complexity: parsed.complexity,
+          tagIds: parsed.tagIds,
+          promoterId: parsed.promoterId,
+          page: parsed.page,
+          pageSize: parsed.pageSize,
+          sortBy: parsed.sortBy,
+          sortDir: parsed.sortDir,
+          viewMode: parsed.viewMode,
+        };
+
+        this.loadProjects();
+      }),
+    );
   }
 
-  private buildFilters() {
+  ngOnDestroy(): void {
+    this.subs.unsubscribe();
+  }
+
+  private buildFilters(state: ListState): ProjectFilters {
     return {
-      page: this.currentPage(),
-      pageSize: this.pageSize(),
-      q: this.filterQ() || undefined,
-      status: this.filterStatus() ?? undefined,
-      complexity: this.filterComplexity() ?? undefined,
-      tagIds: this.filterTagIds().length ? this.filterTagIds() : undefined,
-      promoterId: this.filterPromoterId() ?? undefined,
-      sortBy: this.sortBy() ?? undefined,
-      sortDir: this.sortBy() ? this.sortDir() : undefined,
+      page: state.page,
+      pageSize: state.pageSize,
+      q: state.q || undefined,
+      status: state.status ?? undefined,
+      complexity: state.complexity ?? undefined,
+      tagIds: state.tagIds.length ? state.tagIds : undefined,
+      promoterId: state.promoterId ?? undefined,
+      sortBy: state.sortBy ?? undefined,
+      sortDir: state.sortBy ? state.sortDir : undefined,
     };
   }
 
   private loadProjects(): void {
     if (this.viewMode() !== 'tabla') return;
-    this.loading.set(true);
-    this.service.getProjects(this.buildFilters()).subscribe({
-      next: result => {
-        this.projects.set(result.items);
-        this.total.set(result.total);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.message.error('Error al cargar los proyectos');
-      },
-    });
+    this.loadSubject.next(this.buildFilters(this.pendingState));
   }
 
-  private navigate(overrides: Partial<{
-    q: string; status: ProjectStatus | null; complexity: ProjectComplexity | null;
-    tagIds: number[]; promoterId: number | null; page: number; pageSize: number;
-    sortBy: SortField | null; sortDir: SortDir; viewMode: 'tabla' | 'tablero';
-  }>, replaceUrl = false): void {
-    const params = serializeProjectsListParams({
-      q: this.filterQ(),
-      status: this.filterStatus(),
-      complexity: this.filterComplexity(),
-      tagIds: this.filterTagIds(),
-      promoterId: this.filterPromoterId(),
-      page: this.currentPage(),
-      pageSize: this.pageSize(),
-      sortBy: this.sortBy(),
-      sortDir: this.sortDir(),
-      viewMode: this.viewMode(),
-      ...overrides,
-    });
+  /**
+   * Fix #3: navigate() writes overrides into `pendingState` SYNCHRONOUSLY
+   * before calling router.navigate, so any subsequent synchronous call (e.g.
+   * nzPageIndexChange fired right after nzPageSizeChange) reads the already-
+   * updated state instead of stale signal values.
+   */
+  private navigateWith(state: ListState, replaceUrl = false): void {
+    this.pendingState = { ...state };
+    const params = serializeProjectsListParams(state);
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: params,
@@ -425,15 +499,21 @@ export class ProjectsListComponent implements OnInit {
     });
   }
 
+  private navigate(overrides: Partial<ListState>, replaceUrl = false): void {
+    this.navigateWith({ ...this.pendingState, ...overrides }, replaceUrl);
+  }
+
   // ── filter change handlers ────────────────────────────────────────────────────
 
   onQChange(q: string): void {
-    // Text search: replace URL (no browser-history entry per keystroke)
-    this.navigate({ q, page: 1 }, true);
+    // Fix #2: keep local input signal up to date immediately (no URL rewrite),
+    // but debounce the actual navigation (and thus the HTTP request).
+    this.inputQ.set(q);
+    this.qSubject.next(q);
   }
 
   onFilterChange(field: 'status' | 'complexity' | 'tagIds' | 'promoterId', value: unknown): void {
-    const overrides: Parameters<typeof this.navigate>[0] = { page: 1 };
+    const overrides: Partial<ListState> = { page: 1 };
     if (field === 'status') overrides.status = (value as ProjectStatus | null) ?? null;
     if (field === 'complexity') overrides.complexity = (value as ProjectComplexity | null) ?? null;
     if (field === 'tagIds') overrides.tagIds = (value as number[]) ?? [];
@@ -446,6 +526,8 @@ export class ProjectsListComponent implements OnInit {
   }
 
   onPageSizeChange(size: number): void {
+    // Fix #3: write pageSize synchronously into pendingState BEFORE any
+    // subsequent nzPageIndexChange fires (which would otherwise read the old value).
     this.navigate({ pageSize: size, page: 1 });
   }
 
